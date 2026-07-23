@@ -1,5 +1,6 @@
 import { Suspense, lazy } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 
 const LazyPlatformComponentsPage = lazy(() =>
   import('@/pages/platform-components/PlatformComponentsPage').then(module => ({
@@ -8,10 +9,13 @@ const LazyPlatformComponentsPage = lazy(() =>
 )
 
 function PlatformComponentsRoutePage() {
+  const { t } = useTranslation('common')
   return (
     <Suspense
       fallback={
-        <div className="p-6 text-sm text-muted-foreground">Loading Platform Components...</div>
+        <div className="p-6 text-sm text-muted-foreground">
+          {t('loadingPage', { page: t('pages.platformComponents') })}
+        </div>
       }
     >
       <LazyPlatformComponentsPage />

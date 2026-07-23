@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { Link } from '@tanstack/react-router'
 import { ChevronRight, List, RefreshCw } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { useOptionalLayout } from '@/contexts/LayoutContext'
@@ -32,6 +33,7 @@ export function ActionDetailPage({
   actionId: string
   search?: ActionDetailSearch
 }) {
+  const { t } = useTranslation('deploy')
   const backSearch = buildActionListSearch(search)
   const layout = useOptionalLayout()
   const setHeaderRightStartContent = layout?.setHeaderRightStartContent
@@ -63,10 +65,10 @@ export function ActionDetailPage({
         params={{} as never}
         search={(backSearch ?? {}) as never}
         className="inline-flex min-w-0 items-center gap-1.5 truncate transition-colors hover:text-foreground"
-      >
-        <List className="h-4 w-4 shrink-0" />
-        <span className="truncate">Activity</span>
-      </Link>
+        >
+          <List className="h-4 w-4 shrink-0" />
+          <span className="truncate">{t('pages.activity', { defaultValue: 'Activity' })}</span>
+        </Link>
       <ChevronRight className="h-3.5 w-3.5 shrink-0" />
       {appId ? (
         <Link
@@ -94,13 +96,18 @@ export function ActionDetailPage({
       <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
         <div className="space-y-1">
           {!setHeaderRightStartContent ? breadcrumb : null}
-          <h1 className="text-2xl font-bold">Execution Detail: {appName}</h1>
+          <h1 className="text-2xl font-bold">
+            {t('detail.title', {
+              defaultValue: 'Execution Detail: {{name}}',
+              name: appName,
+            })}
+          </h1>
         </div>
         <Button
           variant="outline"
           size="icon"
-          title="Refresh"
-          aria-label="Refresh"
+          title={t('page.refresh', { defaultValue: 'Refresh' })}
+          aria-label={t('page.refresh', { defaultValue: 'Refresh' })}
           onClick={() => void refresh()}
         >
           <RefreshCw className="h-4 w-4" />

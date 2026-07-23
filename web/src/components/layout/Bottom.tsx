@@ -8,6 +8,7 @@ import {
   ChevronUp,
   ChevronDown,
 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useLayout } from '@/contexts/LayoutContext'
@@ -21,6 +22,7 @@ interface BottomProps {
 }
 
 export function Bottom({ connected = true, notificationCount = 0 }: BottomProps) {
+  const { t } = useTranslation('navigation')
   const { bottomExpanded, toggleBottom, setBottomExpanded } = useLayout()
 
   return (
@@ -39,12 +41,12 @@ export function Bottom({ connected = true, notificationCount = 0 }: BottomProps)
           {connected ? (
             <>
               <CircleCheck className="h-3.5 w-3.5 text-green-500" />
-              <span>Connected</span>
+              <span>{t('shell.connected')}</span>
             </>
           ) : (
             <>
               <CircleAlert className="h-3.5 w-3.5 text-destructive" />
-              <span>Disconnected</span>
+              <span>{t('shell.disconnected')}</span>
             </>
           )}
         </div>
@@ -53,7 +55,9 @@ export function Bottom({ connected = true, notificationCount = 0 }: BottomProps)
         <button
           className="flex items-center gap-1.5 hover:text-foreground transition-colors"
           onClick={toggleBottom}
-          aria-label={bottomExpanded ? 'Collapse notifications' : 'Expand notifications'}
+          aria-label={
+            bottomExpanded ? t('shell.collapseNotifications') : t('shell.expandNotifications')
+          }
           aria-expanded={bottomExpanded}
         >
           <Bell className="h-3.5 w-3.5" />
@@ -72,13 +76,18 @@ export function Bottom({ connected = true, notificationCount = 0 }: BottomProps)
               href="https://www.websoft9.com/docs"
               target="_blank"
               rel="noopener noreferrer"
-              aria-label="Documentation"
+              aria-label={t('shell.documentation')}
             >
               <BookOpen className="h-3.5 w-3.5" />
             </a>
           </Button>
           <Button variant="ghost" size="icon" className="h-6 w-6" asChild>
-            <a href="/openapi" target="_blank" rel="noopener noreferrer" aria-label="API Reference">
+            <a
+              href="/openapi"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={t('shell.apiReference')}
+            >
               <Plug className="h-3.5 w-3.5" />
             </a>
           </Button>
@@ -87,7 +96,7 @@ export function Bottom({ connected = true, notificationCount = 0 }: BottomProps)
               href="https://www.websoft9.com/docs/faq"
               target="_blank"
               rel="noopener noreferrer"
-              aria-label="Help"
+              aria-label={t('shell.help')}
             >
               <HelpCircle className="h-3.5 w-3.5" />
             </a>
@@ -102,17 +111,17 @@ export function Bottom({ connected = true, notificationCount = 0 }: BottomProps)
           style={{ height: 'calc(var(--bottom-height-expanded) - var(--bottom-height))' }}
         >
           <div className="flex items-center justify-between mb-2">
-            <span className="font-medium text-foreground">Notifications</span>
+            <span className="font-medium text-foreground">{t('shell.notifications')}</span>
             <Button
               variant="ghost"
               size="sm"
               className="h-6 text-xs"
               onClick={() => setBottomExpanded(false)}
             >
-              Close
+              {t('common:close')}
             </Button>
           </div>
-          <p className="text-muted-foreground text-xs">No notifications</p>
+          <p className="text-muted-foreground text-xs">{t('shell.noNotifications')}</p>
         </div>
       )}
     </footer>

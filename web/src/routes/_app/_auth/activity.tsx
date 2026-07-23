@@ -1,5 +1,6 @@
 import { Suspense, lazy } from 'react'
 import { Outlet, createFileRoute, useLocation } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 import type { ActionListSearch, SortDir, SortField } from '@/pages/deploy/actions/action-types'
 
 const LazyDeployPage = lazy(() =>
@@ -45,13 +46,18 @@ function parseCsv(value: unknown): string | undefined {
 }
 
 function ActivityRoutePage() {
+  const { t } = useTranslation('common')
   const location = useLocation()
   const search = Route.useSearch()
   const isListRoute = location.pathname === '/activity' || location.pathname === '/activity/'
 
   return (
     <Suspense
-      fallback={<div className="p-6 text-sm text-muted-foreground">Loading Activity...</div>}
+      fallback={
+        <div className="p-6 text-sm text-muted-foreground">
+          {t('loadingPage', { page: t('pages.activity') })}
+        </div>
+      }
     >
       {isListRoute ? <LazyDeployPage view="list" listSearch={search} /> : <Outlet />}
     </Suspense>

@@ -1,5 +1,6 @@
 import { type FormEvent, Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 import {
   ArrowDown,
   ArrowUp,
@@ -139,17 +140,18 @@ function SortableHeader({
 // ─── Detail Row ──────────────────────────────────────────
 
 function DetailRow({ vars, colSpan }: { vars: EnvSetVar[]; colSpan: number }) {
+  const { t } = useTranslation('sharedEnvs')
   return (
     <TableRow>
       <TableCell colSpan={colSpan} className="bg-muted/30 py-3 px-6">
         {vars.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No variables in this set.</p>
+          <p className="text-sm text-muted-foreground">{t('detailRow.empty')}</p>
         ) : (
           <div className="space-y-1.5">
             <div className="grid grid-cols-[180px_1fr_80px] gap-x-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">
-              <span>Key</span>
-              <span>Value</span>
-              <span>Type</span>
+              <span>{t('detailRow.key')}</span>
+              <span>{t('detailRow.value')}</span>
+              <span>{t('detailRow.type')}</span>
             </div>
             {vars.map(v => (
               <div
@@ -161,11 +163,11 @@ function DetailRow({ vars, colSpan }: { vars: EnvSetVar[]; colSpan: number }) {
                 <span>
                   {v.is_secret ? (
                     <Badge variant="secondary" className="text-xs">
-                      Secret
+                      {t('detailRow.secret')}
                     </Badge>
                   ) : (
                     <Badge variant="outline" className="text-xs">
-                      Plain
+                      {t('detailRow.plain')}
                     </Badge>
                   )}
                 </span>
@@ -181,6 +183,7 @@ function DetailRow({ vars, colSpan }: { vars: EnvSetVar[]; colSpan: number }) {
 // ─── Page ────────────────────────────────────────────────
 
 function SharedEnvsPage() {
+  const { t } = useTranslation('sharedEnvs')
   const [allItems, setAllItems] = useState<EnvSet[]>([])
   const [allVars, setAllVars] = useState<EnvSetVar[]>([])
   const [loading, setLoading] = useState(true)
@@ -250,7 +253,7 @@ function SharedEnvsPage() {
       setAllItems(items as unknown as EnvSet[])
       setAllVars(vars as unknown as EnvSetVar[])
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load')
+      setError(err instanceof Error ? err.message : t('errors.load'))
     } finally {
       setLoading(false)
     }
@@ -310,7 +313,7 @@ function SharedEnvsPage() {
       )
       setDialogOpen(true)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load env set')
+      setError(err instanceof Error ? err.message : t('errors.loadSet'))
     }
   }
 
@@ -334,7 +337,7 @@ function SharedEnvsPage() {
     // Validate: secret vars must have either a selected secret or a typed value
     const invalid = formVars.find(v => v.is_secret && !v.secret && !v.secretValue.trim())
     if (invalid) {
-      setFormError(`Variable "${invalid.key || '(unnamed)'}": secret value is required.`)
+      setFormError(t('errors.secretRequired', { name: invalid.key || '(unnamed)' }))
       return
     }
 
@@ -407,7 +410,7 @@ function SharedEnvsPage() {
       setDialogOpen(false)
       await fetchAll()
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : 'Save failed')
+      setFormError(err instanceof Error ? err.message : t('errors.save'))
     } finally {
       setSaving(false)
     }
@@ -422,7 +425,7 @@ function SharedEnvsPage() {
       setDeleteTarget(null)
       await fetchAll()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Delete failed')
+      setError(err instanceof Error ? err.message : t('errors.delete'))
       setDeleteTarget(null)
     }
   }
@@ -436,16 +439,16 @@ function SharedEnvsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="space-y-2">
-          <h1 className="text-2xl font-bold tracking-tight">Shared Envs</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{t('title')}</h1>
           <p className="text-muted-foreground mt-1">
-            Reusable environment variable sets for apps and workflows.
+            {t('description')}
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" title="Refresh" onClick={() => void fetchAll()}>
+          <Button variant="outline" size="icon" title={t('refresh')} onClick={() => void fetchAll()}>
             <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
           </Button>
-          <Button onClick={openCreate}>New Env Set</Button>
+          <Button onClick={openCreate}>{t('new')}</Button>
         </div>
       </div>
 
@@ -456,7 +459,7 @@ function SharedEnvsPage() {
         <div className="relative max-w-sm">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search sets or variables..."
+            placeholder={t('searchPlaceholder')}
             className="pl-9"
             value={search}
             onChange={e => setSearch(e.target.value)}
@@ -467,14 +470,14 @@ function SharedEnvsPage() {
       {/* Table */}
       {loading ? null : filteredItems.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-md border py-12 text-center">
-          <p className="text-muted-foreground">No shared envs found.</p>
+          <p className="text-muted-foreground">{t('empty.none')}</p>
           {allItems.length > 0 ? (
             <button
               type="button"
               className="mt-2 text-sm text-primary hover:underline"
               onClick={() => setSearch('')}
             >
-              Clear filters
+              {t('empty.clear')}
             </button>
           ) : (
             <button
@@ -482,7 +485,7 @@ function SharedEnvsPage() {
               className="mt-2 text-sm text-primary hover:underline"
               onClick={openCreate}
             >
-              Create your first one
+              {t('empty.createFirst')}
             </button>
           )}
         </div>
@@ -492,7 +495,7 @@ function SharedEnvsPage() {
             <TableRow>
               <TableHead>
                 <SortableHeader
-                  label="Name"
+                  label={t('table.name')}
                   field="name"
                   current={sortField}
                   dir={sortDir}
@@ -500,11 +503,11 @@ function SharedEnvsPage() {
                   withDisclosureHint
                 />
               </TableHead>
-              <TableHead>Description</TableHead>
-              <TableHead>Variables</TableHead>
+              <TableHead>{t('table.description')}</TableHead>
+              <TableHead>{t('table.variables')}</TableHead>
               <TableHead>
                 <SortableHeader
-                  label="Created"
+                   label={t('table.created')}
                   field="created"
                   current={sortField}
                   dir={sortDir}
@@ -535,11 +538,11 @@ function SharedEnvsPage() {
                       </span>
                     </TableCell>
                     <TableCell className="text-muted-foreground">
-                      {item.description || '—'}
+                      {item.description || '\u2014'}
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline">
-                        {vars.length} var{vars.length !== 1 ? 's' : ''}
+                        {t('table.varCount', { count: vars.length })}
                       </Badge>
                     </TableCell>
                     <TableCell>{formatDate(item.created)}</TableCell>
@@ -548,18 +551,18 @@ function SharedEnvsPage() {
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="icon" className="h-8 w-8">
                             <MoreVertical className="h-4 w-4" />
-                            <span className="sr-only">Actions</span>
+                            <span className="sr-only">{t('srOnlyActions')}</span>
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem onClick={() => void openEdit(item)}>
                             <Pencil className="h-4 w-4" />
-                            Edit
+                            {t('edit')}
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           {vars.length > 0 ? (
                             <DropdownMenuItem disabled className="text-xs">
-                              Remove {vars.length} variable{vars.length !== 1 ? 's' : ''} first
+                              {t('removeVarsFirst', { count: vars.length })}
                             </DropdownMenuItem>
                           ) : (
                             <DropdownMenuItem
@@ -567,7 +570,7 @@ function SharedEnvsPage() {
                               onClick={() => setDeleteTarget({ id: item.id, name: item.name })}
                             >
                               <Trash2 className="h-4 w-4" />
-                              Delete
+                               {t('delete')}
                             </DropdownMenuItem>
                           )}
                         </DropdownMenuContent>
@@ -586,46 +589,46 @@ function SharedEnvsPage() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editingId ? 'Edit Env Set' : 'New Env Set'}</DialogTitle>
+            <DialogTitle>{editingId ? t('dialog.editTitle') : t('dialog.newTitle')}</DialogTitle>
             <DialogDescription>
-              Define a named set of environment variables that can be shared across apps.
+              {t('dialog.description')}
             </DialogDescription>
           </DialogHeader>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label>
-                Name <span className="text-destructive">*</span>
+                {t('dialog.name')} <span className="text-destructive">*</span>
               </Label>
               <Input
                 value={name}
                 onChange={e => setName(e.target.value)}
-                placeholder="staging-env"
+                placeholder={t('dialog.namePlaceholder')}
                 required
               />
             </div>
 
             <div className="space-y-2">
-              <Label>Description</Label>
+              <Label>{t('dialog.descriptionLabel')}</Label>
               <Input
                 value={description}
                 onChange={e => setDescription(e.target.value)}
-                placeholder="Optional description"
+                placeholder={t('dialog.descriptionPlaceholder')}
               />
             </div>
 
             {/* Variables editor */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label>Variables</Label>
-                <Button type="button" variant="outline" size="sm" onClick={addVar}>
-                  <Plus className="h-3 w-3 mr-1" /> Add variable
-                </Button>
+                 <Label>{t('dialog.variables')}</Label>
+                 <Button type="button" variant="outline" size="sm" onClick={addVar}>
+                   <Plus className="h-3 w-3 mr-1" /> {t('dialog.addVariable')}
+                 </Button>
               </div>
 
               {formVars.length === 0 && (
                 <p className="text-sm text-muted-foreground py-2">
-                  No variables yet. Click &ldquo;Add variable&rdquo; to start.
+                  {t('dialog.noVariables')}
                 </p>
               )}
 
@@ -653,7 +656,7 @@ function SharedEnvsPage() {
                               value={v.secret}
                               onChange={e => updateVar(i, { secret: e.target.value })}
                             >
-                              <option value="">Select secret…</option>
+                               <option value="">{t('dialog.selectSecret')}</option>
                               {secrets.map(s => (
                                 <option key={s.id} value={s.id}>
                                   {s.name}
@@ -665,7 +668,7 @@ function SharedEnvsPage() {
                               className="text-xs text-primary hover:underline whitespace-nowrap"
                               onClick={() => updateVar(i, { secretMode: 'create', secret: '' })}
                             >
-                              or type
+                               {t('dialog.orType')}
                             </button>
                           </div>
                         ) : (
@@ -674,7 +677,7 @@ function SharedEnvsPage() {
                               type="password"
                               value={v.secretValue}
                               onChange={e => updateVar(i, { secretValue: e.target.value })}
-                              placeholder="Secret value (auto-creates)"
+                               placeholder={t('dialog.secretValuePlaceholder')}
                             />
                             <button
                               type="button"
@@ -683,7 +686,7 @@ function SharedEnvsPage() {
                                 updateVar(i, { secretMode: 'select', secretValue: '' })
                               }
                             >
-                              or select
+                               {t('dialog.orSelect')}
                             </button>
                           </div>
                         )
@@ -691,7 +694,7 @@ function SharedEnvsPage() {
                         <Input
                           value={v.value}
                           onChange={e => updateVar(i, { value: e.target.value })}
-                          placeholder="value"
+                           placeholder={t('dialog.valuePlaceholder')}
                         />
                       )}
 
@@ -711,7 +714,7 @@ function SharedEnvsPage() {
                             })
                           }
                         />
-                        Secret
+                         {t('dialog.secretToggle')}
                       </label>
 
                       {/* Remove */}
@@ -734,10 +737,10 @@ function SharedEnvsPage() {
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
-                Cancel
+                {t('common:cancel')}
               </Button>
               <Button type="submit" disabled={saving}>
-                {saving ? 'Saving…' : editingId ? 'Save' : 'Create'}
+                {saving ? t('dialog.saving') : editingId ? t('dialog.save') : t('dialog.create')}
               </Button>
             </DialogFooter>
           </form>
@@ -748,15 +751,14 @@ function SharedEnvsPage() {
       <AlertDialog open={!!deleteTarget} onOpenChange={open => !open && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Env Set</AlertDialogTitle>
+            <AlertDialogTitle>{t('deleteDialog.title')}</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete &quot;{deleteTarget?.name}&quot;? This action cannot
-              be undone.
+              {t('deleteDialog.description', { name: deleteTarget?.name ?? '' })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => void handleDelete()}>Delete</AlertDialogAction>
+            <AlertDialogCancel>{t('common:cancel')}</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void handleDelete()}>{t('delete')}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

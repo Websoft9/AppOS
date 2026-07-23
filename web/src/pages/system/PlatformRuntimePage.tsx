@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Loader2, RefreshCw } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import {
   type ActiveServicesController,
@@ -271,6 +272,8 @@ function BundledComponentsDetailContent({
   loading: boolean
   error: string
 }) {
+  const { t } = useTranslation('system')
+
   if (error) {
     return (
       <Alert variant="destructive">
@@ -281,16 +284,20 @@ function BundledComponentsDetailContent({
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center py-12 text-center">
-        <p className="text-muted-foreground">Loading built-in components...</p>
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+        <p className="text-muted-foreground">
+          {t('platformRuntime.components.loading', 'Loading built-in components...')}
+        </p>
       </div>
     )
   }
 
   if (components.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-12 text-center">
-        <p className="text-muted-foreground">No built-in components were detected.</p>
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+        <p className="text-muted-foreground">
+          {t('platformRuntime.components.empty', 'No built-in components were detected.')}
+        </p>
       </div>
     )
   }
@@ -299,11 +306,11 @@ function BundledComponentsDetailContent({
     <Table>
       <TableHeader>
         <TableRow className="border-b-0 hover:bg-transparent">
-          <TableHead>Name</TableHead>
-          <TableHead>Version</TableHead>
-          <TableHead>Availability</TableHead>
-          <TableHead>Service</TableHead>
-          <TableHead>Updated at</TableHead>
+          <TableHead>{t('platformRuntime.table.name', 'Name')}</TableHead>
+          <TableHead>{t('platformRuntime.table.version', 'Version')}</TableHead>
+          <TableHead>{t('platformRuntime.table.availability', 'Availability')}</TableHead>
+          <TableHead>{t('platformRuntime.table.service', 'Service')}</TableHead>
+          <TableHead>{t('platformRuntime.table.updatedAt', 'Updated at')}</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -311,8 +318,8 @@ function BundledComponentsDetailContent({
           <TableRow key={component.id} className="border-b-0 hover:bg-transparent">
             <TableCell className="font-medium text-foreground">
               <div>
-                <div>{component.name || component.id}</div>
-                {component.role ? (
+                  <div>{component.name || component.id}</div>
+                  {component.role ? (
                   <div className="text-xs font-normal text-muted-foreground">{component.role}</div>
                 ) : null}
                 {component.notes ? (
@@ -334,14 +341,16 @@ function BundledComponentsDetailContent({
                 }
               >
                 {component.probe_pending
-                  ? 'Checking...'
+                  ? t('platformRuntime.table.checking', 'Checking...')
                   : component.available
-                    ? 'Available'
-                    : 'Unavailable'}
+                    ? t('platformRuntime.table.available', 'Available')
+                    : t('platformRuntime.table.unavailable', 'Unavailable')}
               </Badge>
             </TableCell>
             <TableCell className="text-muted-foreground">
-              {component.runtime_kind === 'service' ? 'Yes' : 'No'}
+              {component.runtime_kind === 'service'
+                ? t('platformRuntime.table.yes', 'Yes')
+                : t('platformRuntime.table.no', 'No')}
             </TableCell>
             <TableCell className="text-muted-foreground">
               {formatComponentStatusTime(component.updated_at)}
@@ -354,6 +363,7 @@ function BundledComponentsDetailContent({
 }
 
 export function PlatformRuntimePage() {
+  const { t } = useTranslation('system')
   const runtimeController = usePlatformRuntimeController()
 
   const sortedComponents = useMemo(
@@ -372,16 +382,21 @@ export function PlatformRuntimePage() {
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Platform Runtime</h1>
+          <h1 className="text-2xl font-bold tracking-tight">
+            {t('platformRuntime.title', 'Platform Runtime')}
+          </h1>
           <p className="mt-1 text-muted-foreground">
-            Inspect active services and built-in tools that currently make up the AppOS runtime.
+            {t(
+              'platformRuntime.description',
+              'Inspect active services and built-in tools that currently make up the AppOS runtime.'
+            )}
           </p>
         </div>
         <Button
           variant="outline"
           size="icon"
-          title="Refresh runtime"
-          aria-label="Refresh runtime"
+          title={t('platformRuntime.actions.refresh', 'Refresh runtime')}
+          aria-label={t('platformRuntime.actions.refresh', 'Refresh runtime')}
           onClick={() => void runtimeController.refresh()}
           disabled={runtimeController.loading}
         >
@@ -395,7 +410,7 @@ export function PlatformRuntimePage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Runtime Summary</CardTitle>
+          <CardTitle>{t('platformRuntime.summary.title', 'Runtime Summary')}</CardTitle>
           <CardDescription>
             {runtimeController.summary.runtimeShape ||
               summarizeRuntimeShape(runtimeController.components)}
@@ -404,7 +419,7 @@ export function PlatformRuntimePage() {
         <CardContent className="grid gap-3 sm:grid-cols-4">
           <div className="rounded-lg border bg-background px-4 py-3">
             <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-              Built-in Components
+              {t('platformRuntime.summary.builtInComponents', 'Built-in Components')}
             </div>
             <div className="mt-2 text-2xl font-semibold text-foreground">
               {runtimeController.components.length}
@@ -412,7 +427,7 @@ export function PlatformRuntimePage() {
           </div>
           <div className="rounded-lg border bg-background px-4 py-3">
             <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-              Available
+              {t('platformRuntime.summary.available', 'Available')}
             </div>
             <div className="mt-2 text-2xl font-semibold text-foreground">
               {runtimeController.summary.runningComponents}
@@ -420,7 +435,7 @@ export function PlatformRuntimePage() {
           </div>
           <div className="rounded-lg border bg-background px-4 py-3">
             <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-              Unavailable
+              {t('platformRuntime.summary.unavailable', 'Unavailable')}
             </div>
             <div className="mt-2 text-2xl font-semibold text-foreground">
               {runtimeController.summary.degradedComponents}
@@ -429,7 +444,7 @@ export function PlatformRuntimePage() {
           {runtimeController.summary.checkingComponents > 0 ? (
             <div className="rounded-lg border bg-background px-4 py-3">
               <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                Checking
+                {t('platformRuntime.summary.checking', 'Checking')}
               </div>
               <div className="mt-2 text-2xl font-semibold text-foreground">
                 {runtimeController.summary.checkingComponents}
@@ -438,7 +453,7 @@ export function PlatformRuntimePage() {
           ) : null}
           <div className="rounded-lg border bg-background px-4 py-3">
             <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-              Active Services
+              {t('platformRuntime.summary.activeServices', 'Active Services')}
             </div>
             <div className="mt-2 text-2xl font-semibold text-foreground">{activeServiceCount}</div>
           </div>
@@ -447,15 +462,18 @@ export function PlatformRuntimePage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Host/Kernel Facts</CardTitle>
+          <CardTitle>{t('platformRuntime.hostFacts.title', 'Host/Kernel Facts')}</CardTitle>
           <CardDescription>
-            Runtime-visible system facts and limits exposed from inside the current AppOS runtime.
+            {t(
+              'platformRuntime.hostFacts.description',
+              'Runtime-visible system facts and limits exposed from inside the current AppOS runtime.'
+            )}
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <div className="rounded-lg border bg-background px-4 py-3">
             <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-              Kernel Release
+               {t('platformRuntime.hostFacts.kernelRelease', 'Kernel Release')}
             </div>
             <div className="mt-2 text-sm font-medium text-foreground">
               {runtimeValue(runtimeController.hostKernelFacts.kernel_release)}
@@ -463,7 +481,7 @@ export function PlatformRuntimePage() {
           </div>
           <div className="rounded-lg border bg-background px-4 py-3">
             <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-              Architecture
+               {t('platformRuntime.hostFacts.architecture', 'Architecture')}
             </div>
             <div className="mt-2 text-sm font-medium text-foreground">
               {runtimeValue(runtimeController.hostKernelFacts.architecture)}
@@ -471,7 +489,7 @@ export function PlatformRuntimePage() {
           </div>
           <div className="rounded-lg border bg-background px-4 py-3">
             <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-              Visible CPU Topology
+               {t('platformRuntime.hostFacts.visibleCpuTopology', 'Visible CPU Topology')}
             </div>
             <div className="mt-2 text-sm font-medium text-foreground">
               {formatVisibleCPUTopology(runtimeController.hostKernelFacts)}
@@ -479,7 +497,7 @@ export function PlatformRuntimePage() {
           </div>
           <div className="rounded-lg border bg-background px-4 py-3">
             <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-              Effective CPU Set
+               {t('platformRuntime.hostFacts.effectiveCpuSet', 'Effective CPU Set')}
             </div>
             <div className="mt-2 text-sm font-medium text-foreground">
               {runtimeValue(runtimeController.runtimeLimits.cpuset_effective)}
@@ -487,7 +505,7 @@ export function PlatformRuntimePage() {
           </div>
           <div className="rounded-lg border bg-background px-4 py-3">
             <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-              CPU Quota
+               {t('platformRuntime.hostFacts.cpuQuota', 'CPU Quota')}
             </div>
             <div className="mt-2 text-sm font-medium text-foreground">
               {formatCPUQuota(runtimeController.runtimeLimits)}
@@ -495,7 +513,7 @@ export function PlatformRuntimePage() {
           </div>
           <div className="rounded-lg border bg-background px-4 py-3">
             <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-              Memory Limit
+               {t('platformRuntime.hostFacts.memoryLimit', 'Memory Limit')}
             </div>
             <div className="mt-2 text-sm font-medium text-foreground">
               {formatRuntimeLimitBytes(runtimeController.runtimeLimits.memory_limit_bytes)}
@@ -508,10 +526,12 @@ export function PlatformRuntimePage() {
         <CardHeader>
           <div className="flex items-start justify-between gap-3">
             <div>
-              <CardTitle>Active Services</CardTitle>
+              <CardTitle>{t('platformRuntime.services.title', 'Active Services')}</CardTitle>
               <CardDescription>
-                Runtime services currently detected for this AppOS instance, including diagnostic
-                services.
+                {t(
+                  'platformRuntime.services.description',
+                  'Runtime services currently detected for this AppOS instance, including diagnostic services.'
+                )}
               </CardDescription>
             </div>
             <ActiveServicesControls controller={runtimeController} />
@@ -521,16 +541,19 @@ export function PlatformRuntimePage() {
           <ActiveServicesTableContent
             controller={runtimeController}
             hideControls
-            emptyMessage="No active services are configured."
+            emptyMessage={t('platformRuntime.services.empty', 'No active services are configured.')}
           />
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle>Built-in Components</CardTitle>
+          <CardTitle>{t('platformRuntime.components.title', 'Built-in Components')}</CardTitle>
           <CardDescription>
-            Built-in tools and embedded dependencies currently exposed inside the AppOS runtime.
+            {t(
+              'platformRuntime.components.description',
+              'Built-in tools and embedded dependencies currently exposed inside the AppOS runtime.'
+            )}
           </CardDescription>
         </CardHeader>
         <CardContent>

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -23,6 +24,7 @@ interface DockerPageProps {
 }
 
 export function DockerPage({ serverFromUrl }: DockerPageProps) {
+  const { t } = useTranslation('docker')
   const [hosts, setHosts] = useState<HostEntry[]>([
     { id: 'local', label: 'local', status: 'online' },
   ])
@@ -51,12 +53,17 @@ export function DockerPage({ serverFromUrl }: DockerPageProps) {
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-2xl font-bold">Docker</h1>
+      <h1 className="text-2xl font-bold">{t('page.title')}</h1>
 
       <div className="flex items-center gap-2">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="gap-1.5">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              aria-label={t('page.serverMenuAria')}
+            >
               <Server className="h-4 w-4" />
               <span
                 className={`inline-block h-2 w-2 rounded-full ${

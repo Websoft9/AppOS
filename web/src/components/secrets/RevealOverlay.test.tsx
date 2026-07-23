@@ -2,6 +2,20 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { RevealOverlay } from './RevealOverlay'
 
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string) => {
+      const translations: Record<string, string> = {
+        'reveal.copy': 'Copy',
+        'reveal.title': 'Reveal Secret',
+        'reveal.description': 'Displayed once in overlay and never persisted locally.',
+        'common:close': 'Close',
+      }
+      return translations[key] ?? key
+    },
+  }),
+}))
+
 describe('RevealOverlay', () => {
   const writeText = vi.fn<(...args: [string]) => Promise<void>>()
 

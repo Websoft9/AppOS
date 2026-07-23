@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useState, useRef, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { pb } from '@/lib/pb'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -30,6 +31,7 @@ function ErrorMsg({ msg }: { msg: string }) {
 // ─── Profile Section ────────────────────────────────────────
 
 function ProfileSection({ collectionName, authId }: { collectionName: string; authId: string }) {
+  const { t } = useTranslation('profile')
   const isMember = collectionName === 'users'
   const [name, setName] = useState('')
   const [avatarUrl, setAvatarUrl] = useState('')
@@ -75,10 +77,10 @@ function ProfileSection({ collectionName, authId }: { collectionName: string; au
       }
       await pb.collection(collectionName).update(authId, body)
       await pb.collection(collectionName).authRefresh()
-      setProfileSuccess('Profile updated successfully.')
+      setProfileSuccess(t('profile.updated'))
       setAvatarFile(null)
     } catch (err: unknown) {
-      setProfileError(err instanceof Error ? err.message : 'Failed to save profile')
+      setProfileError(err instanceof Error ? err.message : t('profile.saveError'))
     } finally {
       setSaving(false)
     }
@@ -90,14 +92,14 @@ function ProfileSection({ collectionName, authId }: { collectionName: string; au
     <section className="space-y-4">
       <div className="flex items-center gap-2">
         <User className="h-4 w-4 text-muted-foreground" />
-        <h2 className="text-base font-semibold">Profile</h2>
+        <h2 className="text-base font-semibold">{t('profile.title')}</h2>
       </div>
       <Separator />
       <div className="space-y-4 max-w-sm">
         {/* Avatar (members only) */}
         {isMember && (
           <div className="space-y-2">
-            <Label>Avatar</Label>
+            <Label>{t('profile.avatar')}</Label>
             <div className="flex items-center gap-4">
               {displayAvatar ? (
                 <img
@@ -117,7 +119,7 @@ function ProfileSection({ collectionName, authId }: { collectionName: string; au
                 onClick={() => fileRef.current?.click()}
               >
                 <Upload className="mr-2 h-4 w-4" />
-                Upload
+                {t('profile.upload')}
               </Button>
               <input
                 ref={fileRef}
@@ -133,19 +135,19 @@ function ProfileSection({ collectionName, authId }: { collectionName: string; au
         {/* Name (members only) */}
         {isMember && (
           <div className="space-y-1.5">
-            <Label htmlFor="profile-name">Name</Label>
+            <Label htmlFor="profile-name">{t('profile.name')}</Label>
             <Input
               id="profile-name"
               value={name}
               onChange={e => setName(e.target.value)}
-              placeholder="Your name"
+              placeholder={t('profile.namePlaceholder')}
             />
           </div>
         )}
 
         {!isMember && (
           <p className="text-sm text-muted-foreground">
-            Superuser accounts do not have a name or avatar.
+            {t('profile.superuserNote')}
           </p>
         )}
 
@@ -154,7 +156,7 @@ function ProfileSection({ collectionName, authId }: { collectionName: string; au
 
         {isMember && (
           <Button onClick={handleSave} disabled={saving}>
-            {saving ? 'Saving…' : 'Save Profile'}
+            {saving ? t('profile.saving') : t('profile.save')}
           </Button>
         )}
       </div>
@@ -165,6 +167,7 @@ function ProfileSection({ collectionName, authId }: { collectionName: string; au
 // ─── Password Section ────────────────────────────────────────
 
 function PasswordSection({ collectionName, authId }: { collectionName: string; authId: string }) {
+  const { t } = useTranslation('profile')
   const [oldPassword, setOldPassword] = useState('')
   const [password, setPassword] = useState('')
   const [passwordConfirm, setPasswordConfirm] = useState('')
@@ -178,11 +181,11 @@ function PasswordSection({ collectionName, authId }: { collectionName: string; a
     setGlobalError('')
     setPwSuccess('')
     if (password !== passwordConfirm) {
-      setFieldErrors({ passwordConfirm: 'Passwords do not match' })
+      setFieldErrors({ passwordConfirm: t('password.mismatch') })
       return
     }
     if (password.length < 8) {
-      setFieldErrors({ password: 'Password must be at least 8 characters' })
+      setFieldErrors({ password: t('password.tooShort') })
       return
     }
     setSaving(true)
@@ -192,7 +195,7 @@ function PasswordSection({ collectionName, authId }: { collectionName: string; a
         password,
         passwordConfirm,
       })
-      setPwSuccess('Password updated successfully.')
+      setPwSuccess(t('password.updated'))
       setOldPassword('')
       setPassword('')
       setPasswordConfirm('')
@@ -209,7 +212,7 @@ function PasswordSection({ collectionName, authId }: { collectionName: string; a
       if (Object.keys(errs).length > 0) {
         setFieldErrors(errs)
       } else {
-        setGlobalError(pbErr.message ?? 'Failed to update password')
+        setGlobalError(pbErr.message ?? t('password.saveError'))
       }
     } finally {
       setSaving(false)
@@ -220,12 +223,12 @@ function PasswordSection({ collectionName, authId }: { collectionName: string; a
     <section className="space-y-4">
       <div className="flex items-center gap-2">
         <KeyRound className="h-4 w-4 text-muted-foreground" />
-        <h2 className="text-base font-semibold">Change Password</h2>
+        <h2 className="text-base font-semibold">{t('password.title')}</h2>
       </div>
       <Separator />
       <div className="space-y-4 max-w-sm">
         <div className="space-y-1.5">
-          <Label htmlFor="old-password">Current password</Label>
+          <Label htmlFor="old-password">{t('password.current')}</Label>
           <Input
             id="old-password"
             type="password"
@@ -238,7 +241,7 @@ function PasswordSection({ collectionName, authId }: { collectionName: string; a
           )}
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="new-password">New password</Label>
+          <Label htmlFor="new-password">{t('password.new')}</Label>
           <Input
             id="new-password"
             type="password"
@@ -251,7 +254,7 @@ function PasswordSection({ collectionName, authId }: { collectionName: string; a
           )}
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="confirm-password">Confirm new password</Label>
+          <Label htmlFor="confirm-password">{t('password.confirm')}</Label>
           <Input
             id="confirm-password"
             type="password"
@@ -271,7 +274,7 @@ function PasswordSection({ collectionName, authId }: { collectionName: string; a
           onClick={handleSave}
           disabled={saving || !oldPassword || !password || !passwordConfirm}
         >
-          {saving ? 'Updating…' : 'Update Password'}
+          {saving ? t('password.saving') : t('password.save')}
         </Button>
       </div>
     </section>
@@ -281,6 +284,7 @@ function PasswordSection({ collectionName, authId }: { collectionName: string; a
 // ─── Email Section ────────────────────────────────────────
 
 function EmailSection({ collectionName }: { collectionName: string }) {
+  const { t } = useTranslation('profile')
   const currentEmail = pb.authStore.record?.email as string | undefined
   const [newEmail, setNewEmail] = useState('')
   const [sending, setSending] = useState(false)
@@ -294,10 +298,10 @@ function EmailSection({ collectionName }: { collectionName: string }) {
     setSending(true)
     try {
       await pb.collection(collectionName).requestEmailChange(newEmail)
-      setEmailSuccess('Check your email to confirm the change.')
+      setEmailSuccess(t('email.requested'))
       setNewEmail('')
     } catch (err: unknown) {
-      setEmailError(err instanceof Error ? err.message : 'Failed to request email change')
+      setEmailError(err instanceof Error ? err.message : t('email.saveError'))
     } finally {
       setSending(false)
     }
@@ -307,32 +311,32 @@ function EmailSection({ collectionName }: { collectionName: string }) {
     <section className="space-y-4">
       <div className="flex items-center gap-2">
         <Mail className="h-4 w-4 text-muted-foreground" />
-        <h2 className="text-base font-semibold">Change Email</h2>
+        <h2 className="text-base font-semibold">{t('email.title')}</h2>
       </div>
       <Separator />
       <div className="space-y-4 max-w-sm">
         <div className="space-y-1.5">
-          <Label>Current email</Label>
+          <Label>{t('email.current')}</Label>
           <p className="text-sm text-muted-foreground">{currentEmail ?? '—'}</p>
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="new-email">New email address</Label>
+          <Label htmlFor="new-email">{t('email.new')}</Label>
           <Input
             id="new-email"
             type="email"
             value={newEmail}
             onChange={e => setNewEmail(e.target.value)}
-            placeholder="new@example.com"
+            placeholder={t('email.placeholder')}
           />
         </div>
         {emailSuccess && <SuccessMsg msg={emailSuccess} />}
         {emailError && <ErrorMsg msg={emailError} />}
 
         <Button onClick={handleRequest} disabled={sending || !newEmail}>
-          {sending ? 'Sending…' : 'Request Change'}
+          {sending ? t('email.saving') : t('email.save')}
         </Button>
         <p className="text-xs text-muted-foreground">
-          A confirmation link will be sent to your new email address.
+          {t('email.note')}
         </p>
       </div>
     </section>
@@ -342,15 +346,16 @@ function EmailSection({ collectionName }: { collectionName: string }) {
 // ─── Page ────────────────────────────────────────────────────
 
 function ProfilePage() {
+  const { t } = useTranslation('profile')
   const collectionName = pb.authStore.record?.collectionName ?? 'users'
   const authId = pb.authStore.record?.id ?? ''
 
   return (
     <div className="container mx-auto max-w-2xl space-y-10 py-6">
       <div className="space-y-1">
-        <h1 className="text-2xl font-semibold">My Profile</h1>
+        <h1 className="text-2xl font-semibold">{t('title')}</h1>
         <p className="text-sm text-muted-foreground">
-          Manage your personal information and security settings.
+          {t('description')}
         </p>
       </div>
 

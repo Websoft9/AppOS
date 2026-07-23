@@ -27,6 +27,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { cn } from '@/lib/utils'
+import { useTranslation } from 'react-i18next'
 
 // ─── Route config ─────────────────────────────────────────────────────────────
 
@@ -142,6 +143,7 @@ interface TreeItemProps {
   expandedPaths: Set<string>
   loadingPaths: Set<string>
   errorPaths: Set<string>
+  t: (key: string, values?: Record<string, unknown>) => string
 }
 
 const TreeItem = memo(function TreeItem({
@@ -153,6 +155,7 @@ const TreeItem = memo(function TreeItem({
   expandedPaths,
   loadingPaths,
   errorPaths,
+  t,
 }: TreeItemProps) {
   const isExpanded = expandedPaths.has(node.path)
   const isLoading = loadingPaths.has(node.path)
@@ -205,7 +208,7 @@ const TreeItem = memo(function TreeItem({
                 className="py-0.5 text-xs text-destructive italic"
                 style={{ paddingLeft: `${8 + (depth + 1) * 14}px` }}
               >
-                Failed to load
+                {t('iac.failedToLoad')}
               </div>
             ) : node.children ? (
               node.children.length === 0 ? (
@@ -213,7 +216,7 @@ const TreeItem = memo(function TreeItem({
                   className="py-0.5 text-xs text-muted-foreground italic"
                   style={{ paddingLeft: `${8 + (depth + 1) * 14}px` }}
                 >
-                  Empty
+                  {t('iac.empty')}
                 </div>
               ) : (
                 node.children.map(child => (
@@ -227,6 +230,7 @@ const TreeItem = memo(function TreeItem({
                     expandedPaths={expandedPaths}
                     loadingPaths={loadingPaths}
                     errorPaths={errorPaths}
+                    t={t}
                   />
                 ))
               )
@@ -241,6 +245,7 @@ const TreeItem = memo(function TreeItem({
 // ─── FilesPage ────────────────────────────────────────────────────────────────
 
 export function FilesPage() {
+  const { t } = useTranslation('superuser')
   const { path: initialPath, root: rootParam } = Route.useSearch()
   const navigate = Route.useNavigate()
 
@@ -351,7 +356,7 @@ export function FilesPage() {
         setSavedContent(data.content)
       } catch (err) {
         if (requestId !== openFileIdRef.current) return
-        setFileError(err instanceof Error ? err.message : 'Failed to load file')
+        setFileError(err instanceof Error ? err.message : t('iac.errors.loadFile'))
       } finally {
         if (requestId === openFileIdRef.current) {
           setLoadingFile(false)
@@ -382,7 +387,7 @@ export function FilesPage() {
       await apiWrite(selectedPath, editorContent)
       setSavedContent(editorContent)
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : 'Failed to save file')
+      setSaveError(err instanceof Error ? err.message : t('iac.errors.saveFile'))
     } finally {
       setSaving(false)
     }
@@ -469,16 +474,16 @@ export function FilesPage() {
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Orchestration Files</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{t('iac.title')}</h1>
           <p className="mt-1 text-muted-foreground">
-            Browse and edit AppOS orchestration files for apps, workflows, and templates.
+            {t('iac.description')}
           </p>
         </div>
         <Button
           variant="outline"
           size="icon"
-          aria-label="Refresh orchestration files"
-          title="Refresh"
+          aria-label={t('iac.refreshAriaLabel')}
+          title={t('iac.refreshTitle')}
           onClick={refreshWorkspace}
         >
           <RefreshCw className="h-4 w-4" />
@@ -489,7 +494,7 @@ export function FilesPage() {
         {/* ── File Tree Sidebar ──────────────────────────────────────────────── */}
         <aside className="flex w-60 shrink-0 flex-col border-r bg-muted/30">
           <div className="flex min-h-11 items-center border-b px-3">
-            <span className="text-sm font-medium">Files</span>
+            <span className="text-sm font-medium">{t('iac.files')}</span>
           </div>
           <ScrollArea className="flex-1">
             <div className="py-1">
@@ -504,6 +509,7 @@ export function FilesPage() {
                   expandedPaths={expandedPaths}
                   loadingPaths={loadingPaths}
                   errorPaths={errorPaths}
+                  t={t}
                 />
               ))}
             </div>
@@ -519,11 +525,11 @@ export function FilesPage() {
                 <>
                   <span className="truncate">{selectedPath}</span>
                   {isDirty && (
-                    <span className="h-2 w-2 rounded-full bg-orange-400" title="Unsaved changes" />
+                    <span className="h-2 w-2 rounded-full bg-orange-400" title={t('iac.unsavedChanges')} />
                   )}
                 </>
               ) : (
-                <span>Select a file from the tree</span>
+                <span>{t('iac.selectFileFromTree')}</span>
               )}
             </div>
             <Button
@@ -537,7 +543,7 @@ export function FilesPage() {
               ) : (
                 <Save className="mr-2 h-4 w-4" />
               )}
-              Save
+              {t('common:save')}
             </Button>
           </div>
 
@@ -564,7 +570,7 @@ export function FilesPage() {
             ) : !selectedPath ? (
               <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
                 <FileText className="h-12 w-12 opacity-30" />
-                <p className="text-sm">Select a file to start editing</p>
+                <p className="text-sm">{t('iac.selectFileToStartEditing')}</p>
               </div>
             ) : (
               <Editor
@@ -596,15 +602,18 @@ export function FilesPage() {
         >
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Unsaved Changes</AlertDialogTitle>
+              <AlertDialogTitle>{t('iac.dialogTitle')}</AlertDialogTitle>
               <AlertDialogDescription>
-                You have unsaved changes in <strong>{selectedPath?.split('/').pop()}</strong>.
-                Discard them and open the new file?
+                {t('iac.dialogDescription', {
+                  file: selectedPath?.split('/').pop() ?? '',
+                })}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={handleDiscardAndSwitch}>Discard & Open</AlertDialogAction>
+              <AlertDialogCancel>{t('common:cancel')}</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDiscardAndSwitch}>
+                {t('iac.discardAndOpen')}
+              </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>

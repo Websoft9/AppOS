@@ -12,6 +12,29 @@ vi.mock('@/lib/pb', () => ({
   },
 }))
 
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string, options?: Record<string, unknown>) => {
+      if (options?.defaultValue_other && typeof options?.count === 'number' && options.count !== 1) {
+        return String(options.defaultValue_other)
+          .replace('{{count}}', String(options.count))
+          .replace('{{containers}}', String(options.containers ?? ''))
+      }
+      if (options?.defaultValue_one && options?.count === 1) {
+        return String(options.defaultValue_one)
+          .replace('{{count}}', String(options.count))
+          .replace('{{containers}}', String(options.containers ?? ''))
+      }
+      if (options?.defaultValue) {
+        return String(options.defaultValue).replace(/\{\{(\w+)\}\}/g, (_, name) =>
+          String(options?.[name] ?? '')
+        )
+      }
+      return key
+    },
+  }),
+}))
+
 vi.mock('@/components/connect/FileManagerPanel', () => ({
   FileManagerPanel: (props: unknown) => {
     fileManagerPropsSpy(props)

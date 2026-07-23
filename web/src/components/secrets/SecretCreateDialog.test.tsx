@@ -2,6 +2,50 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SecretCreateDialog } from './SecretCreateDialog'
 
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string, values?: Record<string, unknown>) => {
+      const translations: Record<string, string> = {
+        'form.type': 'Type',
+        'form.selectType': 'Select type',
+        'form.selectTypeHint': 'Select type to render fields',
+        'form.showValue': 'Show value',
+        'form.hideValue': 'Hide value',
+        'form.generate': 'Generate',
+        'visibility.title': 'Visible In',
+        'visibility.description': 'Choose which resource dialogs can discover this secret.',
+        'visibility.all': 'All supported dialogs',
+        'visibility.none': 'No dialogs selected',
+        'visibility.selectedCount': '{{count}} targets selected',
+        'visibility.servers': 'Servers',
+        'visibility.serversDescription': 'Shown in server credential forms.',
+        'visibility.applications': 'Applications',
+        'visibility.applicationsDescription': 'Shown in application credential forms.',
+        'visibility.runtimeInstances': 'Runtime Instances',
+        'visibility.runtimeInstancesDescription': 'Shown in runtime instance forms.',
+        'visibility.externalServices': 'External Services',
+        'visibility.externalServicesDescription': 'Shown in external service credential forms.',
+        'visibility.providerAccounts': 'Provider Accounts',
+        'visibility.providerAccountsDescription': 'Shown in provider account forms.',
+        'visibility.aiProviders': 'AI Providers',
+        'visibility.aiProvidersDescription': 'Shown in AI provider forms.',
+        'dialogs.name': 'Name',
+        'dialogs.description': 'Description',
+        'dialogs.advanced': 'Advanced',
+        'common:cancel': 'Cancel',
+        'generator.secretValueTitle': 'Generate Secret Value',
+        'generator.secretValueDescription': 'Choose the value length before filling the field.',
+        'generator.secretValueLengthLabel': 'Value Length',
+        'generator.secretValueConfirmLabel': 'Fill Secret Value',
+      }
+
+      const template = translations[key]
+      if (!template) return key
+      return template.replace(/\{\{(\w+)\}\}/g, (_, token: string) => String(values?.[token] ?? ''))
+    },
+  }),
+}))
+
 const sendMock = vi.fn()
 const createMock = vi.fn()
 

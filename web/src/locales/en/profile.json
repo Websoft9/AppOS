@@ -1,0 +1,39 @@
+{
+  "title": "My Profile",
+  "description": "Manage your personal information and security settings.",
+  "profile": {
+    "title": "Profile",
+    "avatar": "Avatar",
+    "upload": "Upload",
+    "name": "Name",
+    "namePlaceholder": "Your name",
+    "superuserNote": "Superuser accounts do not have a name or avatar.",
+    "save": "Save Profile",
+    "saving": "Saving...",
+    "updated": "Profile updated successfully.",
+    "saveError": "Failed to save profile"
+  },
+  "password": {
+    "title": "Change Password",
+    "current": "Current password",
+    "new": "New password",
+    "confirm": "Confirm new password",
+    "save": "Update Password",
+    "saving": "Updating...",
+    "updated": "Password updated successfully.",
+    "mismatch": "Passwords do not match",
+    "tooShort": "Password must be at least 8 characters",
+    "saveError": "Failed to update password"
+  },
+  "email": {
+    "title": "Change Email",
+    "current": "Current email",
+    "new": "New email address",
+    "placeholder": "new@example.com",
+    "save": "Request Change",
+    "saving": "Sending...",
+    "requested": "Check your email to confirm the change.",
+    "saveError": "Failed to request email change",
+    "note": "A confirmation link will be sent to your new email address."
+  }
+}

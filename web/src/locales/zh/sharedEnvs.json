@@ -1,0 +1,66 @@
+{
+  "detailRow": {
+    "empty": "No variables in this set.",
+    "key": "Key",
+    "value": "Value",
+    "type": "Type",
+    "secret": "Secret",
+    "plain": "Plain"
+  },
+  "title": "Shared Envs",
+  "description": "Reusable environment variable sets for apps and workflows.",
+  "refresh": "Refresh",
+  "new": "New Env Set",
+  "searchPlaceholder": "Search sets or variables...",
+  "empty": {
+    "none": "No shared envs found.",
+    "clear": "Clear filters",
+    "createFirst": "Create your first one"
+  },
+  "table": {
+    "name": "Name",
+    "description": "Description",
+    "variables": "Variables",
+    "created": "Created",
+    "actions": "Actions",
+    "varCount": "{{count}} var",
+    "varCount_other": "{{count}} vars"
+  },
+  "srOnlyActions": "Actions",
+  "edit": "Edit",
+  "delete": "Delete",
+  "removeVarsFirst": "Remove {{count}} variable first",
+  "removeVarsFirst_other": "Remove {{count}} variables first",
+  "dialog": {
+    "editTitle": "Edit Env Set",
+    "newTitle": "New Env Set",
+    "description": "Define a named set of environment variables that can be shared across apps.",
+    "name": "Name",
+    "descriptionLabel": "Description",
+    "namePlaceholder": "staging-env",
+    "descriptionPlaceholder": "Optional description",
+    "variables": "Variables",
+    "addVariable": "Add variable",
+    "noVariables": "No variables yet. Click \u201cAdd variable\u201d to start.",
+    "selectSecret": "Select secret...",
+    "orType": "or type",
+    "secretValuePlaceholder": "Secret value (auto-creates)",
+    "orSelect": "or select",
+    "valuePlaceholder": "value",
+    "secretToggle": "Secret",
+    "save": "Save",
+    "create": "Create",
+    "saving": "Saving..."
+  },
+  "deleteDialog": {
+    "title": "Delete Env Set",
+    "description": "Are you sure you want to delete \u201c{{name}}\u201d? This action cannot be undone."
+  },
+  "errors": {
+    "load": "Failed to load",
+    "loadSet": "Failed to load env set",
+    "save": "Save failed",
+    "delete": "Delete failed",
+    "secretRequired": "Variable \u201c{{name}}\u201d: secret value is required."
+  }
+}

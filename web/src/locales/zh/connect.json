@@ -1,0 +1,137 @@
+{
+  "hub": {
+    "description": "Open, resume, and manage server terminals with shell and files.",
+    "connecting": "Connecting...",
+    "disconnecting": "Disconnecting...",
+    "preparing": "Preparing connection",
+    "target": "Target: {{target}}",
+    "establishing": "Establishing secure connection...",
+    "close": "Close",
+    "idle": "Idle",
+    "connected": "Connected",
+    "activeSession": "1 active session",
+    "lastActive": "Last active {{count}} min ago",
+    "exit": "Exit",
+    "resume": "Resume",
+    "openTerminal": "Open Terminal",
+    "retry": "Retry",
+    "availableServers": "Available Servers",
+    "activeSessions": "Active Sessions",
+    "restoreWorkspace": "Restore Workspace",
+    "idleSession": "Idle session",
+    "empty": {
+      "noServersTitle": "No servers configured",
+      "noServersDescription": "Add a server in Resources to get started",
+      "noOnlineTitle": "No online servers",
+      "noOnlineDescription": "Only servers that are currently online are shown here.",
+      "noActiveTitle": "No active sessions",
+      "noActiveDescription": "Open a server terminal to keep a resumable session here."
+    },
+    "sessionCount": "{{count}} session",
+    "sessionCount_other": "{{count}} sessions",
+    "state": {
+      "live": "Live",
+      "detached": "Detached"
+    },
+    "errors": {
+      "loadServers": "Failed to load servers"
+    },
+    "actions": {
+      "addServer": "Add Server"
+    }
+  },
+  "server": {
+    "title": "Server Terminal",
+    "description": "Work with this server's shell and files in one place.",
+    "shell": "Shell",
+    "files": "Files",
+    "tools": "Tools",
+    "runScript": "Run Script",
+    "runScriptHint": "Run script in terminal",
+    "noScripts": "No scripts",
+    "newScript": "New Script",
+    "serverDetail": "Server Detail",
+    "overview": "Overview",
+    "systemd": "Systemd",
+    "docker": "Docker",
+    "ports": "Ports",
+    "monitor": "Monitor",
+    "layoutPresets": "Layout presets",
+    "expandConnections": "单击或双击以展开连接",
+    "reset": "Reset",
+    "layout": "Layout {{left}} / {{right}}",
+    "fullscreen": "切换全屏",
+    "connecting": "Connecting...",
+    "disconnecting": "Disconnecting...",
+    "connectionLimitReached": "Connection Limit Reached",
+    "preparing": "Preparing connection",
+    "target": "Target: {{target}}",
+    "establishing": "Establishing secure connection...",
+    "safeDisconnect": "Safely disconnecting...",
+    "openAnotherSession": "Open another session?",
+    "openAnotherSessionDescription": "Server {{server}} already has {{count}} active session(s). Open a new one anyway?",
+    "openAnotherSessionFallback": "This server already has active session(s). Open a new one anyway?",
+    "openNewSession": "Open New Session",
+    "limitReached": "Reached max connections limit ({{count}}).",
+    "serverOffline": "Server is offline.",
+    "close": "Close",
+    "newConnection": "新建",
+    "searchServer": "搜索服务器...",
+    "noServers": "没有服务器",
+    "addServer": "添加服务器",
+    "closeConnection": "关闭 {{title}}",
+    "connectType": {
+      "tunnel": "隧道",
+      "direct": "直连 SSH"
+    },
+    "systemdManager": {
+      "title": "服务管理",
+      "description": "搜索服务并执行操作。",
+      "searchPlaceholder": "搜索服务关键字...",
+      "loading": "正在加载服务...",
+      "searchHint": "输入关键字搜索服务。",
+      "empty": "没有匹配的服务。",
+      "cat": "查看",
+      "logs": "日志",
+      "edit": "编辑",
+      "serviceAction": "服务操作",
+      "start": "启动",
+      "restart": "重启",
+      "stop": "停止",
+      "enable": "启用",
+      "disable": "禁用",
+      "loadingState": "加载中...",
+      "noStatus": "没有状态输出。",
+      "noContent": "没有服务内容。",
+      "unitFile": "单元文件：{{path}}",
+      "unitPlaceholder": "[Unit]\nDescription=...",
+      "validate": "校验",
+      "apply": "应用",
+      "cancelEdit": "取消编辑",
+      "noLogs": "没有日志。",
+      "chooseOperation": "选择上方操作继续。",
+      "confirm": {
+        "validateTitle": "校验单元文件？",
+        "applyTitle": "应用单元变更？",
+        "serviceActionTitle": "确认服务操作？",
+        "validateDescription": "服务：{{service}}\n将运行 systemd-analyze verify。",
+        "applyDescription": "服务：{{service}}\n将保存当前编辑内容，然后运行 daemon-reload 和 try-restart。",
+        "actionDescription": "服务：{{service}}\n操作：{{action}}"
+      }
+    },
+    "actions": {
+      "systemdApplied": "Action {{action}} applied. Next: check Status or Logs."
+    },
+    "results": {
+      "validatePassed": "Validate passed.",
+      "applyCompleted": "Apply completed."
+    },
+    "errors": {
+      "loadServices": "Failed to load services",
+      "operationFailed": "Operation failed",
+      "loadUnit": "Failed to load unit file",
+      "validateUnit": "Failed to validate unit file",
+      "applyUnit": "Failed to apply unit file"
+    }
+  }
+}

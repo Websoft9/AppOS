@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from '@tanstack/react-router'
+import type { TFunction } from 'i18next'
 import {
   AlertTriangle,
   ArrowRight,
@@ -13,6 +14,7 @@ import {
   SquareActivity,
   Waypoints,
 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { pb } from '@/lib/pb'
 import { isSessionExpiredError } from '@/lib/auth-session'
 import { Badge } from '@/components/ui/badge'
@@ -128,33 +130,6 @@ const EMPTY_DATA: OverviewData = {
   },
 }
 
-const QUICK_LINKS = [
-  {
-    title: 'Deploy App',
-    description: 'Start a new deployment workflow.',
-    href: '/deploy',
-    icon: Rocket,
-  },
-  {
-    title: 'Open Monitor',
-    description: 'Inspect platform and unhealthy targets.',
-    href: '/status',
-    icon: Radar,
-  },
-  {
-    title: 'Manage Servers',
-    description: 'Review connected hosts and monitor agent rollout.',
-    href: '/resources/servers',
-    icon: ServerCog,
-  },
-  {
-    title: 'Review Credentials',
-    description: 'Check secrets and certificates that may need action.',
-    href: '/secrets',
-    icon: KeyRound,
-  },
-] as const
-
 const APPOS_CORE_OVERVIEW_SERIES_QUERY = 'cpu,memory,disk_usage,disk,network,network_traffic'
 
 const APPOS_CORE_OVERVIEW_SERIES_ORDER = [
@@ -166,11 +141,13 @@ const APPOS_CORE_OVERVIEW_SERIES_ORDER = [
   'network_traffic',
 ] as const
 
-function formatStatusLabel(value: string): string {
-  return value
+function formatStatusLabel(value: string, t?: TFunction<'common'>): string {
+  const fallback = value
     .split('_')
     .map(part => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ')
+
+  return t ? t(`overview.statusLabels.${value}`, { defaultValue: fallback }) : fallback
 }
 
 function formatBytes(value: number): string {
@@ -193,31 +170,43 @@ function formatDurationSeconds(value: number): string {
   return `${(value / 86400).toFixed(value >= 864000 ? 0 : 1)}d`
 }
 
-function formatSummaryValue(key: string, value: unknown): string {
+function formatSummaryValue(key: string, value: unknown, t: TFunction<'common'>): string {
   if (value === null || value === undefined || value === '') return '—'
   if (typeof value === 'number') {
     if (key.endsWith('_bytes')) return formatBytes(value)
     if (key.endsWith('_seconds')) return formatDurationSeconds(value)
     return Number.isInteger(value) ? String(value) : Number(value).toFixed(2)
   }
-  if (typeof value === 'boolean') return value ? 'Yes' : 'No'
+  if (typeof value === 'boolean') return value ? t('yes') : t('no')
   if (typeof value === 'string') return value.includes('T') ? formatTime(value) : value
   return JSON.stringify(value)
 }
 
-function formatTrendValue(unit: string, name: string, value: number): string {
-  if (unit === 'bytes') return formatSummaryValue(`${name}_bytes`, value)
+function formatTrendValue(
+  unit: string,
+  name: string,
+  value: number,
+  t: TFunction<'common'>
+): string {
+  if (unit === 'bytes') return formatSummaryValue(`${name}_bytes`, value, t)
   if (unit === 'bytes/s') return `${formatBytes(value)}/s`
-  return formatSummaryValue(name, value)
+  return formatSummaryValue(name, value, t)
 }
 
-function formatSeriesLabel(value: string): string {
+function formatSeriesLabel(value: string, t: TFunction<'common'>): string {
   const normalized = value.trim().toLowerCase()
-  if (normalized === 'cpu') return 'CPU'
-  if (normalized === 'disk') return 'Disk IO'
-  if (normalized === 'network') return 'Network Speed'
-  if (normalized === 'network_traffic') return 'Network Traffic'
-  return formatStatusLabel(value)
+  const fallback =
+    normalized === 'cpu'
+      ? 'CPU'
+      : normalized === 'disk'
+        ? 'Disk IO'
+        : normalized === 'network'
+          ? 'Network Speed'
+          : normalized === 'network_traffic'
+            ? 'Network Traffic'
+            : formatStatusLabel(value)
+
+  return t(`overview.seriesLabels.${normalized}`, { defaultValue: fallback })
 }
 
 function numericSummaryValue(value: unknown): number | null {
@@ -273,7 +262,7 @@ function latestValue(points: number[][]): number | null {
   return values.length > 0 ? values[values.length - 1] : null
 }
 
-function latestSeriesSummary(series: MonitorSeries): string {
+function latestSeriesSummary(series: MonitorSeries, t: TFunction<'common'>): string {
   const latest = latestValue(series.points ?? [])
   const used = series.segments?.find(segment => segment.name === 'used')
   const available = series.segments?.find(segment => segment.name === 'available')
@@ -282,7 +271,7 @@ function latestSeriesSummary(series: MonitorSeries): string {
   const outbound = series.segments?.find(segment => segment.name === 'out')
 
   if (latest !== null) {
-    return formatTrendValue(series.unit, series.name, latest)
+    return formatTrendValue(series.unit, series.name, latest, t)
   }
 
   if (series.name === 'memory' && used) {
@@ -291,9 +280,12 @@ function latestSeriesSummary(series: MonitorSeries): string {
     if (latestUsed !== null) {
       if (latestAvailable !== null) {
         const limit = latestUsed + latestAvailable
-        return `${formatBytes(latestUsed)} used / ${formatBytes(limit)} limit`
+        return t('overview.trendSummary.memoryUsageWithLimit', {
+          used: formatBytes(latestUsed),
+          limit: formatBytes(limit),
+        })
       }
-      return `${formatBytes(latestUsed)} used`
+      return t('overview.trendSummary.memoryUsage', { used: formatBytes(latestUsed) })
     }
   }
 
@@ -301,7 +293,10 @@ function latestSeriesSummary(series: MonitorSeries): string {
     const latestUsed = latestValue(used?.points ?? [])
     const latestFree = latestValue(free?.points ?? [])
     if (latestUsed !== null || latestFree !== null) {
-      return `${latestUsed === null ? '—' : formatBytes(latestUsed)} used${latestFree === null ? '' : ` / ${formatBytes(latestFree)} free`}`
+      return t('overview.trendSummary.diskUsage', {
+        used: latestUsed === null ? '—' : formatBytes(latestUsed),
+        free: latestFree === null ? '' : ` / ${formatBytes(latestFree)} ${t('overview.trendSummary.free')}`,
+      })
     }
   }
 
@@ -309,7 +304,11 @@ function latestSeriesSummary(series: MonitorSeries): string {
     const latestInbound = latestValue(inbound?.points ?? [])
     const latestOutbound = latestValue(outbound?.points ?? [])
     if (latestInbound !== null || latestOutbound !== null) {
-      return `${latestInbound === null ? '—' : `${formatBytes(latestInbound)}/s`} in${latestOutbound === null ? '' : ` / ${formatBytes(latestOutbound)}/s out`}`
+      return t('overview.trendSummary.networkSpeed', {
+        inbound: latestInbound === null ? '—' : `${formatBytes(latestInbound)}/s`,
+        outbound:
+          latestOutbound === null ? '' : ` / ${formatBytes(latestOutbound)}/s ${t('overview.trendSummary.out')}`,
+      })
     }
   }
 
@@ -317,7 +316,11 @@ function latestSeriesSummary(series: MonitorSeries): string {
     const latestInbound = latestValue(inbound?.points ?? [])
     const latestOutbound = latestValue(outbound?.points ?? [])
     if (latestInbound !== null || latestOutbound !== null) {
-      return `${latestInbound === null ? '—' : formatBytes(latestInbound)} in${latestOutbound === null ? '' : ` / ${formatBytes(latestOutbound)} out`}`
+      return t('overview.trendSummary.networkTraffic', {
+        inbound: latestInbound === null ? '—' : formatBytes(latestInbound),
+        outbound:
+          latestOutbound === null ? '' : ` / ${formatBytes(latestOutbound)} ${t('overview.trendSummary.out')}`,
+      })
     }
   }
 
@@ -327,7 +330,10 @@ function latestSeriesSummary(series: MonitorSeries): string {
     const latestRead = latestValue(read?.points ?? [])
     const latestWrite = latestValue(write?.points ?? [])
     if (latestRead !== null || latestWrite !== null) {
-      return `${latestRead === null ? '—' : `${formatBytes(latestRead)}/s`} read${latestWrite === null ? '' : ` / ${formatBytes(latestWrite)}/s write`}`
+      return t('overview.trendSummary.diskIo', {
+        read: latestRead === null ? '—' : `${formatBytes(latestRead)}/s`,
+        write: latestWrite === null ? '' : ` / ${formatBytes(latestWrite)}/s ${t('overview.trendSummary.write')}`,
+      })
     }
   }
 
@@ -401,11 +407,13 @@ function normalizeCollectionItems<T>(input: unknown): T[] {
   return []
 }
 
-function buildIssueItems(data: OverviewData): IssueItem[] {
+function buildIssueItems(data: OverviewData, t: TFunction<'common'>): IssueItem[] {
   const monitorIssues: IssueItem[] = data.monitor.unhealthyItems.map(item => ({
     id: `monitor:${item.targetType ?? 'target'}:${item.targetId}`,
     title: item.displayName,
-    description: item.reason || `${formatStatusLabel(item.status)} requires attention.`,
+    description:
+      item.reason ||
+      t('overview.issues.monitorFallback', { status: formatStatusLabel(item.status, t) }),
     kind: 'monitor',
     href: item.detailHref || '/status',
     severity:
@@ -422,8 +430,8 @@ function buildIssueItems(data: OverviewData): IssueItem[] {
       id: `tunnel:${item.id}`,
       title: item.name,
       description: item.waiting_for_first_connect
-        ? 'Waiting for first tunnel connection.'
-        : 'Tunnel is offline.',
+        ? t('overview.issues.tunnelWaiting')
+        : t('overview.issues.tunnelOffline'),
       kind: 'tunnel',
       href: '/tunnels',
       severity: item.waiting_for_first_connect ? 'info' : 'critical',
@@ -435,7 +443,7 @@ function buildIssueItems(data: OverviewData): IssueItem[] {
         {
           id: `certificate:${item.id}`,
           title: item.domain || item.name,
-          description: 'Certificate is expired or revoked.',
+          description: t('overview.issues.certificateExpired'),
           kind: 'certificate' as const,
           href: '/certificates',
           severity: 'critical' as const,
@@ -447,7 +455,7 @@ function buildIssueItems(data: OverviewData): IssueItem[] {
         {
           id: `certificate:${item.id}`,
           title: item.domain || item.name,
-          description: 'Certificate is expiring within 30 days.',
+          description: t('overview.issues.certificateExpiring'),
           kind: 'certificate' as const,
           href: '/certificates',
           severity: 'warning' as const,
@@ -463,7 +471,7 @@ function buildIssueItems(data: OverviewData): IssueItem[] {
         {
           id: `secret:${item.id}`,
           title: item.name,
-          description: 'Secret is expired or revoked.',
+          description: t('overview.issues.secretExpired'),
           kind: 'secret' as const,
           href: '/secrets',
           severity: 'critical' as const,
@@ -475,7 +483,7 @@ function buildIssueItems(data: OverviewData): IssueItem[] {
         {
           id: `secret:${item.id}`,
           title: item.name,
-          description: 'Secret is expiring within 30 days.',
+          description: t('overview.issues.secretExpiring'),
           kind: 'secret' as const,
           href: '/secrets',
           severity: 'warning' as const,
@@ -517,12 +525,43 @@ function KpiCard({
 
 export function OverviewPage() {
   const { user } = useAuth()
+  const { t } = useTranslation('common')
   const isSuperuser = user?.collectionName === '_superusers'
   const [data, setData] = useState<OverviewData>(EMPTY_DATA)
   const [trendSeries, setTrendSeries] = useState<MonitorSeriesResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState('')
+
+  const quickLinks = useMemo(
+    () => [
+      {
+        title: t('overview.quickLinks.deployApp.title'),
+        description: t('overview.quickLinks.deployApp.description'),
+        href: '/deploy',
+        icon: Rocket,
+      },
+      {
+        title: t('overview.quickLinks.openMonitor.title'),
+        description: t('overview.quickLinks.openMonitor.description'),
+        href: '/status',
+        icon: Radar,
+      },
+      {
+        title: t('overview.quickLinks.manageServers.title'),
+        description: t('overview.quickLinks.manageServers.description'),
+        href: '/resources/servers',
+        icon: ServerCog,
+      },
+      {
+        title: t('overview.quickLinks.reviewCredentials.title'),
+        description: t('overview.quickLinks.reviewCredentials.description'),
+        href: '/secrets',
+        icon: KeyRound,
+      },
+    ],
+    [t]
+  )
 
   const loadOverview = useCallback(
     async (silent = false) => {
@@ -580,7 +619,7 @@ export function OverviewPage() {
 
         if (coreFailures.length > 0 || collectionFailures.length > 0) {
           warnDegradedSections('Overview', [...coreFailures, ...collectionFailures])
-          setError('Some overview sections are temporarily unavailable.')
+          setError(t('overview.errors.degraded'))
         }
 
         const normalizedMonitor = normalizeMonitorOverview(
@@ -638,13 +677,13 @@ export function OverviewPage() {
           return
         }
         setTrendSeries(null)
-        setError(err instanceof Error ? err.message : 'Failed to load overview')
+        setError(err instanceof Error ? err.message : t('overview.errors.loadFailed'))
       } finally {
         setLoading(false)
         setRefreshing(false)
       }
     },
-    [isSuperuser]
+    [isSuperuser, t]
   )
 
   useEffect(() => {
@@ -702,7 +741,7 @@ export function OverviewPage() {
     }
   }, [data.certificates, data.secrets])
 
-  const issueItems = useMemo(() => buildIssueItems(data), [data])
+  const issueItems = useMemo(() => buildIssueItems(data, t), [data, t])
 
   const recentApps = useMemo(
     () =>
@@ -734,11 +773,11 @@ export function OverviewPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold tracking-tight">Overview</h1>
+        <h1 className="text-2xl font-bold tracking-tight">{t('overview.title')}</h1>
         <Button
           variant="outline"
           size="icon"
-          aria-label="Refresh overview"
+          aria-label={t('overview.actions.refreshAriaLabel')}
           onClick={() => void loadOverview(true)}
           disabled={loading || refreshing}
         >
@@ -758,27 +797,41 @@ export function OverviewPage() {
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <KpiCard
-          title="Applications"
+          title={t('overview.kpis.applications.title')}
           value={String(appSummary.total)}
-          description={`${appSummary.running} running · ${appSummary.error} error · ${appSummary.stopped} stopped`}
+          description={t('overview.kpis.applications.description', {
+            running: appSummary.running,
+            error: appSummary.error,
+            stopped: appSummary.stopped,
+          })}
           accent={<SquareActivity className="h-4 w-4" />}
         />
         <KpiCard
-          title="Servers"
+          title={t('overview.kpis.servers.title')}
           value={String(serverSummary.total)}
-          description={`${serverSummary.tunnelOnline} tunnel online · ${serverSummary.tunnelOffline} tunnel offline · ${serverSummary.direct} direct`}
+          description={t('overview.kpis.servers.description', {
+            tunnelOnline: serverSummary.tunnelOnline,
+            tunnelOffline: serverSummary.tunnelOffline,
+            direct: serverSummary.direct,
+          })}
           accent={<Waypoints className="h-4 w-4" />}
         />
         <KpiCard
-          title="Attention Needed"
+          title={t('overview.kpis.attentionNeeded.title')}
           value={String(issueItems.length)}
-          description={`${data.monitor.unhealthyItems.length} monitor issues · ${data.tunnels.summary.offline} offline tunnels`}
+          description={t('overview.kpis.attentionNeeded.description', {
+            monitorIssues: data.monitor.unhealthyItems.length,
+            offlineTunnels: data.tunnels.summary.offline,
+          })}
           accent={<AlertTriangle className="h-4 w-4" />}
         />
         <KpiCard
-          title="Credentials Risk"
+          title={t('overview.kpis.credentialsRisk.title')}
           value={String(credentialSummary.atRisk)}
-          description={`${credentialSummary.certificates} certificate risks · ${credentialSummary.secrets} secret risks`}
+          description={t('overview.kpis.credentialsRisk.description', {
+            certificates: credentialSummary.certificates,
+            secrets: credentialSummary.secrets,
+          })}
           accent={<ShieldAlert className="h-4 w-4" />}
         />
       </div>
@@ -786,20 +839,18 @@ export function OverviewPage() {
       <div className="grid gap-4 xl:grid-cols-[1.3fr_1fr]">
         <Card>
           <CardHeader>
-            <CardTitle>Needs Attention</CardTitle>
-            <CardDescription>
-              Prioritized operational items collected from monitor, tunnel, and credential state.
-            </CardDescription>
+            <CardTitle>{t('overview.sections.needsAttention.title')}</CardTitle>
+            <CardDescription>{t('overview.sections.needsAttention.description')}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {loading ? (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Loading current issues...
+                {t('overview.sections.needsAttention.loading')}
               </div>
             ) : issueItems.length === 0 ? (
               <div className="rounded-lg border border-dashed px-4 py-6 text-sm text-muted-foreground">
-                No urgent issues right now.
+                {t('overview.sections.needsAttention.empty')}
               </div>
             ) : (
               issueItems.map(item => (
@@ -812,7 +863,9 @@ export function OverviewPage() {
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-foreground">{item.title}</span>
                       <Badge variant={issueBadgeVariant(item.severity)}>
-                        {formatStatusLabel(item.kind)}
+                        {t(`overview.issueKinds.${item.kind}`, {
+                          defaultValue: formatStatusLabel(item.kind, t),
+                        })}
                       </Badge>
                     </div>
                     <div className="text-sm text-muted-foreground">{item.description}</div>
@@ -826,14 +879,11 @@ export function OverviewPage() {
 
         <Card>
           <CardHeader className="relative pr-16">
-            <CardTitle>1H Trends</CardTitle>
-            <CardDescription>
-              AppOS control-plane CPU, memory usage versus limit, disk, and network over the last
-              hour.
-            </CardDescription>
+            <CardTitle>{t('overview.sections.trends.title')}</CardTitle>
+            <CardDescription>{t('overview.sections.trends.description')}</CardDescription>
             <Link
               to="/status"
-              aria-label="View system status"
+              aria-label={t('overview.sections.trends.linkAriaLabel')}
               className="absolute right-2 top-0 p-1 text-muted-foreground transition-colors hover:text-foreground"
             >
               <ArrowRight className="h-4 w-4" />
@@ -843,11 +893,11 @@ export function OverviewPage() {
             {loading ? (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Loading AppOS self metrics...
+                {t('overview.sections.trends.loading')}
               </div>
             ) : apposTrendSeries.length === 0 ? (
               <div className="rounded-lg border border-dashed px-4 py-6 text-sm text-muted-foreground">
-                AppOS self metrics have not reported yet.
+                {t('overview.sections.trends.empty')}
               </div>
             ) : (
               <div className="grid gap-3 sm:grid-cols-2">
@@ -856,10 +906,10 @@ export function OverviewPage() {
                     <div className="mb-3 flex items-start justify-between gap-3">
                       <div>
                         <div className="text-sm font-medium text-foreground">
-                          {formatSeriesLabel(item.name)}
+                          {formatSeriesLabel(item.name, t)}
                         </div>
                         <div className="text-xs text-muted-foreground">
-                          {latestSeriesSummary(item)}
+                          {latestSeriesSummary(item, t)}
                         </div>
                       </div>
                       <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
@@ -875,7 +925,7 @@ export function OverviewPage() {
                       stepSeconds={trendSeries?.stepSeconds}
                       points={item.points}
                       segments={item.segments}
-                      formatValue={formatTrendValue}
+                      formatValue={(unit, name, value) => formatTrendValue(unit, name, value, t)}
                     />
                   </div>
                 ))}
@@ -888,20 +938,18 @@ export function OverviewPage() {
       <div className="grid gap-4 xl:grid-cols-[1.3fr_1fr]">
         <Card>
           <CardHeader>
-            <CardTitle>Recent App Changes</CardTitle>
-            <CardDescription>
-              Most recently updated application instances across the workspace.
-            </CardDescription>
+            <CardTitle>{t('overview.sections.recentApps.title')}</CardTitle>
+            <CardDescription>{t('overview.sections.recentApps.description')}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {loading ? (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Loading applications...
+                {t('overview.sections.recentApps.loading')}
               </div>
             ) : recentApps.length === 0 ? (
               <div className="rounded-lg border border-dashed px-4 py-6 text-sm text-muted-foreground">
-                No applications deployed yet.
+                {t('overview.sections.recentApps.empty')}
               </div>
             ) : (
               recentApps.map(app => (
@@ -916,7 +964,7 @@ export function OverviewPage() {
                     <div className="flex items-center gap-2">
                       <span className="truncate font-medium text-foreground">{app.name}</span>
                       <Badge variant={runtimeVariant(app.runtime_status)}>
-                        {formatStatusLabel(app.runtime_status || 'unknown')}
+                        {formatStatusLabel(app.runtime_status || 'unknown', t)}
                       </Badge>
                     </div>
                     <div className="text-sm text-muted-foreground">
@@ -924,7 +972,7 @@ export function OverviewPage() {
                     </div>
                   </div>
                   <div className="shrink-0 text-right text-xs text-muted-foreground">
-                    <div>Updated</div>
+                    <div>{t('overview.sections.recentApps.updated')}</div>
                     <div>{formatTime(app.updated)}</div>
                   </div>
                 </Link>
@@ -935,13 +983,11 @@ export function OverviewPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Quick Actions</CardTitle>
-            <CardDescription>
-              Jump directly into the most common operational workflows.
-            </CardDescription>
+            <CardTitle>{t('overview.sections.quickActions.title')}</CardTitle>
+            <CardDescription>{t('overview.sections.quickActions.description')}</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3">
-            {QUICK_LINKS.map(item => {
+            {quickLinks.map(item => {
               const Icon = item.icon
               return (
                 <Link

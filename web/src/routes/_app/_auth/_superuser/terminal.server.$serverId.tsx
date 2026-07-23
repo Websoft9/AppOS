@@ -1,5 +1,6 @@
 import { lazy, Suspense } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 import type { RestoreWorkspaceSession } from '@/lib/connect-session'
 
 type TerminalServerSearch = {
@@ -86,6 +87,7 @@ export const Route = createFileRoute('/_app/_auth/_superuser/terminal/server/$se
 })
 
 function ConnectServerRoute() {
+  const { t } = useTranslation('common')
   const { serverId } = Route.useParams()
   const search = Route.useSearch()
 
@@ -93,7 +95,7 @@ function ConnectServerRoute() {
     <Suspense
       fallback={
         <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
-          Loading terminal...
+          {t('loadingPage', { page: t('pages.terminal') })}
         </div>
       }
     >

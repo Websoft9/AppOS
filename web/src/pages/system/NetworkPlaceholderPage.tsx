@@ -1,4 +1,5 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { useTranslation } from 'react-i18next'
 
 type NetworkPlaceholderPageProps = {
   title: string
@@ -13,6 +14,8 @@ export function NetworkPlaceholderPage({
   emptyTitle,
   emptyDescription,
 }: NetworkPlaceholderPageProps) {
+  const { t } = useTranslation('system')
+
   return (
     <div className="space-y-6">
       <div>
@@ -27,7 +30,7 @@ export function NetworkPlaceholderPage({
         </CardHeader>
         <CardContent>
           <div className="rounded-lg border border-dashed px-4 py-10 text-sm text-muted-foreground">
-            No content is available yet.
+            {t('networkPlaceholder.empty', 'No content is available yet.')}
           </div>
         </CardContent>
       </Card>

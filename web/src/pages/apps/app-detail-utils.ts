@@ -1,3 +1,4 @@
+import i18n from '@/lib/i18n'
 import { type ActionRecord } from '@/pages/deploy/actions/action-types'
 import { getApiErrorMessage } from '@/lib/api-error'
 import type { AppInstance } from '@/pages/apps/types'
@@ -5,23 +6,23 @@ import type { AppInstance } from '@/pages/apps/types'
 export function formatActionType(value?: string): string {
   switch ((value || '').trim().toLowerCase()) {
     case 'start':
-      return 'Start'
+      return i18n.t('apps:actions.start', 'Start')
     case 'stop':
-      return 'Stop'
+      return i18n.t('apps:actions.stop', 'Stop')
     case 'restart':
-      return 'Restart'
+      return i18n.t('apps:actions.restart', 'Restart')
     case 'redeploy':
-      return 'Redeploy'
+      return i18n.t('apps:actions.redeploy', 'Redeploy')
     case 'upgrade':
-      return 'Upgrade'
+      return i18n.t('apps:actions.upgrade', 'Upgrade')
     case 'uninstall':
-      return 'Uninstall'
+      return i18n.t('apps:actions.uninstall', 'Uninstall')
     case 'install':
-      return 'Install'
+      return i18n.t('apps:detail.activity.currentPipeline', 'Install')
     case 'rollback':
-      return 'Rollback'
+      return i18n.t('apps:detail.compose.rollback', 'Rollback')
     default:
-      return value ? value.charAt(0).toUpperCase() + value.slice(1) : 'Action'
+      return value ? value.charAt(0).toUpperCase() + value.slice(1) : i18n.t('apps:labels.latestAction', 'Action')
   }
 }
 

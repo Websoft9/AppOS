@@ -7,6 +7,91 @@ import { ContainersTab } from './ContainersTab'
 const sendMock = vi.fn()
 const fetchMock = vi.fn()
 
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string, values?: Record<string, unknown>) => {
+      const translations: Record<string, string> = {
+        'containers.title': 'Containers',
+        'containers.searchPlaceholder': 'Search containers',
+        'containers.total': '{{count}} total',
+        'containers.pagination.previous': 'Previous containers page',
+        'containers.pagination.next': 'Next containers page',
+        'containers.refresh': 'Refresh Docker data',
+        'containers.settings.button': 'Container display settings',
+        'containers.settings.rowsPerPage': 'Rows Per Page',
+        'containers.settings.perPage': '{{count}} / page',
+        'containers.settings.visibleColumns': 'Visible Columns',
+        'containers.columns.name': 'Name',
+        'containers.columns.runtime': 'Runtime',
+        'containers.columns.quick': 'Quick',
+        'containers.columns.ports': 'Ports',
+        'containers.columns.volumes': 'Volumes',
+        'containers.columns.created': 'Created',
+        'containers.columns.compose': 'Compose',
+        'containers.columns.cpu': 'CPU',
+        'containers.columns.memory': 'Memory',
+        'containers.columns.network': 'Network',
+        'containers.columns.lifecycle': 'Lifecycle',
+        'containers.columns.actions': 'Actions',
+        'containers.filters.searchBadge': 'Search: {{value}}',
+        'containers.filters.runtimeBadge': 'Runtime: {{value}}',
+        'containers.filters.linkedContainersBadge': 'Linked containers: {{count}}',
+        'containers.filters.composeBadge': 'Compose: {{value}}',
+        'containers.filters.clear': 'Clear filters',
+        'containers.filters.stateAria': 'Filter container state',
+        'containers.filters.stateTitle': 'Container state: {{value}}',
+        'containers.filters.allStates': 'All states ({{count}})',
+        'containers.filters.running': 'Running ({{count}})',
+        'containers.filters.exited': 'Exited ({{count}})',
+        'containers.filters.paused': 'Paused ({{count}})',
+        'containers.filters.created': 'Created ({{count}})',
+        'containers.filters.composeAria': 'Filter compose project',
+        'containers.filters.composeTitle': 'Compose: {{value}}',
+        'containers.filters.allCompose': 'All compose',
+        'containers.loading.telemetry': 'Loading telemetry...',
+        'containers.loading.stats': 'Loading stats...',
+        'containers.quick.logsAria': 'Open logs for {{name}}',
+        'containers.quick.logs': 'Logs',
+        'containers.quick.monitorAria': 'Open monitor for {{name}}',
+        'containers.quick.monitor': 'Monitor',
+        'containers.quick.execAria': 'Open exec for {{name}}',
+        'containers.quick.exec': 'Exec',
+        'containers.quick.execUnavailable': 'Exec unavailable',
+        'containers.moreActions': 'More actions for {{name}}',
+        'containers.actions.exec': 'Exec',
+        'containers.actions.stats': 'Stats',
+        'containers.actions.logs': 'Logs',
+        'containers.actions.inspect': 'Inspect',
+        'containers.actions.start': 'Start',
+        'containers.actions.stop': 'Stop',
+        'containers.actions.restart': 'Restart',
+        'containers.actions.remove': 'Remove',
+        'containers.volumeCount_one': '{{count}} volume',
+        'containers.volumeCount_other': '{{count}} volumes',
+        'containers.details.title': 'Container Details',
+        'containers.stats.cpuTrend': 'CPU Trend',
+        'containers.stats.memoryTrend': 'Memory Trend',
+        'containers.stats.networkTrend': 'Network Trend',
+        'containers.stats.blockIoTrend': 'Block I/O Trend',
+        'containers.dialogs.logsTitlePrefix': 'Container Logs',
+        'containers.dialogs.inspectTitlePrefix': 'Container Inspect',
+        'containers.empty.output': '(no output)',
+        'common:loading': 'Loading...',
+      }
+      if (key === 'containers.volumeCount') {
+        const count = Number(values?.count ?? 0)
+        const template = count === 1 ? translations['containers.volumeCount_one'] : translations['containers.volumeCount_other']
+        return template.replace(/\{\{(\w+)\}\}/g, (_, token: string) => String(values?.[token] ?? ''))
+      }
+      const template =
+        translations[key] ||
+        (typeof values?.defaultValue === 'string' ? values.defaultValue : undefined)
+      if (!template) return key
+      return template.replace(/\{\{(\w+)\}\}/g, (_, token: string) => String(values?.[token] ?? ''))
+    },
+  }),
+}))
+
 vi.mock('@/lib/pb', () => ({
   pb: {
     send: (...args: unknown[]) => sendMock(...args),

@@ -2,6 +2,108 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { OverviewPage } from './OverviewPage'
 
+vi.mock('react-i18next', () => ({
+  initReactI18next: { type: '3rdParty', init: () => {} },
+  useTranslation: () => ({
+    t: (key: string, values?: Record<string, unknown>) => {
+      const translations: Record<string, string> = {
+        'yes': 'Yes',
+        'no': 'No',
+        'overview.title': 'Overview',
+        'overview.actions.refreshAriaLabel': 'Refresh overview',
+        'overview.errors.degraded': 'Some overview sections are temporarily unavailable.',
+        'overview.errors.loadFailed': 'Failed to load overview',
+        'overview.kpis.applications.title': 'Applications',
+        'overview.kpis.applications.description':
+          '{{running}} running · {{error}} error · {{stopped}} stopped',
+        'overview.kpis.servers.title': 'Servers',
+        'overview.kpis.servers.description':
+          '{{tunnelOnline}} tunnel online · {{tunnelOffline}} tunnel offline · {{direct}} direct',
+        'overview.kpis.attentionNeeded.title': 'Attention Needed',
+        'overview.kpis.attentionNeeded.description':
+          '{{monitorIssues}} monitor issues · {{offlineTunnels}} offline tunnels',
+        'overview.kpis.credentialsRisk.title': 'Credentials Risk',
+        'overview.kpis.credentialsRisk.description':
+          '{{certificates}} certificate risks · {{secrets}} secret risks',
+        'overview.sections.needsAttention.title': 'Needs Attention',
+        'overview.sections.needsAttention.description':
+          'Prioritized operational items collected from monitor, tunnel, and credential state.',
+        'overview.sections.needsAttention.loading': 'Loading current issues...',
+        'overview.sections.needsAttention.empty': 'No urgent issues right now.',
+        'overview.sections.trends.title': '1H Trends',
+        'overview.sections.trends.description':
+          'AppOS control-plane CPU, memory usage versus limit, disk, and network over the last hour.',
+        'overview.sections.trends.linkAriaLabel': 'View system status',
+        'overview.sections.trends.loading': 'Loading AppOS self metrics...',
+        'overview.sections.trends.empty': 'AppOS self metrics have not reported yet.',
+        'overview.sections.recentApps.title': 'Recent App Changes',
+        'overview.sections.recentApps.description':
+          'Most recently updated application instances across the workspace.',
+        'overview.sections.recentApps.loading': 'Loading applications...',
+        'overview.sections.recentApps.empty': 'No applications deployed yet.',
+        'overview.sections.recentApps.updated': 'Updated',
+        'overview.sections.quickActions.title': 'Quick Actions',
+        'overview.sections.quickActions.description':
+          'Jump directly into the most common operational workflows.',
+        'overview.quickLinks.deployApp.title': 'Deploy App',
+        'overview.quickLinks.deployApp.description': 'Start a new deployment workflow.',
+        'overview.quickLinks.openMonitor.title': 'Open Monitor',
+        'overview.quickLinks.openMonitor.description': 'Inspect platform and unhealthy targets.',
+        'overview.quickLinks.manageServers.title': 'Manage Servers',
+        'overview.quickLinks.manageServers.description':
+          'Review connected hosts and monitor agent rollout.',
+        'overview.quickLinks.reviewCredentials.title': 'Review Credentials',
+        'overview.quickLinks.reviewCredentials.description':
+          'Check secrets and certificates that may need action.',
+        'overview.issues.monitorFallback': '{{status}} requires attention.',
+        'overview.issues.tunnelWaiting': 'Waiting for first tunnel connection.',
+        'overview.issues.tunnelOffline': 'Tunnel is offline.',
+        'overview.issues.certificateExpired': 'Certificate is expired or revoked.',
+        'overview.issues.certificateExpiring': 'Certificate is expiring within 30 days.',
+        'overview.issues.secretExpired': 'Secret is expired or revoked.',
+        'overview.issues.secretExpiring': 'Secret is expiring within 30 days.',
+        'overview.issueKinds.monitor': 'Monitor',
+        'overview.issueKinds.tunnel': 'Tunnel',
+        'overview.issueKinds.certificate': 'Certificate',
+        'overview.issueKinds.secret': 'Secret',
+        'overview.seriesLabels.cpu': 'CPU',
+        'overview.seriesLabels.memory': 'Memory',
+        'overview.seriesLabels.disk_usage': 'Disk Usage',
+        'overview.seriesLabels.disk': 'Disk IO',
+        'overview.seriesLabels.network': 'Network Speed',
+        'overview.seriesLabels.network_traffic': 'Network Traffic',
+        'overview.statusLabels.running': 'Running',
+        'overview.statusLabels.error': 'Error',
+        'overview.statusLabels.stopped': 'Stopped',
+        'overview.statusLabels.unknown': 'Unknown',
+        'overview.statusLabels.healthy': 'Healthy',
+        'overview.statusLabels.degraded': 'Degraded',
+        'overview.statusLabels.offline': 'Offline',
+        'overview.statusLabels.unreachable': 'Unreachable',
+        'overview.statusLabels.credential_invalid': 'Credential Invalid',
+        'overview.trendSummary.memoryUsageWithLimit': '{{used}} used / {{limit}} limit',
+        'overview.trendSummary.memoryUsage': '{{used}} used',
+        'overview.trendSummary.diskUsage': '{{used}} used{{free}}',
+        'overview.trendSummary.networkSpeed': '{{inbound}} in{{outbound}}',
+        'overview.trendSummary.networkTraffic': '{{inbound}} in{{outbound}}',
+        'overview.trendSummary.diskIo': '{{read}} read{{write}}',
+        'overview.trendSummary.free': 'free',
+        'overview.trendSummary.out': 'out',
+        'overview.trendSummary.write': 'write',
+      }
+
+      const template = translations[key]
+      if (!template) {
+        return values?.defaultValue && typeof values.defaultValue === 'string'
+          ? values.defaultValue
+          : key
+      }
+
+      return template.replace(/\{\{(\w+)\}\}/g, (_, token: string) => String(values?.[token] ?? ''))
+    },
+  }),
+}))
+
 const sendMock = vi.fn()
 const getFullListMock = vi.fn()
 let currentUserCollectionName = '_superusers'

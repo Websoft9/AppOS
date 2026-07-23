@@ -16,6 +16,8 @@ import {
   Square,
   Trash2,
 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+import i18n from '@/lib/i18n'
 import { pb } from '@/lib/pb'
 import { getApiErrorMessage } from '@/lib/api-error'
 import { isSessionExpiredError } from '@/lib/auth-session'
@@ -174,16 +176,17 @@ function SortableHeader({
 }
 
 function formatCardSourceLabel(app: AppInstance): string {
+  const t = i18n.t.bind(i18n)
   const templateKey = normalizeTemplateKey(app.catalog_app_key)
   if (templateKey) return templateKey
 
   switch (app.source) {
     case 'manualops':
-      return 'Manual deployment'
+      return t('apps:labels.sourceManualDeployment', 'Manual deployment')
     case 'docker':
-      return 'Docker runtime'
+      return t('apps:labels.sourceDockerRuntime', 'Docker runtime')
     case 'catalog':
-      return 'Catalog app'
+      return t('apps:labels.sourceCatalogApp', 'Catalog app')
     default:
       return app.source
         ? app.source
@@ -191,12 +194,14 @@ function formatCardSourceLabel(app: AppInstance): string {
             .filter(Boolean)
             .map(part => part.charAt(0).toUpperCase() + part.slice(1))
             .join(' ')
-        : 'App instance'
+        : t('apps:labels.sourceAppInstance', 'App instance')
   }
 }
 
 function appServerLabel(app: AppInstance): string {
-  return app.server_name?.trim() || app.server_id || 'Local'
+  return (
+    app.server_name?.trim() || app.server_id || i18n.t('apps:labels.serverLocal', 'Local')
+  )
 }
 
 function AppAvatar({
@@ -240,6 +245,7 @@ function AppAvatar({
 }
 
 export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
+  const { t } = useTranslation('apps')
   const navigate = useNavigate()
   const [apps, setApps] = useState<AppInstance[]>([])
   const [loading, setLoading] = useState(true)
@@ -513,7 +519,7 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
   function renderEmptyState() {
     return (
       <div className="rounded-xl border p-8 text-center text-sm text-muted-foreground">
-        No apps found.
+        {t('empty.list', { defaultValue: 'No apps found.' })}
       </div>
     )
   }
@@ -529,7 +535,12 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" size="icon" className="h-8 w-8" disabled={Boolean(actionLoading)}>
             <MoreVertical className="h-4 w-4" />
-            <span className="sr-only">Open activity for {app.name}</span>
+            <span className="sr-only">
+              {t('actions.openActivityFor', {
+                defaultValue: 'Open activity for {{name}}',
+                name: app.name,
+              })}
+            </span>
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-44">
@@ -543,12 +554,14 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
             }
           >
             <ExternalLink className="h-4 w-4" />
-            Open detail
+            {t('actions.openDetail', { defaultValue: 'Open detail' })}
           </DropdownMenuItem>
           {app.last_operation ? (
             <DropdownMenuItem onSelect={() => openOperationStatus(app)}>
               <ExternalLink className="h-4 w-4" />
-              Open latest action detail
+              {t('actions.openLatestActionDetail', {
+                defaultValue: 'Open latest action detail',
+              })}
             </DropdownMenuItem>
           ) : null}
           <DropdownMenuSeparator />
@@ -557,14 +570,18 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
             disabled={Boolean(deployLoading || actionLoading) || !availability.redeploy}
           >
             <RotateCcw className="h-4 w-4" />
-            {currentOperationAction === 'redeploy' ? 'Redeploying...' : 'Redeploy'}
+            {currentOperationAction === 'redeploy'
+              ? t('actions.redeploying', { defaultValue: 'Redeploying...' })
+              : t('actions.redeploy', { defaultValue: 'Redeploy' })}
           </DropdownMenuItem>
           <DropdownMenuItem
             onSelect={() => void triggerOperation(app, 'upgrade')}
             disabled={Boolean(deployLoading || actionLoading) || !availability.upgrade}
           >
             <ArrowUp className="h-4 w-4" />
-            {currentOperationAction === 'upgrade' ? 'Upgrading...' : 'Upgrade'}
+            {currentOperationAction === 'upgrade'
+              ? t('actions.upgrading', { defaultValue: 'Upgrading...' })
+              : t('actions.upgrade', { defaultValue: 'Upgrade' })}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
@@ -572,21 +589,27 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
             disabled={Boolean(actionLoading) || !availability.start}
           >
             <Play className="h-4 w-4" />
-            {currentAction === 'start' ? 'Starting...' : 'Start'}
+            {currentAction === 'start'
+              ? t('actions.starting', { defaultValue: 'Starting...' })
+              : t('actions.start', { defaultValue: 'Start' })}
           </DropdownMenuItem>
           <DropdownMenuItem
             onSelect={() => void runAction(app, 'stop')}
             disabled={Boolean(actionLoading) || !availability.stop}
           >
             <Square className="h-4 w-4" />
-            {currentAction === 'stop' ? 'Stopping...' : 'Stop'}
+            {currentAction === 'stop'
+              ? t('actions.stopping', { defaultValue: 'Stopping...' })
+              : t('actions.stop', { defaultValue: 'Stop' })}
           </DropdownMenuItem>
           <DropdownMenuItem
             onSelect={() => void runAction(app, 'restart')}
             disabled={Boolean(actionLoading) || !availability.restart}
           >
             <RotateCcw className="h-4 w-4" />
-            {currentAction === 'restart' ? 'Restarting...' : 'Restart'}
+            {currentAction === 'restart'
+              ? t('actions.restarting', { defaultValue: 'Restarting...' })
+              : t('actions.restart', { defaultValue: 'Restart' })}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
@@ -595,7 +618,7 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
             variant="destructive"
           >
             <Trash2 className="h-4 w-4" />
-            Uninstall
+            {t('actions.uninstall', { defaultValue: 'Uninstall' })}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -604,11 +627,11 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
 
   function renderAppsSurface() {
     if (loading) {
-      return (
-        <div className="rounded-2xl bg-background/80 p-6 text-sm text-muted-foreground shadow-sm ring-1 ring-border/60">
-          Loading apps...
-        </div>
-      )
+        return (
+          <div className="rounded-2xl bg-background/80 p-6 text-sm text-muted-foreground shadow-sm ring-1 ring-border/60">
+          {t('loading.list', { defaultValue: 'Loading apps...' })}
+          </div>
+        )
     }
 
     if (view === 'grid') {
@@ -673,12 +696,13 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
                   <div className="rounded-2xl bg-muted/55 px-3 py-3 ring-1 ring-border/70 dark:bg-muted/35 dark:ring-border/60">
                     <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-2 text-xs text-muted-foreground">
                       <span>Server</span>
+                      
                       <span className="truncate text-right text-foreground">
                         {appServerLabel(app)}
                       </span>
-                      <span>Uptime</span>
+                      <span>{t('labels.uptime', { defaultValue: 'Uptime' })}</span>
                       <span className="text-right text-foreground">{formatUptime(app)}</span>
-                      <span>Updated</span>
+                      <span>{t('labels.updated', { defaultValue: 'Updated' })}</span>
                       <span className="truncate text-right text-foreground">
                         {formatTime(app.updated)}
                       </span>
@@ -689,16 +713,18 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
                 <div className="relative mt-auto flex items-end justify-between gap-3 border-t border-border/75 pt-3">
                   {app.last_operation ? (
                     <div className="min-w-0 flex-1 text-[11px] text-muted-foreground">
-                      <div className="truncate text-[10px] uppercase tracking-[0.12em] text-muted-foreground/80">
-                        Latest action
-                      </div>
+                        <div className="truncate text-[10px] uppercase tracking-[0.12em] text-muted-foreground/80">
+                          {t('labels.latestAction', { defaultValue: 'Latest action' })}
+                        </div>
                       <div className="truncate font-mono text-[11px] text-muted-foreground">
                         {app.last_operation}
                       </div>
                     </div>
                   ) : (
-                    <div className="text-[11px] text-muted-foreground">No action recorded yet</div>
-                  )}
+                      <div className="text-[11px] text-muted-foreground">
+                        {t('labels.noActionRecorded', { defaultValue: 'No action recorded yet' })}
+                      </div>
+                    )}
                   <div
                     className="flex items-center gap-1"
                     onClick={event => event.stopPropagation()}
@@ -720,20 +746,20 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
             <TableRow>
               <TableHead className="pl-6">
                 <SortableHeader
-                  label="Name"
+                    label={t('labels.name', { defaultValue: 'Name' })}
                   field="name"
                   current={sortField}
                   dir={sortDir}
                   onSort={handleSort}
                 />
               </TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Server</TableHead>
-              <TableHead>Uptime</TableHead>
-              <TableHead>Latest Action</TableHead>
+              <TableHead>{t('labels.status', { defaultValue: 'Status' })}</TableHead>
+              <TableHead>{t('labels.server', { defaultValue: 'Server' })}</TableHead>
+              <TableHead>{t('labels.uptime', { defaultValue: 'Uptime' })}</TableHead>
+              <TableHead>{t('labels.latestAction', { defaultValue: 'Latest action' })}</TableHead>
               <TableHead>
                 <SortableHeader
-                  label="Updated"
+                  label={t('labels.updated', { defaultValue: 'Updated' })}
                   field="updated"
                   current={sortField}
                   dir={sortDir}
@@ -747,7 +773,7 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
             {pagedItems.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
-                  No apps found.
+                  {t('empty.list', { defaultValue: 'No apps found.' })}
                 </TableCell>
               </TableRow>
             ) : (
@@ -789,7 +815,9 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
                     {item.last_operation ? (
                       <div className="space-y-0.5">
                         <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-                          Latest action detail
+                          {t('actions.openLatestActionDetail', {
+                            defaultValue: 'Open latest action detail',
+                          })}
                         </div>
                         <button
                           type="button"
@@ -819,8 +847,11 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
           <h1 className="text-2xl font-bold">My Apps</h1>
+          
           <p className="text-sm text-muted-foreground">
-            Unified entry to manage your installed & shared apps.
+            {t('pages.listDescription', {
+              defaultValue: 'Unified entry to manage your installed & shared apps.',
+            })}
           </p>
         </div>
         <div className="flex items-center gap-2 self-end md:self-auto">
@@ -829,7 +860,7 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
             size="icon"
             onClick={() => void fetchApps(true)}
             disabled={refreshing}
-            aria-label="Refresh apps"
+            aria-label={t('controls.refreshApps', { defaultValue: 'Refresh apps' })}
           >
             <RefreshCw className={cn('h-4 w-4', refreshing && 'animate-spin')} />
           </Button>
@@ -847,11 +878,14 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
         </Alert>
       ) : null}
       {catalogAppKey ? (
-        <Alert>
-          <AlertTitle>Store Filter Active</AlertTitle>
+          <Alert>
+          <AlertTitle>{t('storeFilter.title', { defaultValue: 'Store Filter Active' })}</AlertTitle>
           <AlertDescription className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <span>
-              Showing installed instances for catalog app{' '}
+              {t('storeFilter.description', {
+                defaultValue: 'Showing installed instances for catalog app {{key}}.',
+                key: catalogAppKey,
+              }).replace(catalogAppKey, '')}{' '}
               <span className="font-mono">{catalogAppKey}</span>.
             </span>
             <Button
@@ -859,7 +893,7 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
               size="sm"
               onClick={() => void navigate({ to: '/apps', search: { catalogAppKey: undefined } })}
             >
-              Clear filter
+              {t('controls.clearFilter', { defaultValue: 'Clear filter' })}
             </Button>
           </AlertDescription>
         </Alert>
@@ -878,7 +912,7 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
                 onClick={() => handleInstanceStateSummaryClick(null)}
               >
                 <span className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground/80">
-                  Total
+                  {t('summary.total', { defaultValue: 'Total' })}
                 </span>
                 <span className="font-semibold text-foreground underline-offset-2 hover:underline">
                   {summary.total}
@@ -896,7 +930,7 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
                 onClick={() => handleInstanceStateSummaryClick('unavailable')}
               >
                 <span className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground/80">
-                  Unavailable
+                  {t('summary.unavailable', { defaultValue: 'Unavailable' })}
                 </span>
                 <span className="font-semibold text-foreground underline-offset-2 hover:underline">
                   {summary.unavailable}
@@ -914,7 +948,7 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
                 onClick={() => handleInstanceStateSummaryClick('running')}
               >
                 <span className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground/80">
-                  Running
+                  {t('summary.running', { defaultValue: 'Running' })}
                 </span>
                 <span className="font-semibold text-foreground underline-offset-2 hover:underline">
                   {summary.running}
@@ -932,7 +966,7 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
                 onClick={() => handleInstanceStateSummaryClick('stopped')}
               >
                 <span className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground/80">
-                  Stopped
+                  {t('summary.stopped', { defaultValue: 'Stopped' })}
                 </span>
                 <span className="font-semibold text-foreground underline-offset-2 hover:underline">
                   {summary.stopped}
@@ -950,7 +984,7 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
                 onClick={() => handleInstanceStateSummaryClick('degraded')}
               >
                 <span className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground/80">
-                  Degraded
+                  {t('summary.degraded', { defaultValue: 'Degraded' })}
                 </span>
                 <span className="font-semibold text-foreground underline-offset-2 hover:underline">
                   {summary.degraded}
@@ -968,7 +1002,7 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
                 onClick={() => handleInstanceStateSummaryClick('attention_required')}
               >
                 <span className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground/80">
-                  Attention Required
+                  {t('summary.attentionRequired', { defaultValue: 'Attention Required' })}
                 </span>
                 <span className="font-semibold text-foreground underline-offset-2 hover:underline">
                   {summary.attentionRequired}
@@ -986,7 +1020,7 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
                 onClick={() => handleInstanceStateSummaryClick('updating')}
               >
                 <span className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground/80">
-                  Updating
+                  {t('summary.updating', { defaultValue: 'Updating' })}
                 </span>
                 <span className="font-semibold text-foreground underline-offset-2 hover:underline">
                   {summary.updating}
@@ -1004,7 +1038,7 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
                 onClick={() => handleInstanceStateSummaryClick('unknown')}
               >
                 <span className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground/80">
-                  Unknown
+                  {t('summary.unknown', { defaultValue: 'Unknown' })}
                 </span>
                 <span className="font-semibold text-foreground underline-offset-2 hover:underline">
                   {summary.unknown}
@@ -1017,10 +1051,10 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
               <Input
                 value={search}
                 onChange={event => setSearch(event.target.value.slice(0, 15))}
-                placeholder="Search apps"
+                placeholder={t('controls.searchApps', { defaultValue: 'Search apps' })}
                 className="h-8.5 border-transparent bg-background/90 pl-9 shadow-sm ring-1 ring-border/55"
                 maxLength={15}
-                aria-label="Search apps"
+                aria-label={t('controls.searchApps', { defaultValue: 'Search apps' })}
               />
             </div>
           </div>
@@ -1030,11 +1064,18 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
                 className="h-9 w-full rounded-md border-transparent bg-background/90 px-3 text-sm shadow-sm ring-1 ring-border/60 outline-none focus:ring-2 focus:ring-ring"
                 value={effectiveTemplate}
                 onChange={event => handleTemplateFilterChange(event.target.value)}
-                aria-label="Filter by app template"
+                aria-label={t('controls.filterByTemplate', {
+                  defaultValue: 'Filter by app template',
+                })}
               >
-                <option value={TEMPLATE_FILTER_ALL}>By template</option>
+                <option value={TEMPLATE_FILTER_ALL}>
+                  {t('controls.byTemplate', { defaultValue: 'By template' })}
+                </option>
                 <option value={TEMPLATE_FILTER_UNTEMPLATED}>
-                  No-template ({filterOptions.noTemplateCount})
+                  {t('controls.noTemplate', {
+                    defaultValue: 'No-template ({{count}})',
+                    count: filterOptions.noTemplateCount,
+                  })}
                 </option>
                 {filterOptions.template.map(option => (
                   <option key={option.value} value={option.value}>
@@ -1048,9 +1089,9 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
                 className="h-9 w-full rounded-md border-transparent bg-background/90 px-3 text-sm shadow-sm ring-1 ring-border/60 outline-none focus:ring-2 focus:ring-ring"
                 value={selectedServer ?? ''}
                 onChange={event => setSelectedServer(event.target.value || null)}
-                aria-label="Filter by server"
+                aria-label={t('controls.filterByServer', { defaultValue: 'Filter by server' })}
               >
-                <option value="">By server</option>
+                <option value="">{t('controls.byServer', { defaultValue: 'By server' })}</option>
                 {filterOptions.server.map(option => (
                   <option key={option.value} value={option.value}>
                     {option.label} ({option.count})
@@ -1066,7 +1107,7 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
                   className="h-7 w-7 rounded-full"
                   disabled={page <= 1}
                   onClick={() => setPage(current => current - 1)}
-                  aria-label="Previous page"
+                  aria-label={t('controls.previousPage', { defaultValue: 'Previous page' })}
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
@@ -1079,7 +1120,7 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
                   className="h-7 w-7 rounded-full"
                   disabled={page >= totalPages}
                   onClick={() => setPage(current => current + 1)}
-                  aria-label="Next page"
+                  aria-label={t('controls.nextPage', { defaultValue: 'Next page' })}
                 >
                   <ChevronRight className="h-4 w-4" />
                 </Button>
@@ -1089,7 +1130,11 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
                 size="icon"
                 className="h-7 w-7 rounded-full border-transparent bg-background/90 shadow-sm ring-1 ring-border/60"
                 onClick={() => setView(current => (current === 'grid' ? 'list' : 'grid'))}
-                aria-label={view === 'grid' ? 'Switch to list view' : 'Switch to grid view'}
+                aria-label={
+                  view === 'grid'
+                    ? t('controls.switchToListView', { defaultValue: 'Switch to list view' })
+                    : t('controls.switchToGridView', { defaultValue: 'Switch to grid view' })
+                }
               >
                 {view === 'grid' ? (
                   <List className="h-4 w-4" />
@@ -1110,19 +1155,27 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Uninstall Application</AlertDialogTitle>
+            <AlertDialogTitle>
+              {t('dialogs.uninstallTitle', { defaultValue: 'Uninstall Application' })}
+            </AlertDialogTitle>
             <AlertDialogDescription>
               {pendingUninstall
-                ? `Uninstall ${pendingUninstall.name}? This creates a shared uninstall operation and moves execution tracking to the canonical action detail view.`
-                : 'This action cannot be undone.'}
+                ? t('dialogs.uninstallDescription', {
+                    defaultValue:
+                      'Uninstall {{name}}? This creates a shared uninstall operation and moves execution tracking to the canonical action detail view.',
+                    name: pendingUninstall.name,
+                  })
+                : t('dialogs.cannotUndo', { defaultValue: 'This action cannot be undone.' })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={actionLoading.endsWith(':uninstall')}>
-              Cancel
+              {t('common:cancel', { defaultValue: 'Cancel' })}
             </AlertDialogCancel>
             <AlertDialogAction variant="destructive" onClick={() => void confirmUninstall()}>
-              {actionLoading.endsWith(':uninstall') ? 'Uninstalling...' : 'Confirm Uninstall'}
+              {actionLoading.endsWith(':uninstall')
+                ? t('actions.uninstall', { defaultValue: 'Uninstall' }) + '...'
+                : t('dialogs.confirmUninstall', { defaultValue: 'Confirm Uninstall' })}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

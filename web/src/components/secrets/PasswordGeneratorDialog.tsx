@@ -1,4 +1,5 @@
 import { WandSparkles } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -33,6 +34,7 @@ export function PasswordGeneratorDialog({
   lengthLabel = 'Password Length',
   confirmLabel = 'Fill Password',
 }: PasswordGeneratorDialogProps) {
+  const { t } = useTranslation('secrets')
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-sm">
@@ -59,7 +61,7 @@ export function PasswordGeneratorDialog({
 
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
+            {t('common:cancel')}
           </Button>
           <Button
             type="button"

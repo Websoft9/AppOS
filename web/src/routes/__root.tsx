@@ -1,5 +1,6 @@
 import { createRootRoute, Link, Outlet } from '@tanstack/react-router'
 import { TanStackRouterDevtools } from '@tanstack/router-devtools'
+import { useTranslation } from 'react-i18next'
 import { BrandingProvider } from '@/contexts/BrandingContext'
 import { ThemeProvider } from '@/components/theme-provider'
 import { AuthProvider } from '@/contexts/AuthContext'
@@ -19,12 +20,14 @@ function RootComponent() {
 }
 
 function NotFound() {
+  const { t } = useTranslation('auth')
+
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-background">
       <h1 className="text-6xl font-bold text-foreground mb-4">404</h1>
-      <p className="text-xl text-muted-foreground mb-8">Page not found</p>
+      <p className="text-xl text-muted-foreground mb-8">{t('notFound.title')}</p>
       <Button asChild>
-        <Link to="/">Go Home</Link>
+        <Link to="/">{t('notFound.goHome')}</Link>
       </Button>
     </div>
   )

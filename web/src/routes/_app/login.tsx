@@ -1,14 +1,24 @@
 import { createFileRoute, Link, useNavigate, useSearch } from '@tanstack/react-router'
 import { useState, useEffect } from 'react'
 import type { FormEvent } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/contexts/AuthContext'
 import { getSessionExpiredMessage, SESSION_EXPIRED_REASON } from '@/lib/auth-session'
 import { pb } from '@/lib/pb'
+import { tWithFallback } from '@/lib/i18n'
 import { ModeToggle } from '@/components/mode-toggle'
 import { completeLoginRedirect } from './-login-redirect'
 
 export function LoginPage() {
+  const { t } = useTranslation('auth')
+  const titleLabel = tWithFallback(t, 'login.title', 'Login')
+  const emailLabel = tWithFallback(t, 'login.email', 'Email')
+  const passwordLabel = tWithFallback(t, 'login.password', 'Password')
+  const submitLabel = tWithFallback(t, 'login.submit', 'Sign In')
+  const submittingLabel = tWithFallback(t, 'login.submitting', 'Signing in...')
+  const forgotPasswordLabel = tWithFallback(t, 'login.forgotPassword', 'Forgot password?')
+  const registerLabel = tWithFallback(t, 'login.register', 'Register')
   const navigate = useNavigate()
   const { redirect, reason } = useSearch({ strict: false }) as {
     redirect?: string
@@ -52,7 +62,7 @@ export function LoginPage() {
         window.location.assign(url)
       )
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Login failed'
+      const message = err instanceof Error ? err.message : t('login.errors.fallback')
       setError(message)
     } finally {
       setLoading(false)
@@ -65,7 +75,7 @@ export function LoginPage() {
         <ModeToggle />
       </div>
       <div className="w-full max-w-md p-8 bg-card rounded-lg shadow-md border border-border">
-        <h2 className="text-2xl font-bold text-center mb-6 text-card-foreground">Login</h2>
+        <h2 className="text-2xl font-bold text-center mb-6 text-card-foreground">{titleLabel}</h2>
 
         {!error && sessionExpiredMessage && (
           <div className="mb-4 p-3 bg-amber-500/10 border border-amber-500/40 text-amber-700 rounded dark:text-amber-300">
@@ -81,9 +91,9 @@ export function LoginPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="email" className="block text-sm font-medium mb-1 text-foreground">
-              Email
-            </label>
+              <label htmlFor="email" className="block text-sm font-medium mb-1 text-foreground">
+                {emailLabel}
+              </label>
             <input
               type="email"
               id="email"
@@ -95,9 +105,9 @@ export function LoginPage() {
             />
           </div>
           <div>
-            <label htmlFor="password" className="block text-sm font-medium mb-1 text-foreground">
-              Password
-            </label>
+              <label htmlFor="password" className="block text-sm font-medium mb-1 text-foreground">
+                {passwordLabel}
+              </label>
             <input
               type="password"
               id="password"
@@ -109,15 +119,15 @@ export function LoginPage() {
             />
           </div>
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? 'Signing in...' : 'Sign In'}
+            {loading ? submittingLabel : submitLabel}
           </Button>
         </form>
         <div className="mt-4 flex justify-between text-sm text-muted-foreground">
           <Link to="/forgot-password" className="text-primary hover:underline">
-            Forgot password?
+            {forgotPasswordLabel}
           </Link>
           <Link to="/register" className="text-primary hover:underline">
-            Register
+            {registerLabel}
           </Link>
         </div>
       </div>

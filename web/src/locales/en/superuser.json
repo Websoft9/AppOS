@@ -1,0 +1,215 @@
+{
+  "iac": {
+    "title": "Orchestration Files",
+    "description": "Browse and edit AppOS orchestration files for apps, workflows, and templates.",
+    "refreshAriaLabel": "Refresh orchestration files",
+    "refreshTitle": "Refresh",
+    "files": "Files",
+    "failedToLoad": "Failed to load",
+    "empty": "Empty",
+    "selectFileFromTree": "Select a file from the tree",
+    "selectFileToStartEditing": "Select a file to start editing",
+    "unsavedChanges": "Unsaved changes",
+    "dialogTitle": "Unsaved Changes",
+    "dialogDescription": "You have unsaved changes in {{file}}. Discard them and open the new file?",
+    "discardAndOpen": "Discard & Open",
+    "errors": {
+      "loadFile": "Failed to load file",
+      "saveFile": "Failed to save file"
+    }
+  },
+  "users": {
+    "page": {
+      "title": "Users",
+      "description": "Manage platform members and superusers.",
+      "members": "Members",
+      "superusers": "Superusers"
+    },
+    "search": {
+      "users": "Search by name or email...",
+      "superusers": "Search by email..."
+    },
+    "actions": {
+      "addUser": "Add User",
+      "resetPassword": "Reset Password"
+    },
+    "table": {
+      "nameEmail": "Name / Email",
+      "verified": "Verified",
+      "created": "Created",
+      "actions": "Actions",
+      "verifiedBadge": "Verified",
+      "unverifiedBadge": "Unverified"
+    },
+    "empty": {
+      "users": "No users yet.",
+      "superusers": "No superusers yet."
+    },
+    "pagination": {
+      "total": "{{count}} total"
+    },
+    "deleteDialog": {
+      "title": "Delete user?",
+      "description": "This will permanently delete {{email}}. This action cannot be undone.",
+      "cannotDeleteSelf": "You cannot delete your own account.",
+      "cannotDeleteLastSuperuser": "Cannot delete the last superuser.",
+      "deleteFailed": "Delete failed"
+    }
+  },
+  "workflows": {
+    "breadcrumb": {
+      "parentLabel": "System",
+      "currentPage": "Workflows"
+    },
+    "page": {
+      "title": "Workflows",
+      "description": "YAML-backed workflow definitions with manual and cron execution.",
+      "create": "Create Workflow"
+    },
+    "summary": {
+      "total": "Total",
+      "enabled": "Enabled"
+    },
+    "table": {
+      "name": "Name",
+      "status": "Status",
+      "targetServer": "Target Server",
+      "triggers": "Triggers",
+      "updated": "Updated",
+      "actions": "Actions",
+      "loading": "Loading workflows...",
+      "empty": "No workflows yet."
+    },
+    "toggle": {
+      "enable": "Enable workflow",
+      "disable": "Disable workflow",
+      "enabled": "Enabled",
+      "disabled": "Disabled"
+    },
+    "menu": {
+      "runs": "Runs",
+      "run": "Run",
+      "enable": "Enable",
+      "disable": "Disable"
+    },
+    "editor": {
+      "createTitle": "Create Workflow",
+      "editTitle": "Edit Workflow",
+      "name": "Name",
+      "description": "Description",
+      "trigger": "Trigger",
+      "triggerType": "Trigger Type",
+      "selectTrigger": "Select trigger",
+      "manual": "Manual",
+      "cron": "Cron",
+      "cronSchedule": "Cron Schedule",
+      "targetServer": "Target Server",
+      "selectServer": "Select a server",
+      "unassigned": "Unassigned",
+      "targetServerHint": "Target server only applies to shell and docker nodes. New workflows start with a server-based shell step so the selected server has an immediate effect.",
+      "draftTitle": "Draft With AI Copilot",
+      "draftDescription": "Describe the workflow you want. AI Copilot will open with a prepared prompt and help generate YAML for you to paste back here.",
+      "draftRequest": "AI Workflow Request",
+      "draftPlaceholder": "Example: Run a daily disk usage check on the selected server and send an HTTP notification if usage exceeds 80%.",
+      "generateYaml": "Generate YAML",
+      "generatingYaml": "Generating...",
+      "openInAICopilot": "Open In AI Copilot",
+      "enabled": "Enabled",
+      "definitionYaml": "Definition YAML",
+      "saving": "Saving...",
+      "defaults": {
+        "name": "New Workflow",
+        "description": "Run one command on the selected server"
+      },
+      "templates": {
+        "serverHealthCheck": {
+          "name": "Server Health Check",
+          "description": "Run a shell check on one server and report via HTTP."
+        },
+        "manualApproval": {
+          "name": "Manual Approval Gate",
+          "description": "Pause after diagnostics and wait for approval."
+        }
+      },
+      "nodeExamples": {
+        "shell": "Run a command on the selected AppOS server.",
+        "http": "Call an external HTTP endpoint.",
+        "manualGate": "Pause the workflow until someone approves or rejects it.",
+        "docker": "Run a container command on the selected server."
+      }
+    },
+    "detail": {
+      "titleFallback": "Workflow Detail",
+      "description": "Review workflow metadata, trigger settings, supported templates, and node YAML examples.",
+      "overview": "Overview",
+      "name": "Name",
+      "descriptionLabel": "Description",
+      "targetServer": "Target Server",
+      "triggers": "Triggers",
+      "nodes": "Nodes",
+      "templates": "Workflow Templates",
+      "nodeReference": "Node Reference"
+    },
+    "runs": {
+      "title": "Workflow Runs",
+      "titleWithName": "Workflow Runs · {{name}}",
+      "listTitle": "Runs",
+      "empty": "No runs yet.",
+      "detailTitle": "Run Detail",
+      "refreshing": "Refreshing...",
+      "cancelRun": "Cancel Run",
+      "status": "Status",
+      "trigger": "Trigger",
+      "requester": "Requester",
+      "targetServer": "Target Server",
+      "started": "Started",
+      "ended": "Ended",
+      "node": "Node",
+      "type": "Type",
+      "output": "Output",
+      "actions": "Actions",
+      "approve": "Approve",
+      "reject": "Reject",
+      "selectRun": "Select a run to inspect details."
+    },
+    "runDialog": {
+      "title": "Run Workflow",
+      "description": "Provide optional JSON parameters for this manual run.",
+      "parameters": "Run Parameters JSON",
+      "runNow": "Run Now"
+    },
+    "values": {
+      "none": "—"
+    },
+    "statuses": {
+      "succeeded": "Succeeded",
+      "failed": "Failed",
+      "cancelled": "Cancelled",
+      "manual_gate": "Manual Gate",
+      "running": "Running",
+      "pending": "Pending"
+    },
+    "errors": {
+      "loadWorkflows": "Failed to load workflows.",
+      "noAICopilotModel": "No AI Copilot model is available.",
+      "generateYaml": "Failed to generate YAML with AI Copilot.",
+      "saveWorkflow": "Failed to save workflow.",
+      "deleteWorkflow": "Failed to delete workflow.",
+      "loadRuns": "Failed to load workflow runs.",
+      "loadRunDetail": "Failed to load workflow run detail.",
+      "cancelRun": "Failed to cancel workflow run.",
+      "updateWorkflow": "Failed to update workflow.",
+      "runWorkflow": "Failed to run workflow.",
+      "refreshRunDetail": "Failed to refresh workflow run detail.",
+      "yamlObject": "Workflow definition must be a YAML object.",
+      "yamlNameRequired": "Workflow name is required in YAML.",
+      "yamlNodeRequired": "At least one node is required in YAML.",
+      "invalidYaml": "Invalid YAML.",
+      "invalidGeneratedYaml": "AI returned invalid workflow YAML: {{message}}",
+      "yamlLine": "{{reason}} line {{line}}"
+    },
+    "ai": {
+      "sessionTitle": "Workflow YAML Draft"
+    }
+  }
+}

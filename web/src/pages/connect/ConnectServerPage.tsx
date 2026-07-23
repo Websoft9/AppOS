@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import { useNavigate } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 import {
   Activity,
   Maximize,
@@ -322,6 +323,7 @@ export function ConnectServerPage({
   initialLockedRootPath,
   initialSplitRatio,
 }: ConnectServerPageProps) {
+  const { t } = useTranslation('connect')
   const initialSessionRef = useRef(
     loadInitialTerminalSession(
       serverId,
@@ -659,8 +661,8 @@ export function ConnectServerPage({
 
   const connectTypeLabel = useCallback((server: ServerType) => {
     const raw = String(server.connect_type || 'direct').toLowerCase()
-    return raw === 'tunnel' ? 'Tunnel' : 'Direct SSH'
-  }, [])
+    return raw === 'tunnel' ? t('server.connectType.tunnel') : t('server.connectType.direct')
+  }, [t])
 
   const duplicateSessionCount = useMemo(() => {
     if (!duplicateConnectTarget) return 0
@@ -706,7 +708,7 @@ export function ConnectServerPage({
       ) {
         setConnectingTarget(targetServer.name || targetServer.host || id)
         setConnectingPhase('limit')
-        setConnectingDetail(`Reached max connections limit (${connectSettings.maxConnections}).`)
+        setConnectingDetail(t('server.limitReached', { count: connectSettings.maxConnections }))
         setConnectingOpen(true)
         return
       }
@@ -714,7 +716,7 @@ export function ConnectServerPage({
       const targetLabel = targetServer.name || id
       setConnectingTarget(targetLabel)
       setConnectingPhase('checking')
-      setConnectingDetail('Establishing secure connection...')
+      setConnectingDetail(t('server.establishing'))
       setConnectingOpen(true)
 
       const minDelay = new Promise<void>(resolve =>
@@ -723,7 +725,7 @@ export function ConnectServerPage({
       const [status] = await Promise.all([checkServerStatus(targetServer), minDelay])
       if (status?.status === 'offline') {
         setConnectingPhase('offline')
-        setConnectingDetail(status.reason || 'Server is offline.')
+        setConnectingDetail(status.reason || t('server.serverOffline'))
         return
       }
       const tabId = `${id}-${Date.now()}`
@@ -749,7 +751,7 @@ export function ConnectServerPage({
       setSafeExitingTabId(tabId)
       setConnectingTarget(terminalTabs.find(tab => tab.id === tabId)?.title || 'Session')
       setConnectingPhase('safe-exit')
-      setConnectingDetail('Safely disconnecting...')
+      setConnectingDetail(t('server.safeDisconnect'))
       setConnectingOpen(true)
       if (safeExitTimerRef.current) {
         window.clearTimeout(safeExitTimerRef.current)
@@ -979,7 +981,7 @@ export function ConnectServerPage({
         setSystemdServices(services.filter(service => !shouldHideSystemdService(service)))
       } catch (error) {
         if (cancelled) return
-        setSystemdError(error instanceof Error ? error.message : 'Failed to load services')
+        setSystemdError(error instanceof Error ? error.message : t('server.errors.loadServices'))
       } finally {
         if (!cancelled) {
           setSystemdLoading(false)
@@ -1020,7 +1022,7 @@ export function ConnectServerPage({
         setSystemdStatusDetails(response.status || {})
         setSystemdView(mode)
       } catch (error) {
-        setSystemdError(error instanceof Error ? error.message : 'Operation failed')
+        setSystemdError(error instanceof Error ? error.message : t('server.errors.operationFailed'))
       } finally {
         setSystemdActionLoading(false)
       }
@@ -1037,12 +1039,12 @@ export function ConnectServerPage({
       setSystemdUnitResult('')
       try {
         await controlSystemdService(activeServerId, systemdSelected, action)
-        setSystemdHint(`Action ${action} applied. Next: check Status or Logs.`)
+        setSystemdHint(t('server.actions.systemdApplied', { action }))
         const response = await getSystemdStatus(activeServerId, systemdSelected)
         setSystemdStatusDetails(response.status || {})
         setSystemdView('status')
       } catch (error) {
-        setSystemdError(error instanceof Error ? error.message : 'Operation failed')
+        setSystemdError(error instanceof Error ? error.message : t('server.errors.operationFailed'))
       } finally {
         setSystemdActionLoading(false)
       }
@@ -1063,7 +1065,7 @@ export function ConnectServerPage({
       setSystemdEditMode(true)
       setSystemdView('cat')
     } catch (error) {
-      setSystemdError(error instanceof Error ? error.message : 'Failed to load unit file')
+      setSystemdError(error instanceof Error ? error.message : t('server.errors.loadUnit'))
     } finally {
       setSystemdActionLoading(false)
     }
@@ -1079,11 +1081,11 @@ export function ConnectServerPage({
       const saveRes = await updateSystemdUnit(activeServerId, systemdSelected, systemdUnitContent)
       const verifyRes = await verifySystemdUnit(activeServerId, systemdSelected)
       const output =
-        [saveRes.output, verifyRes.verify_output].filter(Boolean).join('\n\n') || 'Validate passed.'
+        [saveRes.output, verifyRes.verify_output].filter(Boolean).join('\n\n') || t('server.results.validatePassed')
       setSystemdUnitResult(output)
       setSystemdView('cat')
     } catch (error) {
-      setSystemdError(error instanceof Error ? error.message : 'Failed to validate unit file')
+      setSystemdError(error instanceof Error ? error.message : t('server.errors.validateUnit'))
     } finally {
       setSystemdActionLoading(false)
     }
@@ -1101,14 +1103,14 @@ export function ConnectServerPage({
       const output =
         [saveRes.output, applyRes.reload_output, applyRes.apply_output]
           .filter(Boolean)
-          .join('\n\n') || 'Apply completed.'
+          .join('\n\n') || t('server.results.applyCompleted')
       setSystemdUnitResult(output)
       const statusRes = await getSystemdStatus(activeServerId, systemdSelected)
       setSystemdStatusDetails(statusRes.status || {})
       setSystemdEditMode(false)
       setSystemdView('status')
     } catch (error) {
-      setSystemdError(error instanceof Error ? error.message : 'Failed to apply unit file')
+      setSystemdError(error instanceof Error ? error.message : t('server.errors.applyUnit'))
     } finally {
       setSystemdActionLoading(false)
     }
@@ -1164,9 +1166,9 @@ export function ConnectServerPage({
     >
       <div className="flex items-start gap-2 px-3 py-2 border-b shrink-0">
         <div className="mr-1">
-          <h1 className="text-2xl font-bold tracking-tight leading-none">Server Terminal</h1>
+          <h1 className="text-2xl font-bold tracking-tight leading-none">{t('server.title')}</h1>
           <p className="text-muted-foreground mt-1 text-sm">
-            Work with this server's shell and files in one place.
+            {t('server.description')}
           </p>
         </div>
 
@@ -1183,7 +1185,7 @@ export function ConnectServerPage({
             onClick={() => setSidePanel('none')}
           >
             <SquareTerminal className="h-4 w-4" />
-            Shell
+            {t('server.shell')}
           </Button>
 
           <Button
@@ -1211,14 +1213,14 @@ export function ConnectServerPage({
             }}
           >
             <FolderOpen className="h-4 w-4" />
-            Files
+            {t('server.files')}
           </Button>
         </div>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="sm" className="gap-1.5 h-7">
-              Tools
+              {t('server.tools')}
               <ChevronDown className="h-3 w-3 opacity-50" />
             </Button>
           </DropdownMenuTrigger>
@@ -1226,10 +1228,10 @@ export function ConnectServerPage({
             <DropdownMenuSub>
               <DropdownMenuSubTrigger>
                 <ScrollText className="h-4 w-4" />
-                Run Script
+                {t('server.runScript')}
               </DropdownMenuSubTrigger>
               <DropdownMenuSubContent className="w-[360px] max-h-[300px] overflow-y-auto">
-                <DropdownMenuLabel className="text-xs">Run script in terminal</DropdownMenuLabel>
+                <DropdownMenuLabel className="text-xs">{t('server.runScriptHint')}</DropdownMenuLabel>
                 {scripts.map(s => (
                   <DropdownMenuItem
                     key={s.id}
@@ -1247,11 +1249,11 @@ export function ConnectServerPage({
                     </div>
                   </DropdownMenuItem>
                 ))}
-                {scripts.length === 0 && <DropdownMenuItem disabled>No scripts</DropdownMenuItem>}
+                {scripts.length === 0 && <DropdownMenuItem disabled>{t('server.noScripts')}</DropdownMenuItem>}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleCreateScript}>
                   <Plus className="h-4 w-4 mr-2" />
-                  New Script
+                  {t('server.newScript')}
                 </DropdownMenuItem>
               </DropdownMenuSubContent>
             </DropdownMenuSub>
@@ -1259,28 +1261,28 @@ export function ConnectServerPage({
             <DropdownMenuSub>
               <DropdownMenuSubTrigger>
                 <Server className="h-4 w-4 mr-2" />
-                Server Detail
+                {t('server.serverDetail')}
               </DropdownMenuSubTrigger>
               <DropdownMenuSubContent>
                 <DropdownMenuItem onClick={() => openServerDetailTab(activeServerId, 'overview')}>
                   <Server className="h-4 w-4 mr-2" />
-                  Overview
+                  {t('server.overview')}
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => openServerDetailTab(activeServerId, 'systemd')}>
                   <Cog className="h-4 w-4 mr-2" />
-                  Systemd
+                  {t('server.systemd')}
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => openServerDetailTab(activeServerId, 'docker')}>
                   <SquareTerminal className="h-4 w-4 mr-2" />
-                  Docker
+                  {t('server.docker')}
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => openServerDetailTab(activeServerId, 'ports')}>
                   <Search className="h-4 w-4 mr-2" />
-                  Ports
+                  {t('server.ports')}
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => openServerDetailTab(activeServerId, 'monitor')}>
                   <Activity className="h-4 w-4 mr-2" />
-                  Monitor
+                  {t('server.monitor')}
                 </DropdownMenuItem>
               </DropdownMenuSubContent>
             </DropdownMenuSub>
@@ -1296,7 +1298,7 @@ export function ConnectServerPage({
                     variant="ghost"
                     size="icon"
                     className="h-7 w-7 relative"
-                    aria-label="Layout presets"
+                    aria-label={t('server.layoutPresets')}
                   >
                     <SplitRectangleIcon className="h-4 w-4" />
                   </Button>
@@ -1342,18 +1344,25 @@ export function ConnectServerPage({
                     className="justify-start"
                     onClick={() => applySplitPreset(0.5)}
                   >
-                    Reset
+                     {t('server.reset')}
                   </Button>
                 </div>
               </DropdownMenuContent>
             </DropdownMenu>
             <TooltipContent>
-              Layout {Math.round(splitRatio * 100)} / {Math.round((1 - splitRatio) * 100)}
+               {t('server.layout', { left: Math.round(splitRatio * 100), right: Math.round((1 - splitRatio) * 100) })}
             </TooltipContent>
           </Tooltip>
         )}
 
-        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={toggleFullscreen}>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7"
+          onClick={toggleFullscreen}
+          aria-label={t('server.fullscreen')}
+          title={t('server.fullscreen')}
+        >
           {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
         </Button>
       </div>
@@ -1370,25 +1379,25 @@ export function ConnectServerPage({
           <DialogHeader>
             <DialogTitle>
               {connectingPhase === 'safe-exit'
-                ? 'Disconnecting...'
-                : connectingPhase === 'limit'
-                  ? 'Connection Limit Reached'
-                  : 'Connecting...'}
+                 ? t('hub.disconnecting')
+                 : connectingPhase === 'limit'
+                   ? t('server.connectionLimitReached')
+                   : t('hub.connecting')}
             </DialogTitle>
             <DialogDescription>
-              {connectingTarget ? `Target: ${connectingTarget}` : 'Preparing connection'}
+              {connectingTarget ? t('server.target', { target: connectingTarget }) : t('server.preparing')}
             </DialogDescription>
           </DialogHeader>
           <div className="py-2 text-sm">
             {connectingPhase === 'checking' ? (
               <div className="inline-flex items-center gap-2 text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                {connectingDetail || 'Establishing secure connection...'}
+                {connectingDetail || t('server.establishing')}
               </div>
             ) : connectingPhase === 'safe-exit' ? (
               <div className="inline-flex items-center gap-2 text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                {connectingDetail || 'Safely disconnecting...'}
+                {connectingDetail || t('server.safeDisconnect')}
               </div>
             ) : (
               <div className="text-destructive">{connectingDetail}</div>
@@ -1400,7 +1409,7 @@ export function ConnectServerPage({
               onClick={() => setConnectingOpen(false)}
               disabled={connectingPhase === 'safe-exit' || connectingPhase === 'checking'}
             >
-              Close
+              {t('server.close')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1409,11 +1418,17 @@ export function ConnectServerPage({
       <AlertDialog open={duplicateConnectConfirmOpen} onOpenChange={setDuplicateConnectConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Open another session?</AlertDialogTitle>
+            <AlertDialogTitle>{t('server.openAnotherSession')}</AlertDialogTitle>
             <AlertDialogDescription>
               {duplicateConnectTarget
-                ? `Server ${duplicateConnectTarget.name || duplicateConnectTarget.host || duplicateConnectTarget.id} already has ${duplicateSessionCount} active session(s). Open a new one anyway?`
-                : 'This server already has active session(s). Open a new one anyway?'}
+                ? t('server.openAnotherSessionDescription', {
+                    server:
+                      duplicateConnectTarget.name ||
+                      duplicateConnectTarget.host ||
+                      duplicateConnectTarget.id,
+                    count: duplicateSessionCount,
+                  })
+                : t('server.openAnotherSessionFallback')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1422,7 +1437,7 @@ export function ConnectServerPage({
                 setDuplicateConnectTarget(null)
               }}
             >
-              Cancel
+              {t('common:cancel')}
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
@@ -1434,7 +1449,7 @@ export function ConnectServerPage({
                 }
               }}
             >
-              Open New Session
+              {t('server.openNewSession')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1453,7 +1468,7 @@ export function ConnectServerPage({
             tabRailCollapsed && 'w-10 cursor-pointer'
           )}
           style={tabRailCollapsed ? undefined : { width: `${tabRailExpandedWidth}px` }}
-          title={tabRailCollapsed ? 'Click or double-click to expand Connections' : undefined}
+          title={tabRailCollapsed ? t('server.expandConnections') : undefined}
           onClick={event => {
             if (!tabRailCollapsed) return
             if (event.target === event.currentTarget) {
@@ -1483,7 +1498,7 @@ export function ConnectServerPage({
                   ) : (
                     <>
                       <Plus className="h-3.5 w-3.5 shrink-0" />
-                      <span className="truncate">New</span>
+                      <span className="truncate">{t('server.newConnection')}</span>
                     </>
                   )}
                 </Button>
@@ -1497,7 +1512,7 @@ export function ConnectServerPage({
                       value={serverQuery}
                       onChange={event => setServerQuery(event.target.value)}
                       onKeyDown={event => event.stopPropagation()}
-                      placeholder="Search server..."
+                      placeholder={t('server.searchServer')}
                       className="w-full h-8 rounded-md border bg-background pl-7 pr-2 text-xs font-normal"
                     />
                   </div>
@@ -1521,12 +1536,12 @@ export function ConnectServerPage({
                   </DropdownMenuItem>
                 ))}
                 {filteredServers.length === 0 && (
-                  <DropdownMenuItem disabled>No servers</DropdownMenuItem>
+                  <DropdownMenuItem disabled>{t('server.noServers')}</DropdownMenuItem>
                 )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleCreateServer}>
                   <Plus className="h-4 w-4 mr-2" />
-                  Add Server
+                  {t('server.addServer')}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -1543,7 +1558,7 @@ export function ConnectServerPage({
           </div>
           <div
             className="flex-1 min-h-0 overflow-y-auto p-1.5 space-y-1"
-            title={tabRailCollapsed ? 'Click or double-click to expand Connections' : undefined}
+            title={tabRailCollapsed ? t('server.expandConnections') : undefined}
             onClick={event => {
               if (!tabRailCollapsed) return
               if (event.target === event.currentTarget) {
@@ -1563,7 +1578,7 @@ export function ConnectServerPage({
               const isSafeExiting = tab.id === safeExitingTabId
               const tabServer = serverMap.get(tab.serverId)
               const tabTitle = tabServer?.name || tab.title || tab.serverId
-              const tabMeta = `${tabServer?.host || '-'} · ${tabServer ? connectTypeLabel(tabServer) : 'Direct SSH'}`
+              const tabMeta = `${tabServer?.host || '-'} · ${tabServer ? connectTypeLabel(tabServer) : t('server.connectType.direct')}`
               return (
                 <div
                   key={tab.id}
@@ -1604,7 +1619,7 @@ export function ConnectServerPage({
                     ) : isActive ? (
                       <button
                         type="button"
-                        aria-label={`Close ${tabTitle}`}
+                        aria-label={t('server.closeConnection', { title: tabTitle })}
                         onClick={() => closeTabAfterSafeExit(tab.id)}
                         className="inline-flex h-5 w-0 overflow-hidden items-center justify-center rounded opacity-0 transition-all group-hover:w-5 group-hover:opacity-100 hover:bg-muted"
                       >
@@ -1688,8 +1703,8 @@ export function ConnectServerPage({
       <Dialog open={systemdOpen} onOpenChange={setSystemdOpen}>
         <DialogContent className="sm:max-w-4xl h-[85vh] flex flex-col overflow-hidden">
           <DialogHeader>
-            <DialogTitle>Service Manager</DialogTitle>
-            <DialogDescription>Search service and run operations.</DialogDescription>
+            <DialogTitle>{t('server.systemdManager.title')}</DialogTitle>
+            <DialogDescription>{t('server.systemdManager.description')}</DialogDescription>
           </DialogHeader>
 
           <div className="flex-1 min-h-0 flex flex-col gap-3 overflow-hidden">
@@ -1697,21 +1712,23 @@ export function ConnectServerPage({
               <input
                 value={systemdQuery}
                 onChange={event => setSystemdQuery(event.target.value)}
-                placeholder="Search service keyword..."
+                placeholder={t('server.systemdManager.searchPlaceholder')}
                 className="w-full h-9 rounded-md border bg-background px-3 text-sm"
               />
               <div className="border rounded-md max-h-[210px] overflow-auto">
                 {systemdLoading ? (
                   <div className="p-3 text-sm text-muted-foreground inline-flex items-center gap-2">
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Loading services...
+                    {t('server.systemdManager.loading')}
                   </div>
                 ) : systemdQuery.trim() === '' ? (
                   <div className="p-3 text-sm text-muted-foreground">
-                    Enter keyword to search services.
+                    {t('server.systemdManager.searchHint')}
                   </div>
                 ) : systemdServices.length === 0 ? (
-                  <div className="p-3 text-sm text-muted-foreground">No matched services.</div>
+                  <div className="p-3 text-sm text-muted-foreground">
+                    {t('server.systemdManager.empty')}
+                  </div>
                 ) : (
                   <div className="p-1 space-y-1 min-w-0">
                     {systemdServices.map(service => (
@@ -1742,7 +1759,9 @@ export function ConnectServerPage({
                             .catch(error => {
                               if (systemdSelectRequestSeq.current !== requestSeq) return
                               setSystemdError(
-                                error instanceof Error ? error.message : 'Operation failed'
+                                error instanceof Error
+                                  ? error.message
+                                  : t('server.errors.operationFailed')
                               )
                             })
                             .finally(() => {
@@ -1778,7 +1797,7 @@ export function ConnectServerPage({
                   onClick={() => void runSystemdAction('cat')}
                 >
                   <PenLine className="h-4 w-4 mr-1" />
-                  Cat
+                  {t('server.systemdManager.cat')}
                 </Button>
                 <Button
                   size="sm"
@@ -1788,7 +1807,7 @@ export function ConnectServerPage({
                   onClick={() => void runSystemdAction('logs')}
                 >
                   <ScrollText className="h-4 w-4 mr-1" />
-                  Logs
+                  {t('server.systemdManager.logs')}
                 </Button>
                 {systemdView === 'cat' && !systemdEditMode && (
                   <Button
@@ -1798,7 +1817,7 @@ export function ConnectServerPage({
                     onClick={() => void openSystemdUnitEditor()}
                   >
                     <Cog className="h-4 w-4 mr-1" />
-                    Edit
+                    {t('server.systemdManager.edit')}
                   </Button>
                 )}
                 <DropdownMenu>
@@ -1809,37 +1828,37 @@ export function ConnectServerPage({
                       className={opButtonClass}
                       disabled={!systemdSelected || systemdActionLoading}
                     >
-                      Service Action
+                      {t('server.systemdManager.serviceAction')}
                       <ChevronDown className="h-3 w-3 ml-1" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="start">
                     <DropdownMenuItem onClick={() => requestSystemdConfirm('start')}>
                       <Play className="h-4 w-4 mr-2" />
-                      Start
+                      {t('server.systemdManager.start')}
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => requestSystemdConfirm('restart')}>
                       <RotateCw className="h-4 w-4 mr-2" />
-                      Restart
+                      {t('server.systemdManager.restart')}
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       className="text-destructive focus:text-destructive"
                       onClick={() => requestSystemdConfirm('stop')}
                     >
                       <Square className="h-4 w-4 mr-2" />
-                      Stop
+                      {t('server.systemdManager.stop')}
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={() => requestSystemdConfirm('enable')}>
                       <Power className="h-4 w-4 mr-2" />
-                      Enable
+                      {t('server.systemdManager.enable')}
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       className="text-destructive focus:text-destructive"
                       onClick={() => requestSystemdConfirm('disable')}
                     >
                       <PowerOff className="h-4 w-4 mr-2" />
-                      Disable
+                      {t('server.systemdManager.disable')}
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -1850,19 +1869,19 @@ export function ConnectServerPage({
               {systemdActionLoading && (
                 <div className="text-sm text-muted-foreground inline-flex items-center gap-2">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Loading...
+                  {t('server.systemdManager.loadingState')}
                 </div>
               )}
 
               {!systemdActionLoading && systemdView === 'status' && (
                 <div className="space-y-1 text-sm">
                   {Object.keys(systemdStatusDetails).length === 0 ? (
-                    <div className="text-muted-foreground">No status output.</div>
+                    <div className="text-muted-foreground">{t('server.systemdManager.noStatus')}</div>
                   ) : (
                     Object.entries(systemdStatusDetails).map(([key, value]) => (
                       <div key={key} className="grid grid-cols-[160px_1fr] gap-2">
                         <span className="text-muted-foreground truncate">{key}</span>
-                        <span className="break-words">{value || '-'}</span>
+                        <span className="break-words">{value || '—'}</span>
                       </div>
                     ))
                   )}
@@ -1874,19 +1893,19 @@ export function ConnectServerPage({
                   {!systemdEditMode ? (
                     <>
                       <pre className="text-xs whitespace-pre-wrap break-words">
-                        {systemdContentText || 'No service content.'}
+                        {systemdContentText || t('server.systemdManager.noContent')}
                       </pre>
                     </>
                   ) : (
                     <div className="space-y-3">
                       <div className="text-xs text-muted-foreground">
-                        Unit file: {systemdUnitPath || '-'}
+                        {t('server.systemdManager.unitFile', { path: systemdUnitPath || '—' })}
                       </div>
                       <textarea
                         value={systemdUnitContent}
                         onChange={event => setSystemdUnitContent(event.target.value)}
                         className="w-full min-h-[260px] rounded-md border bg-background p-3 text-xs font-mono overflow-auto"
-                        placeholder="[Unit]\nDescription=..."
+                        placeholder={t('server.systemdManager.unitPlaceholder')}
                       />
                       <div className="flex flex-wrap gap-2">
                         <Button
@@ -1895,14 +1914,14 @@ export function ConnectServerPage({
                           disabled={!systemdSelected || systemdActionLoading}
                           onClick={() => requestSystemdConfirm('verify-unit')}
                         >
-                          Validate
+                          {t('server.systemdManager.validate')}
                         </Button>
                         <Button
                           size="sm"
                           disabled={!systemdSelected || systemdActionLoading}
                           onClick={() => requestSystemdConfirm('apply-unit')}
                         >
-                          Apply
+                          {t('server.systemdManager.apply')}
                         </Button>
                         <Button
                           size="sm"
@@ -1910,7 +1929,7 @@ export function ConnectServerPage({
                           disabled={systemdActionLoading}
                           onClick={() => setSystemdEditMode(false)}
                         >
-                          Cancel Edit
+                          {t('server.systemdManager.cancelEdit')}
                         </Button>
                       </div>
                       {systemdUnitResult && (
@@ -1925,13 +1944,13 @@ export function ConnectServerPage({
 
               {!systemdActionLoading && systemdView === 'logs' && (
                 <pre className="text-xs whitespace-pre-wrap break-words">
-                  {systemdLogs.length ? systemdLogs.join('\n') : 'No logs.'}
+                  {systemdLogs.length ? systemdLogs.join('\n') : t('server.systemdManager.noLogs')}
                 </pre>
               )}
 
               {!systemdActionLoading && systemdView === 'none' && systemdSelected && (
                 <div className="text-sm text-muted-foreground">
-                  Choose one operation above to continue.
+                  {t('server.systemdManager.chooseOperation')}
                 </div>
               )}
               {systemdHint && <div className="mt-3 text-xs text-emerald-600">{systemdHint}</div>}
@@ -1942,7 +1961,7 @@ export function ConnectServerPage({
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setSystemdOpen(false)}>
-              Close
+              {t('server.close')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1953,27 +1972,34 @@ export function ConnectServerPage({
           <AlertDialogHeader>
             <AlertDialogTitle>
               {systemdConfirmAction === 'verify-unit'
-                ? 'Validate unit file?'
+                ? t('server.systemdManager.confirm.validateTitle')
                 : systemdConfirmAction === 'apply-unit'
-                  ? 'Apply unit changes?'
-                  : 'Confirm service action?'}
+                  ? t('server.systemdManager.confirm.applyTitle')
+                  : t('server.systemdManager.confirm.serviceActionTitle')}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {systemdConfirmAction === 'verify-unit'
-                ? `Service: ${systemdSelected || '-'}\nThis will run systemd-analyze verify.`
+                ? t('server.systemdManager.confirm.validateDescription', {
+                    service: systemdSelected || '—',
+                  })
                 : systemdConfirmAction === 'apply-unit'
-                  ? `Service: ${systemdSelected || '-'}\nThis will save current editor content, then run daemon-reload and try-restart.`
-                  : `Service: ${systemdSelected || '-'}\nAction: ${systemdConfirmAction || '-'}`}
+                  ? t('server.systemdManager.confirm.applyDescription', {
+                      service: systemdSelected || '—',
+                    })
+                  : t('server.systemdManager.confirm.actionDescription', {
+                      service: systemdSelected || '—',
+                      action: systemdConfirmAction || '—',
+                    })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t('common:cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 void executeSystemdConfirm()
               }}
             >
-              Confirm
+              {t('common:confirm')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

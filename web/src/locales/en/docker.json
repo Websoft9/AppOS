@@ -1,0 +1,483 @@
+{
+  "page": {
+    "title": "Docker",
+    "serverMenuAria": "Select Docker server"
+  },
+  "command": {
+    "placeholder": "ps -a --format json",
+    "run": "Run",
+    "emptyPrompt": "Enter a docker subcommand above and press Enter or click Run.",
+    "exampleLabel": "Example:"
+  },
+  "compose": {
+    "errors": {
+      "loadContainers": "Failed to load compose containers",
+      "loadProjectDetails": "Failed to load compose project details",
+      "loadLogs": "Failed to load logs",
+      "loadConfig": "Failed to load config",
+      "loadProjects": "Failed to load compose projects"
+    },
+    "operation": {
+      "noOutput": "Operation completed with no output.",
+      "failed": "{{label}} failed",
+      "dialogTitleFallback": "Compose Operation",
+      "runningDescription": "This compose operation may take a while. The row status and this dialog will update when it finishes.",
+      "failedDescription": "The operation failed. Review the output below.",
+      "finishedDescription": "The operation finished. Review the output below.",
+      "runningFallback": "Running compose operation...",
+      "failedEmpty": "(operation failed without output)",
+      "completedEmpty": "(operation completed with no output)",
+      "copySuccess": "Operation output copied",
+      "copyFailure": "Failed to copy operation output",
+      "downloadFailure": "Failed to download operation output"
+    },
+    "searchPlaceholder": "Search projects",
+    "total": "{{count}} total",
+    "pagination": {
+      "previous": "Previous compose page",
+      "next": "Next compose page"
+    },
+    "settings": {
+      "button": "Compose display settings",
+      "perPage": "{{count}} / page"
+    },
+    "filters": {
+      "searchBadge": "Search: {{value}}",
+      "statusBadge": "Status: {{value}}",
+      "clear": "Clear filters",
+      "statusAria": "Filter compose status",
+      "statusTitle": "Compose status: {{value}}",
+      "allStatus": "All status"
+    },
+    "loading": {
+      "projectContainers": "Loading project containers...",
+      "projectStatus": "Loading project status..."
+    },
+    "columns": {
+      "project": "Project",
+      "status": "Status",
+      "containers": "Containers",
+      "config": "Config",
+      "actions": "Actions"
+    },
+    "containerCount_one": "{{count}} container",
+    "containerCount_other": "{{count}} containers",
+    "actions": {
+      "pull": "Pull",
+      "up": "Up",
+      "start": "Start",
+      "stop": "Stop",
+      "restart": "Restart",
+      "down": "Down",
+      "logs": "Logs",
+      "viewConfig": "View Config",
+      "downRemove": "Down + Remove"
+    },
+    "expanded": {
+      "servicesTitle": "Compose Services",
+      "service": "Service",
+      "container": "Container",
+      "state": "State",
+      "ports": "Ports"
+    },
+    "empty": {
+      "servicesForProject": "No services found for this project.",
+      "projects": "No compose projects found"
+    },
+    "dialogs": {
+      "logsTitle": "Compose Logs: {{name}}",
+      "configDescription": "docker-compose.yml content for this compose project.",
+      "logsDescription": "Recent docker compose logs for this project.",
+      "loadingConfig": "Loading config...",
+      "loadingLogs": "Loading logs...",
+      "emptyConfig": "(empty file)",
+      "emptyOutput": "(no output)",
+      "copyConfigSuccess": "Config copied",
+      "copyLogsSuccess": "Logs copied",
+      "downloadConfigFailure": "Failed to download config",
+      "downloadLogsFailure": "Failed to download logs"
+    }
+  },
+  "containers": {
+    "title": "Containers",
+    "searchPlaceholder": "Search containers",
+    "total": "{{count}} total",
+    "refresh": "Refresh Docker data",
+    "pagination": {
+      "previous": "Previous containers page",
+      "next": "Next containers page"
+    },
+    "settings": {
+      "button": "Container display settings",
+      "rowsPerPage": "Rows Per Page",
+      "perPage": "{{count}} / page",
+      "visibleColumns": "Visible Columns"
+    },
+    "messages": {
+      "copyFailed": "Failed to copy {{label}}"
+    },
+    "filters": {
+      "searchBadge": "Search: {{value}}",
+      "runtimeBadge": "Runtime: {{value}}",
+      "linkedContainersBadge": "Linked containers: {{count}}",
+      "composeBadge": "Compose: {{value}}",
+      "clear": "Clear filters",
+      "stateAria": "Filter container state",
+      "stateTitle": "Container state: {{value}}",
+      "allStates": "All states ({{count}})",
+      "running": "Running ({{count}})",
+      "exited": "Exited ({{count}})",
+      "paused": "Paused ({{count}})",
+      "created": "Created ({{count}})",
+      "composeAria": "Filter compose project",
+      "composeTitle": "Compose: {{value}}",
+      "allCompose": "All compose"
+    },
+    "loading": {
+      "telemetry": "Loading telemetry...",
+      "stats": "Loading stats...",
+      "inspect": "Loading inspect...",
+      "logs": "Loading logs..."
+    },
+    "columns": {
+      "name": "Name",
+      "runtime": "Runtime",
+      "quick": "Quick",
+      "ports": "Ports",
+      "volumes": "Volumes",
+      "created": "Created",
+      "compose": "Compose",
+      "cpu": "CPU",
+      "memory": "Memory",
+      "network": "Network",
+      "lifecycle": "Lifecycle",
+      "actions": "Actions"
+    },
+    "quick": {
+      "logsAria": "Open logs for {{name}}",
+      "logs": "Logs",
+      "monitorAria": "Open monitor for {{name}}",
+      "monitor": "Monitor",
+      "execAria": "Open exec for {{name}}",
+      "exec": "Exec",
+      "execUnavailable": "Exec unavailable"
+    },
+    "moreActions": "More actions for {{name}}",
+    "actions": {
+      "exec": "Exec",
+      "stats": "Stats",
+      "logs": "Logs",
+      "inspect": "Inspect",
+      "start": "Start",
+      "stop": "Stop",
+      "restart": "Restart",
+      "remove": "Remove"
+    },
+    "details": {
+      "title": "Container Details",
+      "loadingInspect": "Loading inspect details...",
+      "copyId": "Click to copy ID",
+      "copyIp": "Click to copy IP"
+    },
+    "volumeCount_one": "{{count}} volume",
+    "volumeCount_other": "{{count}} volumes",
+    "stats": {
+      "realtimeSnapshot": "Realtime Snapshot",
+      "realtimeDescription": "Current runtime values from docker stats.",
+      "live": "Live",
+      "inTotal": "in total",
+      "outTotal": "out total",
+      "blockIo": "Block I/O",
+      "readTotal": "read total",
+      "writeTotal": "write total",
+      "snapshotBadge": "Docker stats snapshot",
+      "observedNow": "Observed now",
+      "refreshingEvery2s": "Refreshing every 2s",
+      "trendHistory": "Trend History",
+      "trendDescription": "{{range}} Select a range to redraw all trend charts.",
+      "trendWindowSelector": "container trend window selector",
+      "cpuTrend": "CPU Trend",
+      "memoryTrend": "Memory Trend",
+      "networkTrend": "Network Trend",
+      "blockIoTrend": "Block I/O Trend"
+    },
+    "dialogs": {
+      "inspectTitlePrefix": "Container Inspect",
+      "logsTitlePrefix": "Container Logs",
+      "inspectDescription": "Structured docker inspect output for this container.",
+      "logsDescription": "Recent docker logs for this container.",
+      "inspectCopySuccess": "Inspect copied",
+      "logsCopySuccess": "Logs copied",
+      "inspectCopyFailure": "Failed to copy inspect",
+      "logsCopyFailure": "Failed to copy logs",
+      "inspectDownloadFailure": "Failed to download inspect",
+      "logsDownloadFailure": "Failed to download logs"
+    },
+    "empty": {
+      "output": "(no output)"
+    }
+  },
+  "images": {
+    "errors": {
+      "inspect": "Failed to inspect image",
+      "loadPullOperation": "Failed to load pull operation",
+      "deletePullRecord": "Failed to delete pull record",
+      "clearPullHistory": "Failed to clear pull history",
+      "cancelQueuedPull": "Failed to cancel queued pull",
+      "remove": "Failed to remove image",
+      "removeSome": "{{failed}} of {{total}} images failed to remove",
+      "removeSelected": "Failed to remove selected images",
+      "prune": "Failed to prune images",
+      "pull": "Failed to pull image",
+      "registryReachability": "Failed to check registry reachability",
+      "load": "Failed to load images"
+    },
+    "prune": {
+      "completed": "Prune completed."
+    },
+    "filterPlaceholder": "Filter images...",
+    "filters": {
+      "usageAria": "Filter by image usage",
+      "allImages": "All images",
+      "used": "Used ({{count}})",
+      "unused": "Unused ({{count}})",
+      "onlyUnused": "Only unused images",
+      "onlyUsed": "Only used images",
+      "registryBadge": "Registry: {{value}}",
+      "searchBadge": "Search: {{value}}",
+      "clear": "Clear filters",
+      "registryAria": "Filter by registry",
+      "all": "All"
+    },
+    "actions": {
+      "pullImage": "Pull image",
+      "removeSelected": "Remove selected ({{count}})",
+      "prune": "Prune",
+      "selectAllUnused": "Select all unused images",
+      "inspect": "Inspect",
+      "pull": "Pull",
+      "remove": "Remove",
+      "viewFullInspect": "View full inspect"
+    },
+    "columns": {
+      "repository": "Repository",
+      "registry": "Registry",
+      "id": "ID",
+      "tag": "Tag",
+      "containers": "Containers",
+      "size": "Size",
+      "created": "Created",
+      "actions": "Actions"
+    },
+    "containerCount_one": "{{count}} container",
+    "containerCount_other": "{{count}} containers",
+    "loading": {
+      "inspect": "Loading inspect..."
+    },
+    "details": {
+      "title": "Image Details"
+    },
+    "empty": "No images found",
+    "pagination": {
+      "zeroItems": "0 items",
+      "range": "{{start}}–{{end}} of {{total}}",
+      "perPage": "{{count}} / page",
+      "previous": "Previous images page",
+      "next": "Next images page"
+    },
+    "dialogs": {
+      "removeSelectedTitle": "Remove selected unused images?",
+      "removeSelectedDescription": "Selected: {{count}}. Images in use are not selectable.",
+      "pruneTitle": "Prune unused images?",
+      "pruneDescription": "This will remove all dangling images not referenced by any container. This action cannot be undone."
+    },
+    "pull": {
+      "phase": "Pull {{phase}}...",
+      "submitting": "Submitting pull for {{name}}...",
+      "accepted": "Pull accepted for {{name}}.",
+      "title": "Pull image",
+      "description": "Pull directly from the selected registry. Search/reference is optional.",
+      "checking": "Checking...",
+      "checkReachable": "Check reachable",
+      "reachable": "Reachable from target server",
+      "notReachable": "Not reachable from target server",
+      "imageLabel": "Image",
+      "imageHelpAria": "Image input help",
+      "imageHelp": "Use name:tag when you know the exact reference, for example wordpress:latest. Leave tag empty only when you want the registry default.",
+      "imagePlaceholder": "wordpress:latest",
+      "onlineSearch": "Online search",
+      "localBadge": "LOCAL",
+      "organization": "Organization: {{value}}",
+      "use": "Use",
+      "noLocalMatches": "No precise local matches",
+      "logsPlaceholder": "Pull logs will appear here.",
+      "pulling": "Pulling..."
+    },
+    "history": {
+      "detailTitle": "Image pull details",
+      "title": "Image pull activity",
+      "selectedOperation": "Selected image pull operation",
+      "description": "Review currently running pulls and recent completed history.",
+      "backToList": "Back to list",
+      "cancelQueuedPull": "Cancel queued pull",
+      "started": "Started {{value}}",
+      "updated": "Updated {{value}}",
+      "noOutput": "No output available.",
+      "pendingTab": "Pending",
+      "historyTab": "History",
+      "noActive": "No active pull operations.",
+      "clearAll": "Clear all",
+      "noRecent": "No recent pull history.",
+      "retryPull": "Retry pull",
+      "deletePullRecord": "Delete pull record",
+      "clearTitle": "Clear recent pull history?",
+      "clearDescription": "This deletes pull records for this server only. It does not remove any images.",
+      "clearing": "Clearing..."
+    },
+    "inspect": {
+      "description": "Structured docker inspect output for this image.",
+      "empty": "(no output)",
+      "copySuccess": "Inspect copied",
+      "copyFailure": "Failed to copy inspect",
+      "downloadFailure": "Failed to download inspect"
+    }
+  },
+  "networks": {
+    "errors": {
+      "inspect": "Failed to inspect network",
+      "remove": "Failed to remove network",
+      "create": "Failed to create network",
+      "load": "Failed to load networks"
+    },
+    "searchPlaceholder": "Search networks",
+    "total": "{{count}} total",
+    "pagination": {
+      "previous": "Previous networks page",
+      "next": "Next networks page"
+    },
+    "settings": {
+      "button": "Networks display settings",
+      "perPage": "{{count}} / page"
+    },
+    "actions": {
+      "createNetwork": "Create network",
+      "create": "Create",
+      "remove": "Remove",
+      "removing": "Removing..."
+    },
+    "filters": {
+      "searchBadge": "Search: {{value}}",
+      "driverBadge": "Driver: {{value}}",
+      "typeBadge": "Type: {{value}}",
+      "scopeBadge": "Scope: {{value}}",
+      "clear": "Clear filters",
+      "driverAria": "Filter network driver",
+      "driverTitle": "Network driver: {{value}}",
+      "allDrivers": "All drivers ({{count}})",
+      "typeAria": "Filter network type",
+      "typeTitle": "Network type: {{value}}",
+      "allTypes": "All types ({{count}})",
+      "system": "System ({{count}})",
+      "user": "User ({{count}})",
+      "scopeAria": "Filter network scope",
+      "scopeTitle": "Network scope: {{value}}",
+      "allScopes": "All scopes ({{count}})"
+    },
+    "columns": {
+      "name": "Name",
+      "id": "ID",
+      "driver": "Driver",
+      "type": "Type",
+      "scope": "Scope",
+      "actions": "Actions"
+    },
+    "types": {
+      "system": "System",
+      "user": "User"
+    },
+    "loading": {
+      "inspect": "Loading inspect..."
+    },
+    "empty": {
+      "inspect": "(empty output)",
+      "list": "No networks found"
+    },
+    "dialogs": {
+      "createTitle": "Create network",
+      "createDescription": "Enter a network name to create a new Docker network.",
+      "namePlaceholder": "Network name",
+      "removeTitle": "Remove network?",
+      "removeDescriptionNamed": "This will remove the network \"{{name}}\". Containers still attached to it may block the operation.",
+      "removeDescription": "This will remove the selected network."
+    }
+  },
+  "volumes": {
+    "errors": {
+      "inspect": "Failed to inspect volume",
+      "remove": "Failed to remove volume",
+      "prune": "Failed to prune volumes",
+      "load": "Failed to load volumes"
+    },
+    "filterPlaceholder": "Filter volumes...",
+    "actions": {
+      "pruneUnused": "Prune unused",
+      "openInFiles": "Open in Files",
+      "remove": "Remove",
+      "deleteVolume": "Delete volume",
+      "prune": "Prune"
+    },
+    "filters": {
+      "linkedContainers": "Linked containers: {{count}}",
+      "clear": "Clear filters",
+      "driverAria": "Filter volume driver",
+      "driverTitle": "Volume driver: {{value}}",
+      "allDrivers": "All drivers ({{count}})",
+      "linkedAria": "Filter linked containers",
+      "all": "All",
+      "withContainer": "With container",
+      "withoutContainer": "Without container"
+    },
+    "columns": {
+      "name": "Name",
+      "driver": "Driver",
+      "mountpoint": "Mountpoint",
+      "containers": "Containers",
+      "actions": "Actions"
+    },
+    "linkedContainerCount_one": "{{count}} linked container",
+    "linkedContainerCount_other": "{{count}} linked containers",
+    "loading": {
+      "inspect": "Loading inspect...",
+      "checkingLinked": "Checking linked containers..."
+    },
+    "empty": {
+      "inspect": "(empty output)",
+      "list": "No volumes found"
+    },
+    "pagination": {
+      "zeroItems": "0 items",
+      "range": "{{start}}-{{end}} of {{total}}",
+      "perPage": "{{count}} / page",
+      "previous": "Previous volumes page",
+      "next": "Next volumes page"
+    },
+    "dialogs": {
+      "removeTitle": "Remove volume?",
+      "removeDescription": "This operation is irreversible and may permanently delete data stored in the volume.",
+      "volumeLabel": "Volume: {{name}}",
+      "pruneReviewTitle": "Review unused volumes",
+      "pruneReviewDescription": "Review the local volumes that are not used by any container before running prune. This action cannot be undone."
+    },
+    "prune": {
+      "willRemove_one": "{{count}} unused volume will be removed.",
+      "willRemove_other": "{{count}} unused volumes will be removed.",
+      "noneAvailable": "No unused volumes are available to prune.",
+      "confirmLabel": "Type {{phrase}} to enable prune."
+    },
+    "files": {
+      "title": "Volume files",
+      "runningWarning_one": "This volume is currently used by {{count}} running container: {{containers}}. Editing may affect the running app.",
+      "runningWarning_other": "This volume is currently used by {{count}} running containers: {{containers}}. Editing may affect the running app."
+    }
+  }
+}

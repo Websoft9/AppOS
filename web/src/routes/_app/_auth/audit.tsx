@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import React, { useState, useEffect, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   ChevronDown,
   ChevronUp,
@@ -73,13 +74,13 @@ function formatDate(iso: string) {
   return new Date(iso).toLocaleString()
 }
 
-function statusBadge(status: AuditLog['status']) {
+function statusBadge(status: AuditLog['status'], t: (key: string) => string) {
   const variants: Record<string, 'default' | 'destructive' | 'outline' | 'secondary'> = {
     success: 'default',
     failed: 'destructive',
     pending: 'secondary',
   }
-  return <Badge variant={variants[status] ?? 'outline'}>{status}</Badge>
+  return <Badge variant={variants[status] ?? 'outline'}>{t(`status.${status}`)}</Badge>
 }
 
 function buildFilter(action: string, status: string): string | undefined {
@@ -127,6 +128,7 @@ interface SummaryStats {
 }
 
 export function AuditPage() {
+  const { t } = useTranslation('audit')
   const isSuperuser = pb.authStore.record?.collectionName === '_superusers'
 
   const [logs, setLogs] = useState<AuditLog[]>([])
@@ -217,11 +219,11 @@ export function AuditPage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-1">
-        <h2 className="text-2xl font-bold">Audit</h2>
+        <h2 className="text-2xl font-bold">{t('title')}</h2>
         <div className="flex items-center gap-1">
           {isSuperuser && (
             <Button variant="outline" size="icon" asChild>
-              <Link to="/logs" aria-label="Open logs" title="Logs">
+              <Link to="/logs" aria-label={t('openLogs')} title={t('logs')}>
                 <FileText className="h-4 w-4" />
               </Link>
             </Button>
@@ -229,8 +231,8 @@ export function AuditPage() {
           <Button
             variant="outline"
             size="icon"
-            aria-label="Refresh audit"
-            title="Refresh"
+            aria-label={t('refreshAria')}
+            title={t('common:refresh')}
             onClick={() => {
               fetchLogs(page, filterAction, filterStatus, sortParam, pageSize)
               fetchSummary()
@@ -241,7 +243,7 @@ export function AuditPage() {
         </div>
       </div>
       <p className="text-sm text-muted-foreground mb-4">
-        Records sensitive and critical user operations for accountability.
+        {t('description')}
       </p>
 
       {/* Summary */}
@@ -251,7 +253,7 @@ export function AuditPage() {
             <CardContent className="flex items-center gap-3 py-4 px-4">
               <LayoutList className="h-5 w-5 text-muted-foreground shrink-0" />
               <div>
-                <p className="text-xs text-muted-foreground">Total</p>
+                <p className="text-xs text-muted-foreground">{t('summary.total')}</p>
                 <p className="text-xl font-semibold">{summary.total}</p>
               </div>
             </CardContent>
@@ -260,7 +262,7 @@ export function AuditPage() {
             <CardContent className="flex items-center gap-3 py-4 px-4">
               <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0" />
               <div>
-                <p className="text-xs text-muted-foreground">Success</p>
+                <p className="text-xs text-muted-foreground">{t('summary.success')}</p>
                 <p className="text-xl font-semibold">{summary.success}</p>
               </div>
             </CardContent>
@@ -269,7 +271,7 @@ export function AuditPage() {
             <CardContent className="flex items-center gap-3 py-4 px-4">
               <XCircle className="h-5 w-5 text-destructive shrink-0" />
               <div>
-                <p className="text-xs text-muted-foreground">Failed</p>
+                <p className="text-xs text-muted-foreground">{t('summary.failed')}</p>
                 <p className="text-xl font-semibold">{summary.failed}</p>
               </div>
             </CardContent>
@@ -278,7 +280,7 @@ export function AuditPage() {
             <CardContent className="flex items-center gap-3 py-4 px-4">
               <Clock className="h-5 w-5 text-yellow-500 shrink-0" />
               <div>
-                <p className="text-xs text-muted-foreground">Pending</p>
+                <p className="text-xs text-muted-foreground">{t('summary.pending')}</p>
                 <p className="text-xl font-semibold">{summary.pending}</p>
               </div>
             </CardContent>
@@ -296,7 +298,7 @@ export function AuditPage() {
             setFilterAction(e.target.value)
           }}
         >
-          <option value="">All actions</option>
+          <option value="">{t('filters.allActions')}</option>
           {ACTIONS.map(a => (
             <option key={a} value={a}>
               {a}
@@ -312,7 +314,7 @@ export function AuditPage() {
             setFilterStatus(e.target.value)
           }}
         >
-          <option value="">All statuses</option>
+          <option value="">{t('filters.allStatuses')}</option>
           {STATUSES.map(s => (
             <option key={s} value={s}>
               {s}
@@ -342,7 +344,7 @@ export function AuditPage() {
               <TableHead>
                 <SortHeader
                   field="created"
-                  label="Time"
+                   label={t('table.time')}
                   current={sortField}
                   dir={sortDir}
                   onSort={handleSort}
@@ -351,17 +353,17 @@ export function AuditPage() {
               <TableHead>
                 <SortHeader
                   field="action"
-                  label="Action"
+                   label={t('table.action')}
                   current={sortField}
                   dir={sortDir}
                   onSort={handleSort}
                 />
               </TableHead>
-              <TableHead>Resource</TableHead>
+               <TableHead>{t('table.resource')}</TableHead>
               <TableHead>
                 <SortHeader
                   field="status"
-                  label="Status"
+                   label={t('table.status')}
                   current={sortField}
                   dir={sortDir}
                   onSort={handleSort}
@@ -371,7 +373,7 @@ export function AuditPage() {
                 <TableHead>
                   <SortHeader
                     field="ip"
-                    label="IP"
+                     label={t('table.ip')}
                     current={sortField}
                     dir={sortDir}
                     onSort={handleSort}
@@ -382,7 +384,7 @@ export function AuditPage() {
                 <TableHead>
                   <SortHeader
                     field="user_email"
-                    label="User"
+                     label={t('table.user')}
                     current={sortField}
                     dir={sortDir}
                     onSort={handleSort}
@@ -398,7 +400,7 @@ export function AuditPage() {
                   colSpan={isSuperuser ? 7 : 5}
                   className="text-center text-muted-foreground py-8"
                 >
-                  {loading ? 'Loading…' : 'No records found.'}
+                  {loading ? t('loading') : t('empty')}
                 </TableCell>
               </TableRow>
             )}
@@ -433,12 +435,12 @@ export function AuditPage() {
                     </TableCell>
                     <TableCell className="font-mono text-sm">{log.action}</TableCell>
                     <TableCell className="max-w-xs truncate">
-                      {log.resource_name || log.resource_id || '—'}
+                      {log.resource_name || log.resource_id || '\u2014'}
                     </TableCell>
-                    <TableCell>{statusBadge(log.status)}</TableCell>
+                    <TableCell>{statusBadge(log.status, key => t(key))}</TableCell>
                     {isSuperuser && (
                       <TableCell className="font-mono text-xs text-muted-foreground">
-                        {log.ip || '—'}
+                        {log.ip || '\u2014'}
                       </TableCell>
                     )}
                     {isSuperuser && (
@@ -452,7 +454,7 @@ export function AuditPage() {
                       <TableCell colSpan={colSpan} className="bg-muted/30 px-8 py-3 space-y-2">
                         {ua && (
                           <div className="text-xs text-muted-foreground">
-                            <span className="font-semibold">User-Agent:</span> {ua}
+                            <span className="font-semibold">{t('table.userAgent')}</span> {ua}
                           </div>
                         )}
                         {hasDetailWithoutUA && (
@@ -473,7 +475,7 @@ export function AuditPage() {
       {/* Pagination */}
       <div className="flex items-center justify-between mt-4">
         <span className="text-sm text-muted-foreground">
-          Page {page} of {totalPages}
+          {t('pagination.pageOf', { page, totalPages })}
         </span>
         <div className="flex items-center gap-2">
           <select
@@ -486,7 +488,7 @@ export function AuditPage() {
           >
             {PAGE_SIZE_OPTIONS.map(n => (
               <option key={n} value={n}>
-                {n} / page
+                  {t('pagination.perPage', { count: n })}
               </option>
             ))}
           </select>
@@ -496,7 +498,7 @@ export function AuditPage() {
             disabled={page <= 1}
             onClick={() => setPage(p => p - 1)}
           >
-            Previous
+            {t('pagination.previous')}
           </Button>
           <Button
             variant="outline"
@@ -504,7 +506,7 @@ export function AuditPage() {
             disabled={page >= totalPages}
             onClick={() => setPage(p => p + 1)}
           >
-            Next
+            {t('pagination.next')}
           </Button>
         </div>
       </div>

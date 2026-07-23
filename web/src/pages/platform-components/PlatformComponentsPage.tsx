@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { RefreshCw, Loader2, FileText, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -25,47 +26,17 @@ import {
   fetchActiveServices,
   fetchServiceLogs,
   formatComponentStatusTime,
+  formatComponentCriticalityLabel,
+  formatLifecycleLabel,
+  formatRuntimeKindLabel,
   formatServiceMemory,
+  formatServiceStateLabel,
   formatServiceUptime,
+  formatVisibilityLabel,
   serviceVariant,
   useInstalledComponentsController,
   type ServiceItem,
 } from './platform-component-status-shared'
-
-function titleizeRuntimeKind(value: string): string {
-  if (!value) return 'Unknown runtime'
-  return value
-    .split('_')
-    .filter(Boolean)
-    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ')
-}
-
-function visibilityLabel(value: string): string {
-  switch (value) {
-    case 'default':
-      return 'Default'
-    case 'diagnostic':
-      return 'Diagnostic'
-    case 'hidden':
-      return 'Hidden'
-    default:
-      return value || 'Unknown'
-  }
-}
-
-function lifecycleLabel(value: string): string {
-  switch (value) {
-    case 'always_on':
-      return 'Always on'
-    case 'on_demand':
-      return 'On demand'
-    case 'ephemeral':
-      return 'Ephemeral'
-    default:
-      return value || 'Unknown'
-  }
-}
 
 function formatObservedAtTime(value?: string): string {
   if (!value) return '-'
@@ -101,6 +72,7 @@ function nonDefaultVisibilityService(service: ServiceItem): boolean {
 }
 
 export function PlatformComponentsPage() {
+  const { t } = useTranslation('system')
   const [tab, setTab] = useState<'components' | 'services'>('services')
   const componentsController = useInstalledComponentsController()
   const servicesController = useActiveServicesController()
@@ -109,9 +81,14 @@ export function PlatformComponentsPage() {
     <div className="space-y-4 p-4 cursor-default">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Platform Components</h1>
+          <h1 className="text-2xl font-bold tracking-tight">
+            {t('platformComponents.title', 'Platform Components')}
+          </h1>
           <p className="text-muted-foreground mt-1">
-            Inspect built-in platform components and active internal services.
+            {t(
+              'platformComponents.description',
+              'Inspect built-in platform components and active internal services.'
+            )}
           </p>
         </div>
       </div>
@@ -119,15 +96,19 @@ export function PlatformComponentsPage() {
       <Tabs value={tab} onValueChange={value => setTab(value as 'components' | 'services')}>
         <div className="flex items-center justify-between">
           <TabsList>
-            <TabsTrigger value="services">Active Services</TabsTrigger>
-            <TabsTrigger value="components">Built-in Components</TabsTrigger>
+            <TabsTrigger value="services">
+              {t('platformComponents.tabs.services', 'Active Services')}
+            </TabsTrigger>
+            <TabsTrigger value="components">
+              {t('platformComponents.tabs.components', 'Built-in Components')}
+            </TabsTrigger>
           </TabsList>
           <div className="flex items-center gap-2">
             {tab === 'components' ? (
               <Button
                 variant="outline"
                 size="icon"
-                title="Refresh"
+                title={t('platformComponents.actions.refresh', 'Refresh')}
                 disabled={componentsController.loading}
                 onClick={() => void componentsController.refresh(true)}
               >
@@ -143,43 +124,64 @@ export function PlatformComponentsPage() {
 
         <TabsContent value="services" className="mt-4 space-y-4">
           <p className="text-sm text-muted-foreground">
-            Services are grouped by operator visibility so the default surface stays focused while
-            diagnostic dependencies remain accessible.
+            {t(
+              'platformComponents.services.groupDescription',
+              'Services are grouped by operator visibility so the default surface stays focused while diagnostic dependencies remain accessible.'
+            )}
           </p>
 
           <div className="space-y-6">
             <section className="space-y-3">
               <div>
-                <h2 className="text-base font-semibold text-foreground">Active Services</h2>
+                <h2 className="text-base font-semibold text-foreground">
+                  {t('platformComponents.services.activeTitle', 'Active Services')}
+                </h2>
                 <p className="text-sm text-muted-foreground">
-                  Default operator-visible services for the current AppOS instance.
+                  {t(
+                    'platformComponents.services.activeDescription',
+                    'Default operator-visible services for the current AppOS instance.'
+                  )}
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
                   {servicesController.lastUpdatedAt
-                    ? `Updated at ${formatObservedAtTime(servicesController.lastUpdatedAt)}`
-                    : 'Awaiting runtime sample'}
+                    ? t('platformComponents.services.updatedAt', {
+                        time: formatObservedAtTime(servicesController.lastUpdatedAt),
+                        defaultValue: `Updated at ${formatObservedAtTime(servicesController.lastUpdatedAt)}`,
+                      })
+                    : t('platformComponents.services.awaitingSample', 'Awaiting runtime sample')}
                 </p>
               </div>
               <ActiveServicesTableContent
                 controller={servicesController}
                 hideControls
                 filter={defaultVisibilityService}
-                emptyMessage="No default-visibility services are configured."
+                emptyMessage={t(
+                  'platformComponents.services.emptyDefault',
+                  'No default-visibility services are configured.'
+                )}
               />
             </section>
 
             <section className="space-y-3">
               <div>
-                <h2 className="text-base font-semibold text-foreground">Diagnostic Services</h2>
+                <h2 className="text-base font-semibold text-foreground">
+                  {t('platformComponents.services.diagnosticTitle', 'Diagnostic Services')}
+                </h2>
                 <p className="text-sm text-muted-foreground">
-                  Background or diagnostic services that stay out of the default operator list.
+                  {t(
+                    'platformComponents.services.diagnosticDescription',
+                    'Background or diagnostic services that stay out of the default operator list.'
+                  )}
                 </p>
               </div>
               <ActiveServicesTableContent
                 controller={servicesController}
                 hideControls
                 filter={nonDefaultVisibilityService}
-                emptyMessage="No diagnostic-only services are configured."
+                emptyMessage={t(
+                  'platformComponents.services.emptyDiagnostic',
+                  'No diagnostic-only services are configured.'
+                )}
               />
             </section>
           </div>
@@ -193,16 +195,23 @@ export function PlatformComponentsPage() {
           ) : null}
 
           <p className="text-sm text-muted-foreground">
-            Read-only runtime inventory for quick awareness. No actions are required here.
+            {t(
+              'platformComponents.components.readOnlyDescription',
+              'Read-only runtime inventory for quick awareness. No actions are required here.'
+            )}
           </p>
 
           {componentsController.loading ? (
             <div className="flex flex-col items-center justify-center rounded-md border py-12 text-center">
-              <p className="text-muted-foreground">Loading built-in components...</p>
+              <p className="text-muted-foreground">
+                {t('platformComponents.components.loading', 'Loading built-in components...')}
+              </p>
             </div>
           ) : componentsController.components.length === 0 ? (
             <div className="flex flex-col items-center justify-center rounded-md border py-12 text-center">
-              <p className="text-muted-foreground">No built-in components were detected.</p>
+              <p className="text-muted-foreground">
+                {t('platformComponents.components.empty', 'No built-in components were detected.')}
+              </p>
             </div>
           ) : (
             <div className="rounded-2xl border border-dashed bg-gradient-to-br from-muted/40 via-background to-muted/20 p-3">
@@ -211,23 +220,37 @@ export function PlatformComponentsPage() {
                   <article key={component.id} className="rounded-xl border bg-background/80 p-4">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="text-base font-medium leading-6">{component.name}</p>
-                      <Badge variant="outline">{titleizeRuntimeKind(component.runtime_kind)}</Badge>
-                      <Badge variant="secondary">{component.criticality || 'unknown'}</Badge>
+                      <Badge variant="outline">{formatRuntimeKindLabel(component.runtime_kind)}</Badge>
+                      <Badge variant="secondary">
+                        {formatComponentCriticalityLabel(component.criticality)}
+                      </Badge>
                     </div>
                     <p className="mt-2 text-sm text-muted-foreground">
-                      {component.role || 'No role declared'}
+                      {component.role ||
+                        t('platformComponents.components.noRole', 'No role declared')}
                     </p>
                     {component.notes ? (
                       <p className="mt-1 text-xs text-muted-foreground">{component.notes}</p>
                     ) : null}
                     <p className="mt-1 text-sm text-muted-foreground">
-                      Version {formatComponentVersion(component.version, component.probe_pending)}
+                      {t('platformComponents.components.version', {
+                        version: formatComponentVersion(component.version, component.probe_pending),
+                        defaultValue: `Version ${formatComponentVersion(component.version, component.probe_pending)}`,
+                      })}
                     </p>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      Capability: {component.owned_capability || 'Not declared'}
+                      {t('platformComponents.components.capability', {
+                        capability:
+                          component.owned_capability ||
+                          t('platformComponents.components.notDeclared', 'Not declared'),
+                        defaultValue: `Capability: ${component.owned_capability || 'Not declared'}`,
+                      })}
                     </p>
                     <p className="mt-2 text-xs text-muted-foreground">
-                      Updated {formatComponentStatusTime(component.updated_at)}
+                      {t('platformComponents.components.updated', {
+                        time: formatComponentStatusTime(component.updated_at),
+                        defaultValue: `Updated ${formatComponentStatusTime(component.updated_at)}`,
+                      })}
                     </p>
                   </article>
                 ))}
@@ -275,6 +298,7 @@ function SortBtn<K extends string>({
 }
 
 export function InstalledComponentsContent() {
+  const { t } = useTranslation('system')
   const controller = useInstalledComponentsController()
 
   const sorted = useMemo(() => {
@@ -289,7 +313,7 @@ export function InstalledComponentsContent() {
         <Button
           variant="outline"
           size="icon"
-          title="Force refresh"
+          title={t('platformComponents.actions.forceRefresh', 'Force refresh')}
           disabled={controller.loading}
           onClick={() => void controller.refresh(true)}
         >
@@ -307,11 +331,15 @@ export function InstalledComponentsContent() {
       ) : null}
       {controller.loading ? (
         <div className="flex flex-col items-center justify-center rounded-md border py-12 text-center">
-          <p className="text-muted-foreground">Loading installed components...</p>
+          <p className="text-muted-foreground">
+            {t('platformComponents.installed.loading', 'Loading installed components...')}
+          </p>
         </div>
       ) : sorted.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-md border py-12 text-center">
-          <p className="text-muted-foreground">No installed components were detected.</p>
+          <p className="text-muted-foreground">
+            {t('platformComponents.installed.empty', 'No installed components were detected.')}
+          </p>
         </div>
       ) : (
         <div className="rounded-2xl border border-dashed bg-gradient-to-br from-muted/40 via-background to-muted/20 p-3">
@@ -320,23 +348,36 @@ export function InstalledComponentsContent() {
               <article key={component.id} className="rounded-xl border bg-background/80 p-4">
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="text-base font-medium leading-6">{component.name}</p>
-                  <Badge variant="outline">{titleizeRuntimeKind(component.runtime_kind)}</Badge>
-                  <Badge variant="secondary">{component.criticality || 'unknown'}</Badge>
+                  <Badge variant="outline">{formatRuntimeKindLabel(component.runtime_kind)}</Badge>
+                  <Badge variant="secondary">
+                    {formatComponentCriticalityLabel(component.criticality)}
+                  </Badge>
                 </div>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  {component.role || 'No role declared'}
+                  {component.role || t('platformComponents.components.noRole', 'No role declared')}
                 </p>
                 {component.notes ? (
                   <p className="mt-1 text-xs text-muted-foreground">{component.notes}</p>
                 ) : null}
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Version {component.version || 'unknown'}
+                  {t('platformComponents.components.version', {
+                    version: component.version || 'unknown',
+                    defaultValue: `Version ${component.version || 'unknown'}`,
+                  })}
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Capability: {component.owned_capability || 'Not declared'}
+                  {t('platformComponents.components.capability', {
+                    capability:
+                      component.owned_capability ||
+                      t('platformComponents.components.notDeclared', 'Not declared'),
+                    defaultValue: `Capability: ${component.owned_capability || 'Not declared'}`,
+                  })}
                 </p>
                 <p className="mt-2 text-xs text-muted-foreground">
-                  Updated {formatComponentStatusTime(component.updated_at)}
+                  {t('platformComponents.components.updated', {
+                    time: formatComponentStatusTime(component.updated_at),
+                    defaultValue: `Updated ${formatComponentStatusTime(component.updated_at)}`,
+                  })}
                 </p>
               </article>
             ))}
@@ -578,12 +619,14 @@ export function ActiveServicesTableContent({
                 <TableCell>
                   <div className="font-medium">{service.name}</div>
                   <div className="mt-1 flex flex-wrap gap-2">
-                    <Badge variant="outline">{visibilityLabel(service.visibility)}</Badge>
-                    <Badge variant="secondary">{lifecycleLabel(service.lifecycle)}</Badge>
+                    <Badge variant="outline">{formatVisibilityLabel(service.visibility)}</Badge>
+                    <Badge variant="secondary">{formatLifecycleLabel(service.lifecycle)}</Badge>
                   </div>
                 </TableCell>
                 <TableCell>
-                  <Badge variant={serviceVariant(service.state)}>{service.state}</Badge>
+                  <Badge variant={serviceVariant(service.state)}>
+                    {formatServiceStateLabel(service.state)}
+                  </Badge>
                 </TableCell>
                 <TableCell className="hidden sm:table-cell">
                   {service.pid > 0 ? service.pid : '-'}

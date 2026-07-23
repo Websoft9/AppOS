@@ -1,11 +1,14 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 
 function EnvVarsPlaceholderPage() {
+  const { t } = useTranslation('common')
+
   return (
     <div className="p-4">
-      <h1 className="text-xl font-semibold">Environment</h1>
+      <h1 className="text-xl font-semibold">{t('pages.environment')}</h1>
       <p className="mt-2 text-sm text-muted-foreground">
-        Placeholder entry. This page is managed by a future epic.
+        {t('placeholders.futureEpic')}
       </p>
     </div>
   )

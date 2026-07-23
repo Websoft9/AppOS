@@ -1,4 +1,5 @@
 import { useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Eye, EyeOff, Upload } from 'lucide-react'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
@@ -111,6 +112,7 @@ export function SecretForm({
   disableTemplateChange = false,
   renderFieldAccessory,
 }: SecretFormProps) {
+  const { t } = useTranslation('secrets')
   const selectedTemplate = templates.find(t => t.id === templateId)
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
 
@@ -120,9 +122,7 @@ export function SecretForm({
   function handleFileUpload(fieldKey: string, file: File) {
     setUploadError('')
     if (!isTextFile(file)) {
-      setUploadError(
-        `"${file.name}" is not a text file. Please upload a text-based file (e.g. .pem, .key, .pub, .txt).`
-      )
+      setUploadError(t('form.uploadNotText', { name: file.name }))
       return
     }
     // Read a small slice first to check for null bytes (binary content)
@@ -131,7 +131,7 @@ export function SecretForm({
     probeReader.onload = () => {
       const text = probeReader.result as string
       if (text.includes('\0')) {
-        setUploadError(`"${file.name}" appears to be a binary file.`)
+        setUploadError(t('form.uploadBinary', { name: file.name }))
         return
       }
       // File looks like text, read the full content
@@ -147,14 +147,14 @@ export function SecretForm({
   return (
     <div className="space-y-4">
       <div className="space-y-2">
-        <Label>Type</Label>
+        <Label>{t('form.type')}</Label>
         <select
           className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
           value={templateId}
           disabled={disableTemplateChange}
           onChange={e => onTemplateChange(e.target.value)}
         >
-          <option value="">Select type</option>
+          <option value="">{t('form.selectType')}</option>
           {templates.map(template => (
             <option key={template.id} value={template.id}>
               {template.label}
@@ -186,7 +186,7 @@ export function SecretForm({
                     rows={6}
                     style={FIXED_TEXTAREA_STYLE}
                     className="min-h-32 max-h-80 resize-y overflow-auto font-mono text-xs"
-                    placeholder={field.upload ? 'Paste content or upload a file...' : ''}
+                    placeholder={field.upload ? t('form.pasteOrUpload') : ''}
                   />
                 ) : (
                   <div className="flex items-center gap-2">
@@ -203,7 +203,7 @@ export function SecretForm({
                         <button
                           type="button"
                           className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
-                          title={isRevealed ? 'Hide value' : 'Show value'}
+                          title={isRevealed ? t('form.hideValue') : t('form.showValue')}
                           onClick={() =>
                             setRevealedFields(prev => ({ ...prev, [inputId]: !prev[inputId] }))
                           }
@@ -240,7 +240,7 @@ export function SecretForm({
                       onClick={() => fileInputRefs.current[field.key]?.click()}
                     >
                       <Upload className="mr-1.5 h-3.5 w-3.5" />
-                      Upload File
+                      {t('form.uploadFile')}
                     </Button>
                     {uploadError && <p className="text-xs text-destructive">{uploadError}</p>}
                   </div>
@@ -253,7 +253,7 @@ export function SecretForm({
 
       {!selectedTemplate && (
         <Button type="button" variant="outline" disabled>
-          Select type to render fields
+          {t('form.selectTypeHint')}
         </Button>
       )}
     </div>

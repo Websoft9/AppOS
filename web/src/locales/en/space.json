@@ -1,0 +1,174 @@
+{
+  "page": {
+    "title": "Space",
+    "description": "Your files, folders, and shares.",
+    "loading": "Loading...",
+    "itemsCount_one": "{{count}} item",
+    "itemsCount_other": "{{count}} items"
+  },
+  "alerts": {
+    "bulkDeleteFailed": "Failed to delete some items",
+    "bulkRestoreFailed": "Failed to restore some items",
+    "bulkMoveFailed": "Failed to move some items",
+    "duplicateFailed": "Failed to duplicate file",
+    "restoreFailed": "Failed to restore",
+    "emptyTrashFailed": "Failed to empty trash",
+    "shareFailed": "Share failed",
+    "revokeFailed": "Revoke failed"
+  },
+  "filters": {
+    "shared": "Shared",
+    "all": "All"
+  },
+  "view": {
+    "switchToGrid": "Switch to Grid view",
+    "switchToList": "Switch to List view",
+    "switchToGridMenu": "Switch to Grid View",
+    "switchToListMenu": "Switch to List View"
+  },
+  "trash": {
+    "title": "Trash",
+    "open": "Open Trash",
+    "backToFiles": "Back to Files",
+    "backToFilesWithArrow": "← Back to Files",
+    "emptyButton": "Empty Trash ({{count}})",
+    "emptyTitle": "Empty Trash?",
+    "emptyDescription_one": "All {{count}} item in Trash will be permanently deleted. This action cannot be undone.",
+    "emptyDescription_other": "All {{count}} items in Trash will be permanently deleted. This action cannot be undone.",
+    "emptyAction": "Empty Trash",
+    "currentCount_one": "{{count}} item currently in trash.",
+    "currentCount_other": "{{count}} items currently in trash."
+  },
+  "actions": {
+    "newFolder": "New Folder",
+    "newFile": "New File",
+    "upload": "Upload",
+    "fetchUrl": "Fetch URL",
+    "openMenu": "Open space actions",
+    "restore": "Restore",
+    "deletePermanently": "Delete Permanently",
+    "moveTo": "Move to…",
+    "moveToTrash": "Move to Trash",
+    "move": "Move",
+    "rename": "Rename",
+    "create": "Create",
+    "fetch": "Fetch"
+  },
+  "empty": {
+    "trash": "Trash is empty.",
+    "noMatch": "No items match \"{{query}}\".",
+    "folder": "This folder is empty. Create a subfolder or upload your first file."
+  },
+  "selection": {
+    "selectedCount": "{{count}} selected",
+    "selectAllPage": "Select all on this page"
+  },
+  "columns": {
+    "name": "Name",
+    "type": "Type",
+    "size": "Size",
+    "shared": "Shared",
+    "created": "Created",
+    "modified": "Modified"
+  },
+  "item": {
+    "folderType": "Folder",
+    "folderLower": "folder",
+    "fileLower": "file",
+    "sharedBadge": "Shared",
+    "path": "Path",
+    "sharedUntil": "Shared until"
+  },
+  "pagination": {
+    "perPage": "Per page",
+    "previous": "Previous page",
+    "next": "Next page"
+  },
+  "stats": {
+    "openAria": "Open space stats",
+    "title": "Space Stats",
+    "description": "Usage and limits for your current space.",
+    "folders": "Folders",
+    "files": "Files",
+    "itemsUsed": "Items Used",
+    "maxFileSize": "Max File Size"
+  },
+  "dialogs": {
+    "rootOption": "/ (root)",
+    "bulkMove": {
+      "targetFolder": "Target folder"
+    },
+    "rename": {
+      "title": "Rename \"{{name}}\"",
+      "newName": "New name"
+    },
+    "newFolder": {
+      "title": "New Folder",
+      "description": "Create a new folder to organise your files.",
+      "name": "Folder name",
+      "namePlaceholder": "e.g. scripts",
+      "reservedNames": "Reserved names (root only): {{names}}",
+      "parentFolder": "Parent folder (optional)"
+    },
+    "newFile": {
+      "title": "New Text File",
+      "description": "Create a new text or code file online.",
+      "filename": "Filename",
+      "filenamePlaceholder": "e.g. script.py",
+      "folder": "Folder",
+      "content": "Content (optional)",
+      "contentPlaceholder": "# Start writing here…"
+    },
+    "upload": {
+      "title": "Upload Files",
+      "file": "File",
+      "chooseFiles": "Choose file(s)…",
+      "filesSelected": "{{count}} files selected",
+      "batchHint": "Batch upload supports up to {{count}} files.",
+      "displayName": "Display name",
+      "displayNamePlaceholder": "e.g. notes.md",
+      "folder": "Folder (optional)"
+    },
+    "fetch": {
+      "title": "Fetch File from URL",
+      "description": "Download a file from a public URL directly into your Space. The same upload policy (size & extension limits) applies.",
+      "urlPlaceholder": "https://example.com/file.zip",
+      "saveAsHint": "(optional — detected from URL if blank)",
+      "namePlaceholder": "e.g. report.pdf",
+      "destinationFolder": "Destination folder",
+      "anyExtensionAllowed": " Any extension allowed.",
+      "downloading": "Downloading…"
+    },
+    "edit": {
+      "title": "Edit: {{name}}",
+      "loading": "Loading content…"
+    },
+    "delete": {
+      "permanentTitle": "Delete Permanently?",
+      "moveToTrashTitle": "Move {{kind}} to Trash?",
+      "permanentDescription": "\"{{name}}\" will be permanently deleted and cannot be recovered.",
+      "moveToTrashDescription": "\"{{name}}\" will be moved to Trash.{{note}}",
+      "folderNote": " Note: files inside this folder are NOT automatically moved."
+    }
+  },
+  "preview": {
+    "exitFullscreen": "Exit fullscreen",
+    "fullscreen": "Fullscreen",
+    "close": "Close preview",
+    "loading": "Loading preview…"
+  },
+  "share": {
+    "title": "Share: {{name}}",
+    "description": "Generate a public download link — no login required. Anyone with the link can download the file. Max validity: {{minutes}} min.",
+    "validity": "Validity (minutes)",
+    "publicLink": "Public download link",
+    "copyLink": "Copy link",
+    "revokeLink": "Revoke link",
+    "generateQr": "Generate QR code",
+    "copied": "Copied to clipboard!",
+    "qrAlt": "Share QR code",
+    "downloadQr": "Download QR",
+    "refreshLink": "Refresh link",
+    "generateLink": "Generate link"
+  }
+}

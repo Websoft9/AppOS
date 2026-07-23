@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { Boxes, ChevronRight, Loader2, RefreshCw } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -27,6 +28,7 @@ type AppDetailHeaderProps = {
 }
 
 export function AppDetailBreadcrumb({ appName }: { appName: string }) {
+  const { t } = useTranslation('apps')
   return (
     <nav
       aria-label="Breadcrumb"
@@ -36,10 +38,10 @@ export function AppDetailBreadcrumb({ appName }: { appName: string }) {
         to="/apps"
         search={{ catalogAppKey: undefined }}
         className="inline-flex min-w-0 items-center gap-1.5 truncate transition-colors hover:text-foreground"
-      >
-        <Boxes className="h-4 w-4 shrink-0" />
-        <span className="truncate">My Apps</span>
-      </Link>
+        >
+          <Boxes className="h-4 w-4 shrink-0" />
+          <span className="truncate">{t('breadcrumbs.myApps', { defaultValue: 'My Apps' })}</span>
+        </Link>
       <ChevronRight className="h-3.5 w-3.5 shrink-0" />
       <span className="truncate font-medium text-foreground">{appName}</span>
     </nav>
@@ -54,6 +56,7 @@ export function AppDetailHeader({
   actionMenu,
   breadcrumb,
 }: AppDetailHeaderProps) {
+  const { t } = useTranslation('apps')
   const serverConnectionBlocked = hasBlockingServerConnectionIssue(app)
   const showServerConnectionBadge =
     app?.server_id !== 'local' &&
@@ -65,7 +68,9 @@ export function AppDetailHeader({
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-bold">{app?.name || 'App Detail'}</h1>
+            <h1 className="text-2xl font-bold">
+              {app?.name || t('pages.detailDefault', { defaultValue: 'App Detail' })}
+            </h1>
             {app ? (
               <>
                 <Badge variant="outline">{app.status}</Badge>
@@ -96,7 +101,9 @@ export function AppDetailHeader({
               </>
             ) : null}
           </div>
-          <p className="text-sm text-muted-foreground">Application detail</p>
+          <p className="text-sm text-muted-foreground">
+            {t('detail.subtitle', { defaultValue: 'Application detail' })}
+          </p>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2 md:max-w-[60%]">
           <Button
@@ -104,8 +111,8 @@ export function AppDetailHeader({
             size="icon"
             onClick={onRefresh}
             disabled={refreshing || refreshDisabled}
-            aria-label="Refresh app detail"
-            title="Refresh app detail"
+            aria-label={t('controls.refreshDetail', { defaultValue: 'Refresh app detail' })}
+            title={t('controls.refreshDetail', { defaultValue: 'Refresh app detail' })}
           >
             {refreshing ? (
               <Loader2 className="h-4 w-4 animate-spin" />

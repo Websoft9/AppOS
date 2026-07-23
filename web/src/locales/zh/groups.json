@@ -1,0 +1,95 @@
+{
+  "list": {
+    "title": "Groups",
+    "description": "Organize applications and reusable platform objects for clearer management",
+    "refresh": "Refresh",
+    "new": "New Group",
+    "retry": "Retry",
+    "searchPlaceholder": "Search name...",
+    "totalItems": "Total {{count}} items",
+    "filterBreakdown": "Filter breakdown",
+    "allTypes": "All Types",
+    "empty": {
+      "title": "No groups yet",
+      "description": "Create the first Group to organize related applications and resources.",
+      "filtered": "No groups match your filters"
+    },
+    "table": {
+      "name": "Name",
+      "description": "Description",
+      "totalItems": "Total Items",
+      "breakdown": "Breakdown",
+      "creator": "Creator",
+      "created": "Created",
+      "updated": "Updated",
+      "actions": "Actions"
+    },
+    "moreActions": "More actions",
+    "edit": "Edit",
+    "delete": "Delete",
+    "dialog": {
+      "editTitle": "Edit Group",
+      "newTitle": "New Group",
+      "editDescription": "Update group details.",
+      "newDescription": "Create a new group to organize objects.",
+      "name": "Name",
+      "description": "Description",
+      "namePlaceholder": "Group name",
+      "descriptionPlaceholder": "Optional description",
+      "save": "Save",
+      "create": "Create"
+    },
+    "deleteDialog": {
+      "title": "Delete Group",
+      "description": "Are you sure you want to delete \u201c{{name}}\u201d? All items in this group will be removed. This action cannot be undone."
+    }
+  },
+  "detail": {
+    "back": "Groups",
+    "edit": "Edit Group",
+    "totalItems": "Total Items: {{count}}",
+    "addItems": "Add Items",
+    "allTypes": "All Types",
+    "empty": {
+      "title": "This group has no items yet",
+      "description": "Add applications or reusable resources to start organizing this view."
+    },
+    "table": {
+      "type": "Type",
+      "name": "Name",
+      "summary": "Summary",
+      "updated": "Updated",
+      "actions": "Actions"
+    },
+    "editDialog": {
+      "title": "Edit Group",
+      "description": "Update group details.",
+      "name": "Name",
+      "descriptionLabel": "Description",
+      "save": "Save"
+    },
+    "addDialog": {
+      "title": "Add Items",
+      "description": "Select an object type, then choose objects to add to this group.",
+      "objectType": "Object Type",
+      "selectItems": "Select Items",
+      "selectPlaceholder": "Select {{label}}s...",
+      "selectedCount": "{{count}} item selected",
+      "selectedCount_other": "{{count}} items selected",
+      "searchPlaceholder": "Search {{label}}s...",
+      "noMatches": "No matches found.",
+      "noAvailable": "No available {{label}}s.",
+      "createNew": "Create a new {{label}}",
+      "add": "Add {{suffix}}"
+    }
+  },
+  "errors": {
+    "nameRequired": "Name is required",
+    "loadGroups": "Failed to load groups",
+    "loadGroup": "Failed to load group",
+    "save": "Save failed",
+    "delete": "Delete failed",
+    "removeItem": "Failed to remove item",
+    "addItems": "Failed to add items"
+  }
+}

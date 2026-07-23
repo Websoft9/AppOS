@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type RefObject } from 'react'
 import { Link } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 import { AlertTriangle, ChevronDown, ChevronRight, CircleX, Copy, ExternalLink } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -222,6 +223,7 @@ export function ActionDetailContent({
   getServerHost,
   formatTime,
 }: ActionDetailContentProps) {
+  const { t } = useTranslation('deploy')
   const [copyState, setCopyState] = useState<'idle' | 'done' | 'failed'>('idle')
   const [expandedStageKey, setExpandedStageKey] = useState<string | null>(null)
   const [tab, setTab] = useState<'steps' | 'logs'>('steps')
@@ -330,7 +332,7 @@ export function ActionDetailContent({
   return (
     <>
       {loading ? (
-        <div className="py-6 text-sm text-muted-foreground">Loading execution detail...</div>
+        <div className="py-6 text-sm text-muted-foreground">{t('detail.loading')}</div>
       ) : operation ? (
         <div className="space-y-3">
           {/* ── Metadata ── */}
@@ -340,13 +342,13 @@ export function ActionDetailContent({
                 <div className={cn('text-lg font-semibold', headline.tone)}>
                   {headline.label}
                   <span className="ml-3 text-sm font-medium text-muted-foreground">
-                    Total duration {overviewDuration}
+                    {t('detail.totalDuration', { value: overviewDuration })}
                   </span>
                 </div>
                 {hasError ? (
                   <Button variant="destructive" size="sm" onClick={explainError}>
                     <AlertTriangle className="h-3.5 w-3.5" />
-                    Explain error
+                    {t('detail.explainError')}
                   </Button>
                 ) : null}
               </div>
@@ -361,12 +363,12 @@ export function ActionDetailContent({
                 ) : (
                   <ChevronRight className="h-3.5 w-3.5" />
                 )}
-                More metadata
+                {t('detail.moreMetadata')}
               </button>
               {metadataOpen ? (
                 <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
                   <OverviewField
-                    label="Application"
+                    label={t('detail.application')}
                     value={
                       operation.app_id ? (
                         <Link
@@ -382,15 +384,18 @@ export function ActionDetailContent({
                       )
                     }
                   />
-                  <OverviewField label="User" value={getUserLabel(operation)} />
-                  <OverviewField label="Created" value={formatTime(operation.created)} />
+                  <OverviewField label={t('detail.user')} value={getUserLabel(operation)} />
                   <OverviewField
-                    label="Operation ID"
+                    label={t('detail.created')}
+                    value={formatTime(operation.created)}
+                  />
+                  <OverviewField
+                    label={t('detail.operationId')}
                     value={<span className="font-mono text-xs break-all">{operation.id}</span>}
                   />
-                  <OverviewField label="Log Stream" value={streamStatus} />
+                  <OverviewField label={t('detail.logStream')} value={streamStatus} />
                   <OverviewField
-                    label="Server Target"
+                    label={t('detail.serverTarget')}
                     value={
                       operation.server_id && operation.server_id !== 'local' ? (
                         <a
@@ -403,20 +408,26 @@ export function ActionDetailContent({
                           <ExternalLink className="h-3 w-3 shrink-0" />
                         </a>
                       ) : (
-                        <span className="font-medium">{operation.server_name || 'Local'}</span>
+                        <span className="font-medium">
+                          {operation.server_name || t('labels.serverLocal')}
+                        </span>
                       )
                     }
                   />
                   <OverviewField
-                    label="Connection"
-                    value={getServerHost(operation) === 'local' ? 'Local runtime' : 'Remote host'}
+                    label={t('detail.connection')}
+                    value={
+                      getServerHost(operation) === 'local'
+                        ? t('detail.localRuntime')
+                        : t('detail.remoteHost')
+                    }
                   />
                   <OverviewField
-                    label="Pipeline Family"
+                    label={t('detail.pipelineFamily')}
                     value={operation.pipeline_family || operation.pipeline?.family || '-'}
                   />
                   <OverviewField
-                    label="Pipeline Definition"
+                    label={t('detail.pipelineDefinition')}
                     value={
                       <span className="font-mono text-xs break-all">
                         {operation.pipeline_definition_key ||
@@ -426,11 +437,11 @@ export function ActionDetailContent({
                     }
                   />
                   <OverviewField
-                    label="Pipeline Phase"
+                    label={t('detail.pipelinePhase')}
                     value={operation.pipeline?.current_phase || '-'}
                   />
                   <OverviewField
-                    label="Pipeline Status"
+                    label={t('detail.pipelineStatus')}
                     value={operation.pipeline?.status || '-'}
                   />
                 </div>
@@ -438,11 +449,11 @@ export function ActionDetailContent({
 
               {hasError ? (
                 <div className="rounded-lg border border-rose-200 bg-rose-50/80 px-3 py-2 text-xs text-rose-800 dark:border-rose-900/60 dark:bg-rose-950/20 dark:text-rose-200">
-                  <div className="font-medium">Error summary</div>
+                  <div className="font-medium">{t('detail.errorSummary')}</div>
                   <div className="mt-1">
                     {failedStage?.detail ||
                       operation.error_summary ||
-                      'A failed stage is available for inspection.'}
+                      t('detail.failedStageFallback')}
                   </div>
                 </div>
               ) : null}
@@ -450,30 +461,30 @@ export function ActionDetailContent({
               {sourceBuildAttribution ? (
                 <div className="rounded-lg border border-sky-200 bg-sky-50/60 px-4 py-3 dark:border-sky-900/60 dark:bg-sky-950/20">
                   <div className="text-xs font-medium uppercase tracking-wide text-sky-700 dark:text-sky-300">
-                    Source Build
+                    {t('detail.sourceBuild')}
                   </div>
                   <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                     <OverviewField
-                      label="Source Kind"
+                      label={t('detail.sourceKind')}
                       value={sourceBuildAttribution.sourceKind || '-'}
                     />
                     <OverviewField
-                      label="Builder"
+                      label={t('detail.builder')}
                       value={sourceBuildAttribution.builderStrategy || '-'}
                     />
                     <OverviewField
-                      label="Publication Mode"
+                      label={t('detail.publicationMode')}
                       value={sourceBuildAttribution.publicationMode || '-'}
                     />
                     <OverviewField
-                      label="Source Ref"
+                      label={t('detail.sourceRef')}
                       value={
                         <span className="break-all">{sourceBuildAttribution.sourceRef || '-'}</span>
                       }
                       className="sm:col-span-2 xl:col-span-3"
                     />
                     <OverviewField
-                      label="Local Image"
+                      label={t('detail.localImage')}
                       value={
                         <span className="break-all">
                           {sourceBuildAttribution.localImageRef || '-'}
@@ -482,12 +493,12 @@ export function ActionDetailContent({
                       className="sm:col-span-2"
                     />
                     <OverviewField
-                      label="Target Service"
+                      label={t('detail.targetService')}
                       value={sourceBuildAttribution.targetService || '-'}
                     />
                     {sourceBuildAttribution.targetRef ? (
                       <OverviewField
-                        label="Publish Target"
+                        label={t('detail.publishTarget')}
                         value={
                           <span className="break-all">{sourceBuildAttribution.targetRef}</span>
                         }
@@ -505,10 +516,10 @@ export function ActionDetailContent({
             <div className="border-b">
               <TabsList variant="line" className="rounded-none bg-transparent">
                 <TabsTrigger value="steps" className="flex-none">
-                  Steps
+                  {t('detail.steps')}
                 </TabsTrigger>
                 <TabsTrigger value="logs" className="flex-none">
-                  All Logs
+                  {t('detail.allLogs')}
                 </TabsTrigger>
               </TabsList>
             </div>
@@ -518,7 +529,7 @@ export function ActionDetailContent({
                 <CardContent className="pt-4">
                   {stageItems.length === 0 ? (
                     <div className="text-xs text-muted-foreground">
-                      No execution stage details available yet.
+                      {t('detail.noStageDetails')}
                     </div>
                   ) : (
                     <div className="space-y-3">
@@ -595,14 +606,26 @@ export function ActionDetailContent({
                                       type="button"
                                       className="shrink-0 rounded-md border border-dashed px-2 py-0.5 text-xs text-muted-foreground hover:border-border hover:text-foreground"
                                     >
-                                      Duration{' '}
-                                      {formatDurationCompact(step.started_at, step.finished_at)}
+                                      {t('detail.duration', {
+                                        value: formatDurationCompact(
+                                          step.started_at,
+                                          step.finished_at
+                                        ),
+                                      })}
                                     </button>
                                   </TooltipTrigger>
                                   <TooltipContent side="top" sideOffset={8}>
                                     <div className="space-y-1">
-                                      <div>Started {formatTime(step.started_at)}</div>
-                                      <div>Finished {formatTime(step.finished_at)}</div>
+                                      <div>
+                                        {t('detail.started', {
+                                          value: formatTime(step.started_at),
+                                        })}
+                                      </div>
+                                      <div>
+                                        {t('detail.finished', {
+                                          value: formatTime(step.finished_at),
+                                        })}
+                                      </div>
                                     </div>
                                   </TooltipContent>
                                 </Tooltip>
@@ -616,32 +639,36 @@ export function ActionDetailContent({
                                   ) : null}
                                   {step.status === 'waiting' || step.status === 'manual_gate' ? (
                                     <div className="rounded-md border border-amber-200 bg-amber-50/70 px-3 py-1.5 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-200">
-                                      This step is paused and requires operator resume before the
-                                      pipeline can continue.
+                                      {t('detail.pausedStep')}
                                     </div>
                                   ) : null}
                                   {step.status === 'compensated' ? (
                                     <div className="rounded-md border border-sky-200 bg-sky-50/70 px-3 py-1.5 text-xs text-sky-800 dark:border-sky-800 dark:bg-sky-950/20 dark:text-sky-200">
-                                      This step failed earlier and was later compensated by a
-                                      recovery node.
+                                      {t('detail.compensatedStep')}
                                     </div>
                                   ) : null}
                                   <div className="flex items-center justify-between text-xs text-muted-foreground">
-                                    <span>Node execution log</span>
-                                    {step.execution_log_truncated ? <span>truncated</span> : null}
+                                    <span>{t('detail.nodeExecutionLog')}</span>
+                                    {step.execution_log_truncated ? (
+                                      <span>{t('detail.truncated')}</span>
+                                    ) : null}
                                   </div>
                                   {pullProgress ? (
                                     <div className="rounded-xl border bg-muted/30 p-3">
                                       <div className="flex flex-wrap items-center gap-2">
                                         <span className="text-xs font-medium text-foreground">
-                                          Pull progress
+                                          {t('detail.pullProgress')}
                                         </span>
                                         <Badge variant="outline">
-                                          {pullProgress.completedLayerCount}/
-                                          {pullProgress.totalLayerCount} layers complete
+                                          {t('detail.layersComplete', {
+                                            done: pullProgress.completedLayerCount,
+                                            total: pullProgress.totalLayerCount,
+                                          })}
                                         </Badge>
                                         <Badge variant="outline">
-                                          {pullProgress.activeLayerCount} active
+                                          {t('detail.activeLayers', {
+                                            count: pullProgress.activeLayerCount,
+                                          })}
                                         </Badge>
                                       </div>
                                       <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted">
@@ -677,8 +704,7 @@ export function ActionDetailContent({
                                                     {layer.id}
                                                   </div>
                                                   <div className="text-xs text-muted-foreground">
-                                                    {layer.detail ||
-                                                      'waiting for next progress update'}
+                                                    {layer.detail || t('detail.waitingForProgress')}
                                                   </div>
                                                 </div>
                                                 <Badge variant={pullStatusTone(layer.status)}>
@@ -706,7 +732,7 @@ export function ActionDetailContent({
                                         !stageLog && 'text-slate-500'
                                       )}
                                     >
-                                      {stageLog || 'No node log captured yet.'}
+                                      {stageLog || t('detail.noNodeLog')}
                                     </pre>
                                   </div>
                                 </div>
@@ -727,24 +753,28 @@ export function ActionDetailContent({
                   <div className="space-y-3">
                     <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
                       <div className="text-muted-foreground">
-                        {logTruncated ? 'truncated · ' : ''}
-                        {logUpdatedAt ? `updated ${formatTime(logUpdatedAt)}` : 'waiting for logs'}
+                        {logTruncated ? `${t('detail.truncated')} · ` : ''}
+                        {logUpdatedAt
+                          ? t('detail.logsMeta', { value: formatTime(logUpdatedAt) })
+                          : t('detail.waitingForLogs')}
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
                         <Button variant="outline" size="sm" onClick={() => void copyLogs()}>
                           <Copy className="h-3.5 w-3.5" />
                           {copyState === 'done'
-                            ? 'Copied'
+                            ? t('actions.copied')
                             : copyState === 'failed'
-                              ? 'Copy failed'
-                              : 'Copy logs'}
+                              ? t('actions.copyFailed')
+                              : t('actions.copyLogs')}
                         </Button>
                         <Button
                           variant={autoScrollEnabled ? 'default' : 'outline'}
                           size="sm"
                           onClick={() => onAutoScrollChange?.(!autoScrollEnabled)}
                         >
-                          Auto-scroll {autoScrollEnabled ? 'On' : 'Off'}
+                          {t('actions.autoScroll', {
+                            state: autoScrollEnabled ? t('actions.on') : t('actions.off'),
+                          })}
                         </Button>
                       </div>
                     </div>
@@ -769,7 +799,7 @@ export function ActionDetailContent({
                           ))}
                         </div>
                       ) : (
-                        <div className="text-slate-500">No execution log yet.</div>
+                        <div className="text-slate-500">{t('detail.noExecutionLog')}</div>
                       )}
                     </div>
                   </div>
@@ -788,22 +818,20 @@ export function ActionDetailDialog({
   onOpenChange,
   ...contentProps
 }: ActionDetailDialogProps) {
+  const { t } = useTranslation('deploy')
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-6xl">
         <DialogHeader>
           <DialogTitle>
-            {contentProps.operation?.compose_project_name || 'Execution Detail'}
+            {contentProps.operation?.compose_project_name || t('detail.dialogTitleFallback')}
           </DialogTitle>
-          <DialogDescription>
-            Execution summary, metadata, stage status, and logs are now combined into one detail
-            surface.
-          </DialogDescription>
+          <DialogDescription>{t('detail.dialogDescription')}</DialogDescription>
         </DialogHeader>
         <ActionDetailContent {...contentProps} />
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Close
+            {t('common:close')}
           </Button>
         </DialogFooter>
       </DialogContent>

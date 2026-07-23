@@ -1,5 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 import {
   RefreshCw,
   Loader2,
@@ -152,34 +154,34 @@ function getEffectiveIntervalLabel(job: CronJob, settings: MonitorSchedulingGrou
   return formatCronExpressionAsInterval(job.expression)
 }
 
-function levelBadge(level: number) {
+function levelBadge(level: number, t: TFunction) {
   if (level <= 0) {
     return (
       <Badge variant="secondary" className="text-xs font-mono text-blue-600">
-        INFO
+        {t('crons.status.info')}
       </Badge>
     )
   }
   if (level <= 4) {
     return (
       <Badge variant="outline" className="text-xs font-mono text-yellow-600 border-yellow-400">
-        WARN
+        {t('crons.status.warn')}
       </Badge>
     )
   }
   return (
     <Badge variant="destructive" className="text-xs font-mono">
-      ERROR
+      {t('crons.status.errorLevel')}
     </Badge>
   )
 }
 
-function phaseBadge(phase: CronLogItem['phase']) {
+function phaseBadge(phase: CronLogItem['phase'], t: TFunction) {
   if (phase === 'success') {
     return (
       <Badge variant="default" className="text-xs gap-1">
         <CheckCircle2 className="h-3 w-3" />
-        success
+        {t('crons.status.phaseSuccess')}
       </Badge>
     )
   }
@@ -187,22 +189,22 @@ function phaseBadge(phase: CronLogItem['phase']) {
     return (
       <Badge variant="destructive" className="text-xs gap-1">
         <XCircle className="h-3 w-3" />
-        error
+        {t('crons.status.phaseError')}
       </Badge>
     )
   }
   return (
     <Badge variant="outline" className="text-xs gap-1">
       <Clock className="h-3 w-3" />
-      start
+        {t('crons.status.phaseStart')}
     </Badge>
   )
 }
 
-function lastStatusBadge(status: CronLogsResponse['lastStatus']) {
-  if (status === 'success') return <Badge variant="default">Success</Badge>
-  if (status === 'error') return <Badge variant="destructive">Error</Badge>
-  return <Badge variant="outline">—</Badge>
+function lastStatusBadge(status: CronLogsResponse['lastStatus'], t: TFunction) {
+  if (status === 'success') return <Badge variant="default">{t('crons.status.success')}</Badge>
+  if (status === 'error') return <Badge variant="destructive">{t('crons.status.error')}</Badge>
+  return <Badge variant="outline">{t('crons.status.none')}</Badge>
 }
 
 const cronDrawerGutter = 'px-4 sm:px-6'
@@ -256,6 +258,7 @@ interface CronLogDrawerProps {
 }
 
 function CronLogDrawer({ jobId, open, onOpenChange, onSummaryLoaded }: CronLogDrawerProps) {
+  const { t } = useTranslation('system')
   const [data, setData] = useState<CronLogsResponse | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -300,7 +303,7 @@ function CronLogDrawer({ jobId, open, onOpenChange, onSummaryLoaded }: CronLogDr
           <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
             <div className="min-w-0">
               <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                Cron Logs
+                {t('crons.logs.title')}
               </p>
               <SheetTitle className="mt-1 text-base font-semibold leading-tight">
                 <span className="block max-w-full overflow-hidden font-mono text-[15px] break-words [overflow-wrap:anywhere]">
@@ -315,12 +318,12 @@ function CronLogDrawer({ jobId, open, onOpenChange, onSummaryLoaded }: CronLogDr
                 ) : (
                   <RefreshCw className="mr-1.5 h-4 w-4" />
                 )}
-                Refresh
+                {t('crons.logs.refresh')}
               </Button>
               <SheetClose asChild>
                 <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
                   <X className="h-4 w-4" />
-                  <span className="sr-only">Close</span>
+                  <span className="sr-only">{t('crons.logs.close')}</span>
                 </Button>
               </SheetClose>
             </div>
@@ -337,19 +340,19 @@ function CronLogDrawer({ jobId, open, onOpenChange, onSummaryLoaded }: CronLogDr
           >
             <div>
               <p className="text-muted-foreground text-xs uppercase tracking-wide mb-0.5">
-                Last Status
+                 {t('crons.logs.lastStatus')}
               </p>
-              <div>{lastStatusBadge(data.lastStatus)}</div>
+              <div>{lastStatusBadge(data.lastStatus, t)}</div>
             </div>
             <div>
               <p className="text-muted-foreground text-xs uppercase tracking-wide mb-0.5">
-                Last Run
+                 {t('crons.logs.lastRun')}
               </p>
               <p className="font-medium break-words">{formatDate(data.lastRun)}</p>
             </div>
             <div>
               <p className="text-muted-foreground text-xs uppercase tracking-wide mb-0.5">
-                Duration
+                 {t('crons.logs.duration')}
               </p>
               <p className="font-medium whitespace-nowrap">
                 {data.lastDurationMs != null ? `${data.lastDurationMs} ms` : '—'}
@@ -363,13 +366,13 @@ function CronLogDrawer({ jobId, open, onOpenChange, onSummaryLoaded }: CronLogDr
           {loading && !data && (
             <div className="flex items-center justify-center h-40 text-muted-foreground">
               <Loader2 className="h-5 w-5 animate-spin mr-2" />
-              Loading logs…
+               {t('crons.logs.loading')}
             </div>
           )}
 
           {error && (
             <div className={cn('py-4 text-sm text-destructive', cronDrawerGutter)}>
-              Failed to load logs: {error}
+              {t('crons.logs.loadError', { error })}
             </div>
           )}
 
@@ -380,12 +383,10 @@ function CronLogDrawer({ jobId, open, onOpenChange, onSummaryLoaded }: CronLogDr
                 cronDrawerGutter
               )}
             >
-              <p className="text-muted-foreground">No execution logs found for this job.</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Logs are only available for cron handlers registered with
-                <code className="mx-1 font-mono text-xs">cronutil.Wrap()</code>
-                in the backend. Native PocketBase cron jobs do not produce structured logs.
-              </p>
+               <p className="text-muted-foreground">{t('crons.logs.empty')}</p>
+               <p className="text-xs text-muted-foreground mt-1">
+                 {t('crons.logs.emptyHint')}
+               </p>
             </div>
           )}
 
@@ -394,11 +395,11 @@ function CronLogDrawer({ jobId, open, onOpenChange, onSummaryLoaded }: CronLogDr
               <Table className="[&_th:first-child]:pl-4 [&_td:first-child]:pl-4 sm:[&_th:first-child]:pl-6 sm:[&_td:first-child]:pl-6 [&_th:last-child]:pr-4 [&_td:last-child]:pr-4 sm:[&_th:last-child]:pr-6 sm:[&_td:last-child]:pr-6">
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[160px]">Time</TableHead>
-                    <TableHead className="w-[64px]">Level</TableHead>
-                    <TableHead className="w-[90px]">Phase</TableHead>
-                    <TableHead className="w-[90px]">Trigger</TableHead>
-                    <TableHead>Message</TableHead>
+                    <TableHead className="w-[160px]">{t('crons.logs.table.time')}</TableHead>
+                    <TableHead className="w-[64px]">{t('crons.logs.table.level')}</TableHead>
+                    <TableHead className="w-[90px]">{t('crons.logs.table.phase')}</TableHead>
+                    <TableHead className="w-[90px]">{t('crons.logs.table.trigger')}</TableHead>
+                    <TableHead>{t('crons.logs.table.message')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -420,10 +421,10 @@ function CronLogDrawer({ jobId, open, onOpenChange, onSummaryLoaded }: CronLogDr
                           <TableCell className="text-xs text-muted-foreground font-mono whitespace-nowrap">
                             {formatDate(item.created)}
                           </TableCell>
-                          <TableCell>{levelBadge(item.level)}</TableCell>
-                          <TableCell>{phaseBadge(item.phase)}</TableCell>
+                           <TableCell>{levelBadge(item.level, t)}</TableCell>
+                           <TableCell>{phaseBadge(item.phase, t)}</TableCell>
                           <TableCell className="text-xs text-muted-foreground">
-                            {item.trigger || '—'}
+                             {item.trigger || t('crons.status.none')}
                           </TableCell>
                           <TableCell className="text-sm truncate max-w-[200px]">
                             <div className="flex items-center gap-1">
@@ -447,13 +448,13 @@ function CronLogDrawer({ jobId, open, onOpenChange, onSummaryLoaded }: CronLogDr
                               <div className="text-xs space-y-1 font-mono">
                                 {item.runId && (
                                   <p>
-                                    <span className="text-muted-foreground">run_id: </span>
+                                     <span className="text-muted-foreground">{t('crons.logs.table.runId')} </span>
                                     {item.runId}
                                   </p>
                                 )}
                                 {item.error != null && (
                                   <p>
-                                    <span className="text-muted-foreground">error: </span>
+                                     <span className="text-muted-foreground">{t('crons.logs.table.error')}</span>
                                     <span className="text-destructive">{String(item.error)}</span>
                                   </p>
                                 )}
@@ -479,6 +480,7 @@ function CronLogDrawer({ jobId, open, onOpenChange, onSummaryLoaded }: CronLogDr
 type CronSortKey = 'id' | 'expression'
 
 export function SystemCronsContent() {
+  const { t } = useTranslation('system')
   const [jobs, setJobs] = useState<CronJob[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -647,7 +649,7 @@ export function SystemCronsContent() {
       } catch {
         /* ignore summary refresh failure */
       }
-      setSuccess(`Job ${jobId} triggered.`)
+      setSuccess(t('crons.triggered', { jobId }))
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -662,16 +664,16 @@ export function SystemCronsContent() {
     <div>
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Platform Crons</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{t('crons.title')}</h1>
           <p className="mt-1 text-muted-foreground">
-            Review platform scheduled jobs across PocketBase core tasks and AppOS platform tasks.
+            {t('crons.description')}
           </p>
         </div>
         <Button
           variant="outline"
           size="icon"
-          aria-label="Refresh platform crons"
-          title="Refresh"
+          aria-label={t('crons.refreshAria')}
+          title={t('common:refresh')}
           onClick={fetchJobs}
           disabled={loading}
         >
@@ -694,7 +696,7 @@ export function SystemCronsContent() {
         <Alert className="mb-4 border-emerald-200 bg-emerald-50 text-emerald-800">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <AlertTitle className="text-emerald-900">Success</AlertTitle>
+              <AlertTitle className="text-emerald-900">{t('crons.success')}</AlertTitle>
               <AlertDescription>{success}</AlertDescription>
             </div>
             <Button
@@ -704,7 +706,7 @@ export function SystemCronsContent() {
               onClick={() => setSuccess(null)}
             >
               <X className="h-4 w-4" />
-              <span className="sr-only">Dismiss success message</span>
+               <span className="sr-only">{t('crons.dismissSuccess')}</span>
             </Button>
           </div>
         </Alert>
@@ -714,14 +716,14 @@ export function SystemCronsContent() {
       {loading && jobs.length === 0 && (
         <div className="flex items-center gap-2 text-muted-foreground py-8">
           <Loader2 className="h-4 w-4 animate-spin" />
-          Loading tasks…
+          {t('crons.loading')}
         </div>
       )}
 
       {/* Empty state */}
       {!loading && !error && jobs.length === 0 && (
         <div className="flex flex-col items-center justify-center rounded-md border py-12 text-center">
-          <p className="text-muted-foreground">No cron jobs registered.</p>
+          <p className="text-muted-foreground">{t('crons.empty')}</p>
         </div>
       )}
 
@@ -732,7 +734,7 @@ export function SystemCronsContent() {
             <TableRow>
               <TableHead>
                 <SortBtn
-                  label="Job ID"
+                   label={t('crons.table.jobId')}
                   field="id"
                   sort={sortKey}
                   dir={sortDir}
@@ -741,18 +743,18 @@ export function SystemCronsContent() {
               </TableHead>
               <TableHead>
                 <SortBtn
-                  label="Schedule"
+                   label={t('crons.table.schedule')}
                   field="expression"
                   sort={sortKey}
                   dir={sortDir}
                   onSort={handleSort}
                 />
               </TableHead>
-              <TableHead className="w-[110px]">Type</TableHead>
-              <TableHead className="w-[110px]">Effective Interval</TableHead>
-              <TableHead className="w-[100px]">Last Status</TableHead>
-              <TableHead className="w-[150px] hidden md:table-cell">Last Run</TableHead>
-              <TableHead className="w-[60px]">Action</TableHead>
+               <TableHead className="w-[110px]">{t('crons.table.type')}</TableHead>
+               <TableHead className="w-[110px]">{t('crons.table.effectiveInterval')}</TableHead>
+               <TableHead className="w-[100px]">{t('crons.table.lastStatus')}</TableHead>
+               <TableHead className="w-[150px] hidden md:table-cell">{t('crons.table.lastRun')}</TableHead>
+               <TableHead className="w-[60px]">{t('crons.table.action')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -765,7 +767,7 @@ export function SystemCronsContent() {
                   {job.expression}
                 </TableCell>
                 <TableCell>
-                  <Badge variant="outline">{getCronJobType(job.id)}</Badge>
+                  <Badge variant="outline">{getCronJobType(job.id) === 'Core' ? t('crons.type.core') : t('crons.type.platform')}</Badge>
                 </TableCell>
                 <TableCell className="text-xs text-muted-foreground">
                   {getEffectiveIntervalLabel(job, monitorScheduling)}
@@ -773,21 +775,21 @@ export function SystemCronsContent() {
                 <TableCell>
                   {(() => {
                     const s = logSummaries.get(job.id)
-                    if (!s) return <span className="text-xs text-muted-foreground">—</span>
-                    return lastStatusBadge(s.lastStatus)
+                    if (!s) return <span className="text-xs text-muted-foreground">{t('crons.status.none')}</span>
+                    return lastStatusBadge(s.lastStatus, t)
                   })()}
                 </TableCell>
                 <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
                   {logSummaries.get(job.id)?.lastRun
-                    ? formatDate(logSummaries.get(job.id)!.lastRun)
-                    : '—'}
+                     ? formatDate(logSummaries.get(job.id)!.lastRun)
+                     : t('crons.status.none')}
                 </TableCell>
                 <TableCell>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" size="icon" className="h-7 w-7">
                         <MoreVertical className="h-4 w-4" />
-                        <span className="sr-only">Actions</span>
+                         <span className="sr-only">Actions</span>
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">

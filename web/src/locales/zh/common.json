@@ -1,5 +1,6 @@
 {
   "loading": "加载中...",
+  "loadingPage": "正在加载{{page}}...",
   "error": "发生错误",
   "retry": "重试",
   "close": "关闭",
@@ -10,5 +11,153 @@
   "edit": "编辑",
   "back": "返回",
   "next": "下一页",
-  "previous": "上一页"
+  "previous": "上一页",
+  "yes": "是",
+  "no": "否",
+  "refresh": "刷新",
+  "search": "搜索",
+  "pages": {
+    "overview": "总览",
+    "apps": "应用",
+    "appDetail": "应用详情",
+    "activity": "活动",
+    "executionDetail": "执行详情",
+    "deploy": "部署",
+    "createDeployment": "创建部署",
+    "docker": "Docker",
+    "platformComponents": "平台组件",
+    "tunnels": "隧道",
+    "terminal": "终端",
+    "environment": "环境"
+  },
+  "placeholders": {
+    "futureEpic": "占位页面。该页面将在后续 Epic 中实现。"
+  },
+  "overview": {
+    "title": "总览",
+    "actions": {
+      "refreshAriaLabel": "刷新总览"
+    },
+    "errors": {
+      "degraded": "部分总览区块暂时不可用。",
+      "loadFailed": "加载总览失败"
+    },
+    "kpis": {
+      "applications": {
+        "title": "应用",
+        "description": "{{running}} 个运行中 · {{error}} 个异常 · {{stopped}} 个已停止"
+      },
+      "servers": {
+        "title": "服务器",
+        "description": "{{tunnelOnline}} 个隧道在线 · {{tunnelOffline}} 个隧道离线 · {{direct}} 个直连"
+      },
+      "attentionNeeded": {
+        "title": "需要关注",
+        "description": "{{monitorIssues}} 个监控问题 · {{offlineTunnels}} 个离线隧道"
+      },
+      "credentialsRisk": {
+        "title": "凭据风险",
+        "description": "{{certificates}} 个证书风险 · {{secrets}} 个密钥风险"
+      }
+    },
+    "sections": {
+      "needsAttention": {
+        "title": "需要关注",
+        "description": "按优先级汇总监控、隧道和凭据状态中的运维事项。",
+        "loading": "正在加载当前问题...",
+        "empty": "当前没有紧急问题。"
+      },
+      "trends": {
+        "title": "1 小时趋势",
+        "description": "展示过去一小时 AppOS 控制面的 CPU、内存使用与上限、磁盘和网络情况。",
+        "linkAriaLabel": "查看系统状态",
+        "loading": "正在加载 AppOS 自身指标...",
+        "empty": "AppOS 自身指标尚未上报。"
+      },
+      "recentApps": {
+        "title": "最近应用变更",
+        "description": "工作区中最近更新的应用实例。",
+        "loading": "正在加载应用...",
+        "empty": "尚未部署任何应用。",
+        "updated": "更新时间"
+      },
+      "quickActions": {
+        "title": "快捷操作",
+        "description": "直接进入最常用的运维工作流。"
+      }
+    },
+    "quickLinks": {
+      "deployApp": {
+        "title": "部署应用",
+        "description": "开始新的部署工作流。"
+      },
+      "openMonitor": {
+        "title": "打开监控",
+        "description": "检查平台状态和异常目标。"
+      },
+      "manageServers": {
+        "title": "管理服务器",
+        "description": "查看已连接主机和监控代理部署情况。"
+      },
+      "reviewCredentials": {
+        "title": "检查凭据",
+        "description": "检查可能需要处理的密钥和证书。"
+      }
+    },
+    "issues": {
+      "monitorFallback": "{{status}} 需要关注。",
+      "tunnelWaiting": "正在等待首次隧道连接。",
+      "tunnelOffline": "隧道已离线。",
+      "certificateExpired": "证书已过期或已吊销。",
+      "certificateExpiring": "证书将在 30 天内过期。",
+      "secretExpired": "密钥已过期或已吊销。",
+      "secretExpiring": "密钥将在 30 天内过期。"
+    },
+    "issueKinds": {
+      "monitor": "监控",
+      "tunnel": "隧道",
+      "certificate": "证书",
+      "secret": "密钥"
+    },
+    "seriesLabels": {
+      "cpu": "CPU",
+      "memory": "内存",
+      "disk_usage": "磁盘使用",
+      "disk": "磁盘 IO",
+      "network": "网络速率",
+      "network_traffic": "网络流量"
+    },
+    "statusLabels": {
+      "running": "运行中",
+      "error": "异常",
+      "stopped": "已停止",
+      "unknown": "未知",
+      "healthy": "健康",
+      "degraded": "降级",
+      "offline": "离线",
+      "unreachable": "不可达",
+      "credential_invalid": "凭据无效"
+    },
+    "trendSummary": {
+      "memoryUsageWithLimit": "已用 {{used}} / 上限 {{limit}}",
+      "memoryUsage": "已用 {{used}}",
+      "diskUsage": "已用 {{used}}{{free}}",
+      "networkSpeed": "入站 {{inbound}}{{outbound}}",
+      "networkTraffic": "入站 {{inbound}}{{outbound}}",
+      "diskIo": "读取 {{read}}{{write}}",
+      "free": "空闲",
+      "out": " / 出站",
+      "write": " / 写入"
+    }
+  },
+  "embeddedIframe": {
+    "description": "通过 AppOS 自有代理路由渲染的嵌入式外部页面。",
+    "openProxiedPage": "打开代理页面",
+    "checkingAvailability": "正在检查嵌入页面可用性...",
+    "unavailableTitle": "嵌入页面不可用",
+    "fallback": "回退：{{behavior}}",
+    "openInNewWindow": "在新窗口中打开",
+    "probeFailed": "嵌入页面探测失败",
+    "targetReturned": "目标返回 {{status}}"
+  }
 }

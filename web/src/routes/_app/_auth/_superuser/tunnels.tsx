@@ -1,5 +1,6 @@
 import { Suspense, lazy } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 
 const LazyTunnelsPage = lazy(() =>
   import('@/pages/system/TunnelsPage').then(m => ({ default: m.TunnelsPage }))
@@ -23,12 +24,17 @@ function normalizePositiveInt(value: unknown, fallback: number) {
 }
 
 function TunnelsRoutePage() {
+  const { t } = useTranslation('common')
   const search = Route.useSearch()
   const navigate = Route.useNavigate()
 
   return (
     <Suspense
-      fallback={<div className="p-6 text-sm text-muted-foreground">Loading tunnels...</div>}
+      fallback={
+        <div className="p-6 text-sm text-muted-foreground">
+          {t('loadingPage', { page: t('pages.tunnels') })}
+        </div>
+      }
     >
       <LazyTunnelsPage
         queryState={{

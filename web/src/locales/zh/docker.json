@@ -1,0 +1,238 @@
+{
+  "page": {
+    "title": "Docker",
+    "serverMenuAria": "选择 Docker 服务器"
+  },
+  "command": {
+    "placeholder": "ps -a --format json",
+    "run": "运行",
+    "emptyPrompt": "在上方输入 docker 子命令，然后按 Enter 或点击运行。",
+    "exampleLabel": "示例："
+  },
+  "compose": {
+    "errors": {
+      "loadContainers": "加载 Compose 容器失败",
+      "loadProjectDetails": "加载 Compose 项目详情失败",
+      "loadLogs": "加载日志失败",
+      "loadConfig": "加载配置失败",
+      "loadProjects": "加载 Compose 项目失败"
+    },
+    "operation": {
+      "noOutput": "操作完成，但没有输出。",
+      "failed": "{{label}}失败",
+      "dialogTitleFallback": "Compose 操作",
+      "runningDescription": "这个 Compose 操作可能需要一段时间。完成后，表格行状态和此对话框都会更新。",
+      "failedDescription": "操作失败。请查看下面的输出。",
+      "finishedDescription": "操作已完成。请查看下面的输出。",
+      "runningFallback": "正在运行 Compose 操作...",
+      "failedEmpty": "（操作失败且没有输出）",
+      "completedEmpty": "（操作完成且没有输出）",
+      "copySuccess": "已复制操作输出",
+      "copyFailure": "复制操作输出失败",
+      "downloadFailure": "下载操作输出失败"
+    },
+    "searchPlaceholder": "搜索项目",
+    "total": "共 {{count}} 项",
+    "pagination": {
+      "previous": "上一页 Compose",
+      "next": "下一页 Compose"
+    },
+    "settings": {
+      "button": "Compose 显示设置",
+      "perPage": "每页 {{count}} 项"
+    },
+    "filters": {
+      "searchBadge": "搜索：{{value}}",
+      "statusBadge": "状态：{{value}}",
+      "clear": "清除筛选",
+      "statusAria": "筛选 Compose 状态",
+      "statusTitle": "Compose 状态：{{value}}",
+      "allStatus": "全部状态"
+    },
+    "loading": {
+      "projectContainers": "正在加载项目容器...",
+      "projectStatus": "正在加载项目状态..."
+    },
+    "columns": {
+      "project": "项目",
+      "status": "状态",
+      "containers": "容器",
+      "config": "配置",
+      "actions": "操作"
+    },
+    "containerCount_one": "{{count}} 个容器",
+    "containerCount_other": "{{count}} 个容器",
+    "actions": {
+      "pull": "拉取",
+      "up": "启动编排",
+      "start": "启动",
+      "stop": "停止",
+      "restart": "重启",
+      "down": "停止并下线",
+      "logs": "日志",
+      "viewConfig": "查看配置",
+      "downRemove": "停止并删除"
+    },
+    "expanded": {
+      "servicesTitle": "Compose 服务",
+      "service": "服务",
+      "container": "容器",
+      "state": "状态",
+      "ports": "端口"
+    },
+    "empty": {
+      "servicesForProject": "此项目未找到服务。",
+      "projects": "未找到 Compose 项目"
+    },
+    "dialogs": {
+      "logsTitle": "Compose 日志：{{name}}",
+      "configDescription": "此 Compose 项目的 docker-compose.yml 内容。",
+      "logsDescription": "此项目最近的 docker compose 日志。",
+      "loadingConfig": "正在加载配置...",
+      "loadingLogs": "正在加载日志...",
+      "emptyConfig": "（空文件）",
+      "emptyOutput": "（无输出）",
+      "copyConfigSuccess": "配置已复制",
+      "copyLogsSuccess": "日志已复制",
+      "downloadConfigFailure": "下载配置失败",
+      "downloadLogsFailure": "下载日志失败"
+    }
+  },
+  "containers": {
+    "title": "容器",
+    "searchPlaceholder": "搜索容器",
+    "total": "共 {{count}} 项",
+    "refresh": "刷新 Docker 数据",
+    "pagination": {
+      "previous": "上一页容器",
+      "next": "下一页容器"
+    },
+    "settings": {
+      "button": "容器显示设置",
+      "rowsPerPage": "每页行数",
+      "perPage": "每页 {{count}} 项",
+      "visibleColumns": "显示列"
+    },
+    "messages": {
+      "copyFailed": "复制{{label}}失败"
+    },
+    "filters": {
+      "searchBadge": "搜索：{{value}}",
+      "runtimeBadge": "运行时：{{value}}",
+      "linkedContainersBadge": "关联容器：{{count}}",
+      "composeBadge": "Compose：{{value}}",
+      "clear": "清除筛选",
+      "stateAria": "筛选容器状态",
+      "stateTitle": "容器状态：{{value}}",
+      "allStates": "全部状态（{{count}}）",
+      "running": "运行中（{{count}}）",
+      "exited": "已退出（{{count}}）",
+      "paused": "已暂停（{{count}}）",
+      "created": "已创建（{{count}}）",
+      "composeAria": "筛选 Compose 项目",
+      "composeTitle": "Compose：{{value}}",
+      "allCompose": "全部 Compose"
+    },
+    "loading": {
+      "telemetry": "正在加载遥测...",
+      "stats": "正在加载统计...",
+      "inspect": "正在加载 inspect...",
+      "logs": "正在加载日志..."
+    },
+    "columns": {
+      "name": "名称",
+      "runtime": "运行时",
+      "quick": "快捷操作",
+      "ports": "端口",
+      "volumes": "卷",
+      "created": "创建时间",
+      "compose": "Compose",
+      "cpu": "CPU",
+      "memory": "内存",
+      "network": "网络",
+      "lifecycle": "生命周期",
+      "actions": "操作"
+    },
+    "quick": {
+      "logsAria": "打开 {{name}} 的日志",
+      "logs": "日志",
+      "monitorAria": "打开 {{name}} 的监控",
+      "monitor": "监控",
+      "execAria": "打开 {{name}} 的执行终端",
+      "exec": "执行",
+      "execUnavailable": "执行不可用"
+    },
+    "moreActions": "{{name}} 的更多操作",
+    "actions": {
+      "exec": "执行",
+      "stats": "统计",
+      "logs": "日志",
+      "inspect": "Inspect",
+      "start": "启动",
+      "stop": "停止",
+      "restart": "重启",
+      "remove": "删除"
+    },
+    "details": {
+      "title": "容器详情",
+      "loadingInspect": "正在加载 inspect 详情...",
+      "copyId": "点击复制 ID",
+      "copyIp": "点击复制 IP"
+    },
+    "volumeCount_one": "{{count}} 个卷",
+    "volumeCount_other": "{{count}} 个卷",
+    "stats": {
+      "realtimeSnapshot": "实时快照",
+      "realtimeDescription": "来自 docker stats 的当前运行时数值。",
+      "live": "实时",
+      "inTotal": "总入站",
+      "outTotal": "总出站",
+      "blockIo": "块 I/O",
+      "readTotal": "总读取",
+      "writeTotal": "总写入",
+      "snapshotBadge": "Docker 统计快照",
+      "observedNow": "当前观测",
+      "refreshingEvery2s": "每 2 秒刷新一次",
+      "trendHistory": "趋势历史",
+      "trendDescription": "{{range}} 选择一个时间范围以重绘所有趋势图。",
+      "trendWindowSelector": "容器趋势时间窗口选择器",
+      "cpuTrend": "CPU 趋势",
+      "memoryTrend": "内存趋势",
+      "networkTrend": "网络趋势",
+      "blockIoTrend": "块 I/O 趋势"
+    },
+    "dialogs": {
+      "inspectTitlePrefix": "容器 Inspect",
+      "logsTitlePrefix": "容器日志",
+      "inspectDescription": "该容器的结构化 docker inspect 输出。",
+      "logsDescription": "该容器最近的 docker 日志。",
+      "inspectCopySuccess": "Inspect 已复制",
+      "logsCopySuccess": "日志已复制",
+      "inspectCopyFailure": "复制 inspect 失败",
+      "logsCopyFailure": "复制日志失败",
+      "inspectDownloadFailure": "下载 inspect 失败",
+      "logsDownloadFailure": "下载日志失败"
+    },
+    "empty": {
+      "output": "（无输出）"
+    }
+  },
+  "images": {
+    "filters": {
+      "registryAria": "按镜像仓库筛选"
+    },
+    "history": {
+      "pendingTab": "等待中",
+      "historyTab": "历史"
+    }
+  },
+  "networks": {
+    "searchPlaceholder": "搜索网络",
+    "total": "共 {{count}} 项"
+  },
+  "volumes": {
+    "actions": {
+      "pruneUnused": "清理未使用卷"
+    }
+  }
+}

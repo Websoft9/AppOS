@@ -1,11 +1,50 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { LogsPage } from './logs'
+
+let LogsPage: typeof import('./logs').LogsPage
 
 const sendMock = vi.fn()
 
+function interpolate(template: string, values?: Record<string, unknown>) {
+  return template.replace(/\{\{(\w+)\}\}/g, (_, key) => String(values?.[key] ?? ''))
+}
+
 vi.mock('@tanstack/react-router', () => ({
   createFileRoute: () => (config: Record<string, unknown>) => config,
+}))
+
+vi.mock('react-i18next', () => ({
+  initReactI18next: {
+    type: '3rdParty',
+    init: () => undefined,
+  },
+  useTranslation: () => ({
+    t: (key: string, options?: Record<string, unknown>) => {
+      const translations: Record<string, string> = {
+        'logsPage.title': 'Logs',
+        'logsPage.description': 'Browse runtime and request logs.',
+        'logsPage.actions.refresh': 'Refresh logs',
+        'logsPage.actions.refreshAria': 'Refresh logs',
+        'logsPage.filters.allLevels': 'All levels',
+        'logsPage.filters.allStatus': 'All status',
+        'logsPage.filters.noStatus': 'No status',
+        'logsPage.filters.searchPlaceholder': 'Search logs',
+        'logsPage.pagination.perPage': '{{count}} / page',
+        'logsPage.pagination.previous': 'Previous page',
+        'logsPage.pagination.next': 'Next page',
+        'logsPage.table.time': 'Time',
+        'logsPage.table.level': 'Level',
+        'logsPage.table.messageUrl': 'Message / URL',
+        'logsPage.table.status': 'Status',
+        'logsPage.table.exec': 'Exec',
+        'logsPage.table.loading': 'Loading...',
+        'logsPage.table.empty': 'No log entries found.',
+        'logsPage.row.messageLabel': 'message:',
+      }
+      const template = translations[key] || options?.defaultValue || key
+      return interpolate(String(template), options)
+    },
+  }),
 }))
 
 vi.mock('@/lib/pb', () => ({
@@ -17,6 +56,12 @@ vi.mock('@/lib/pb', () => ({
 describe('LogsPage', () => {
   beforeEach(() => {
     vi.useRealTimers()
+    return import('./logs').then(module => {
+      LogsPage = module.LogsPage
+    })
+  })
+
+  beforeEach(() => {
     sendMock.mockReset()
     sendMock.mockImplementation(() =>
       Promise.resolve({

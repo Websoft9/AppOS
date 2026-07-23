@@ -1,4 +1,5 @@
 import { CheckCircle2, Circle } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
@@ -45,6 +46,7 @@ export function CreateDeploymentExposureSection({
   exposureDomainMessage,
   extraServiceMappingMessage,
 }: CreateDeploymentExposureSectionProps) {
+  const { t } = useTranslation('deploy')
   const publicAccessDisabled = !portExposureEnabled && !domainExposureEnabled
   const serviceItems = (
     isTemplate && templateServiceItems.length > 0
@@ -53,6 +55,14 @@ export function CreateDeploymentExposureSection({
   )
     .slice()
     .sort((left, right) => Number(right.isPrimary) - Number(left.isPrimary))
+
+  const fallbackPrimaryServiceLabel = t('exposure.primaryService')
+
+  const displayServiceLabel = (service: TemplateServiceItem) =>
+    !isTemplate && service.name === 'primary' ? fallbackPrimaryServiceLabel : service.name
+
+  const displayServiceRole = (service: TemplateServiceItem) =>
+    service.role === 'primary' ? t('exposure.primaryRole') : service.role
 
   const updateServiceMapping = (
     serviceName: string,
@@ -74,12 +84,10 @@ export function CreateDeploymentExposureSection({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-1">
-              <span className="text-base font-semibold">Public Access</span>
-              <HelpTip text="Prefer server ports in the 9001-9999 range when the host port is operator-managed." />
+              <span className="text-base font-semibold">{t('exposure.title')}</span>
+              <HelpTip text={t('exposure.help')} />
             </div>
-            <div className="text-xs text-muted-foreground">
-              Choose one public access path, or disable public access entirely.
-            </div>
+            <div className="text-xs text-muted-foreground">{t('exposure.description')}</div>
           </div>
           <div className="flex items-center gap-2 pt-0.5">
             <Checkbox
@@ -103,11 +111,11 @@ export function CreateDeploymentExposureSection({
                     htmlFor="public-access-disabled"
                     className="cursor-pointer text-sm font-medium text-foreground transition-colors hover:text-foreground/80"
                   >
-                    Disabled
+                    {t('exposure.disabled')}
                   </label>
                 </TooltipTrigger>
                 <TooltipContent side="top" className="max-w-xs text-xs">
-                  Disabled / Public access blocked
+                  {t('exposure.disabledHelp')}
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
@@ -142,13 +150,13 @@ export function CreateDeploymentExposureSection({
                   )}
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold">Domain Access</span>
+                      <span className="text-sm font-semibold">{t('exposure.domainAccess')}</span>
                       <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
-                        Recommended
+                        {t('exposure.recommended')}
                       </span>
                     </div>
                     <div className="pt-0.5 text-xs text-muted-foreground">
-                      Access via domain for security.
+                      {t('exposure.domainDescription')}
                     </div>
                   </div>
                 </div>
@@ -181,9 +189,9 @@ export function CreateDeploymentExposureSection({
                     <Circle className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
                   )}
                   <div>
-                    <div className="text-sm font-semibold">Port Access</div>
+                    <div className="text-sm font-semibold">{t('exposure.portAccess')}</div>
                     <div className="pt-0.5 text-xs text-muted-foreground">
-                      Access via port if domain unavailable.
+                      {t('exposure.portDescription')}
                     </div>
                   </div>
                 </div>
@@ -201,30 +209,31 @@ export function CreateDeploymentExposureSection({
         {!publicAccessDisabled && portExposureEnabled ? (
           <div className="mt-3 rounded-lg border bg-muted/10 px-3.5 py-3">
             <div className="grid grid-cols-[minmax(0,1.35fr)_110px_88px_116px] gap-2.5 border-b pb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-              <div>Service Name</div>
-              <div>Container Port</div>
-              <div>Open Port</div>
-              <div>Server Port</div>
+              <div>{t('exposure.serviceName')}</div>
+              <div>{t('exposure.containerPort')}</div>
+              <div>{t('exposure.openPort')}</div>
+              <div>{t('exposure.serverPort')}</div>
             </div>
             <div className="space-y-2 pt-2.5">
               {serviceItems.map(service => {
                 const mapping = servicePortMappings[service.name]
+                const serviceLabel = displayServiceLabel(service)
                 return (
                   <div
                     key={service.name}
                     className="grid grid-cols-[minmax(0,1.35fr)_110px_88px_116px] items-center gap-2.5"
                   >
                     <div className="min-w-0">
-                      <div className="truncate text-sm font-medium">{service.name}</div>
+                      <div className="truncate text-sm font-medium">{serviceLabel}</div>
                       <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                        {service.role}
+                        {displayServiceRole(service)}
                       </div>
                     </div>
                     <div className="text-sm">{service.containerPort || '—'}</div>
                     <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
                       <input
                         type="checkbox"
-                        aria-label={`Open Port ${service.name}`}
+                        aria-label={`${t('exposure.openPort')} ${serviceLabel}`}
                         checked={mapping?.enabled ?? service.isPrimary}
                         onChange={e =>
                           updateServiceMapping(service.name, {
@@ -235,11 +244,15 @@ export function CreateDeploymentExposureSection({
                           })
                         }
                       />
-                      <span>{(mapping?.enabled ?? service.isPrimary) ? 'On' : 'Off'}</span>
+                      <span>
+                        {(mapping?.enabled ?? service.isPrimary)
+                          ? t('exposure.on')
+                          : t('exposure.off')}
+                      </span>
                     </label>
                     <Input
                       id={`exposure-port-${service.name}`}
-                      aria-label={`Server Port ${service.name}`}
+                      aria-label={`${t('exposure.serverPort')} ${serviceLabel}`}
                       type="number"
                       min={1}
                       max={65535}

@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   ChevronDown,
   ChevronRight,
@@ -45,24 +46,7 @@ type SortDir = 'asc' | 'desc'
 
 // ─── Constants ───────────────────────────────────────────
 
-// slog levels: DEBUG=-4, INFO=0, WARN=4, ERROR=8
-const LEVEL_OPTIONS = [
-  { label: 'All levels', value: '' },
-  { label: 'DEBUG', value: '-4' },
-  { label: 'INFO', value: '0' },
-  { label: 'WARN', value: '4' },
-  { label: 'ERROR', value: '8' },
-]
-
 const PAGE_SIZE_OPTIONS = [20, 50, 100]
-const STATUS_OPTIONS: Array<{ label: string; value: StatusFilter }> = [
-  { label: 'All status', value: 'all' },
-  { label: '2xx', value: '2xx' },
-  { label: '3xx', value: '3xx' },
-  { label: '4xx', value: '4xx' },
-  { label: '5xx', value: '5xx' },
-  { label: 'No status', value: 'none' },
-]
 
 // ─── Helpers ─────────────────────────────────────────────
 
@@ -171,6 +155,7 @@ function SortableHeader({
 // ─── Component ───────────────────────────────────────────
 
 export function LogsPage() {
+  const { t } = useTranslation('system')
   const [logs, setLogs] = useState<LogEntry[]>([])
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
@@ -184,6 +169,29 @@ export function LogsPage() {
   const [pageSize, setPageSize] = useState(20)
   const [sortField, setSortField] = useState<SortField>('created')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
+
+  const levelOptions = useMemo(
+    () => [
+      { label: t('logsPage.filters.allLevels'), value: '' },
+      { label: 'DEBUG', value: '-4' },
+      { label: 'INFO', value: '0' },
+      { label: 'WARN', value: '4' },
+      { label: 'ERROR', value: '8' },
+    ],
+    [t]
+  )
+
+  const statusOptions = useMemo<Array<{ label: string; value: StatusFilter }>>(
+    () => [
+      { label: t('logsPage.filters.allStatus'), value: 'all' },
+      { label: '2xx', value: '2xx' },
+      { label: '3xx', value: '3xx' },
+      { label: '4xx', value: '4xx' },
+      { label: '5xx', value: '5xx' },
+      { label: t('logsPage.filters.noStatus'), value: 'none' },
+    ],
+    [t]
+  )
 
   const fetchLogs = useCallback(
     async (p: number, level: string, search: string, perPage: number) => {
@@ -258,14 +266,14 @@ export function LogsPage() {
       {/* Header */}
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-bold">Logs</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Browse runtime and request logs.</p>
+          <h2 className="text-2xl font-bold">{t('logsPage.title')}</h2>
+          <p className="mt-1 text-sm text-muted-foreground">{t('logsPage.description')}</p>
         </div>
         <Button
           variant="outline"
           size="icon"
-          title="Refresh"
-          aria-label="Refresh logs"
+          title={t('logsPage.actions.refresh')}
+          aria-label={t('logsPage.actions.refreshAria')}
           onClick={() => fetchLogs(page, filterLevel, searchInput, pageSize)}
         >
           <RefreshCw className="h-4 w-4" />
@@ -282,7 +290,7 @@ export function LogsPage() {
             setPage(1)
           }}
         >
-          {LEVEL_OPTIONS.map(opt => (
+          {levelOptions.map(opt => (
             <option key={opt.value} value={opt.value}>
               {opt.label}
             </option>
@@ -297,7 +305,7 @@ export function LogsPage() {
             setPage(1)
           }}
         >
-          {STATUS_OPTIONS.map(opt => (
+          {statusOptions.map(opt => (
             <option key={opt.value} value={opt.value}>
               {opt.label}
             </option>
@@ -306,7 +314,7 @@ export function LogsPage() {
 
         <input
           type="text"
-          placeholder="Search logs"
+          placeholder={t('logsPage.filters.searchPlaceholder')}
           value={searchInput}
           className={`${selectClass} min-w-64`}
           onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
@@ -326,7 +334,7 @@ export function LogsPage() {
           >
             {PAGE_SIZE_OPTIONS.map(n => (
               <option key={n} value={n}>
-                {n} / page
+                {t('logsPage.pagination.perPage', { count: n })}
               </option>
             ))}
           </select>
@@ -335,7 +343,7 @@ export function LogsPage() {
             className="h-9 px-3 text-sm"
             disabled={page <= 1}
             onClick={() => setPage(p => p - 1)}
-            aria-label="Previous page"
+            aria-label={t('logsPage.pagination.previous')}
           >
             ‹
           </Button>
@@ -347,7 +355,7 @@ export function LogsPage() {
             className="h-9 px-3 text-sm"
             disabled={page >= totalPages}
             onClick={() => setPage(p => p + 1)}
-            aria-label="Next page"
+            aria-label={t('logsPage.pagination.next')}
           >
             ›
           </Button>
@@ -374,19 +382,19 @@ export function LogsPage() {
               <TableHead className="w-8 pr-0 pl-3" />
               <TableHead className="whitespace-nowrap pl-2">
                 <SortableHeader
-                  label="Time"
+                  label={t('logsPage.table.time')}
                   field="created"
                   sortField={sortField}
                   sortDir={sortDir}
                   onToggle={toggleSort}
                 />
               </TableHead>
-              <TableHead className="w-24">Level</TableHead>
-              <TableHead>Message / URL</TableHead>
-              <TableHead className="w-20">Status</TableHead>
+              <TableHead className="w-24">{t('logsPage.table.level')}</TableHead>
+              <TableHead>{t('logsPage.table.messageUrl')}</TableHead>
+              <TableHead className="w-20">{t('logsPage.table.status')}</TableHead>
               <TableHead className="w-24">
                 <SortableHeader
-                  label="Exec"
+                  label={t('logsPage.table.exec')}
                   field="execTime"
                   sortField={sortField}
                   sortDir={sortDir}
@@ -399,7 +407,7 @@ export function LogsPage() {
             {visibleLogs.length === 0 && (
               <TableRow>
                 <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                  {loading ? 'Loading…' : 'No log entries found.'}
+                  {loading ? t('logsPage.table.loading') : t('logsPage.table.empty')}
                 </TableCell>
               </TableRow>
             )}
@@ -455,7 +463,8 @@ export function LogsPage() {
                       <TableCell colSpan={6} className="bg-muted/30 px-8 py-3">
                         {log.message && isRequest && (
                           <div className="text-xs text-muted-foreground mb-2">
-                            <span className="font-semibold">message:</span> {log.message}
+                            <span className="font-semibold">{t('logsPage.row.messageLabel')}</span>{' '}
+                            {log.message}
                           </div>
                         )}
                         <pre className="text-xs overflow-x-auto whitespace-pre-wrap break-words font-mono">

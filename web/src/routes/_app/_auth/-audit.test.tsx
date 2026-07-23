@@ -2,6 +2,26 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuditPage } from './audit'
 
+const translationMap: Record<string, string> = {
+  title: 'Audit',
+  description: 'Records sensitive and critical user operations for accountability.',
+  openLogs: 'Open logs',
+  logs: 'Logs',
+  refreshAria: 'Refresh audit',
+  'pagination.pageOf': 'Page {{page}} of {{totalPages}}',
+  'pagination.previous': 'Previous',
+  'pagination.next': 'Next',
+}
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string, values?: Record<string, unknown>) => {
+      const template = translationMap[key] ?? key
+      return template.replace(/\{\{(\w+)\}\}/g, (_, token) => String(values?.[token] ?? ''))
+    },
+  }),
+}))
+
 const collectionGetListMock = vi.fn()
 
 vi.mock('@tanstack/react-router', () => ({

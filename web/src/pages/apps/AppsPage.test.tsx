@@ -15,6 +15,10 @@ const navigateMock = vi.fn()
 const authStoreClearMock = vi.fn()
 const sessionExpiryNavigateMock = vi.fn()
 
+function interpolate(defaultValue: string, values?: Record<string, unknown>) {
+  return defaultValue.replace(/\{\{(\w+)\}\}/g, (_, key) => String(values?.[key] ?? ''))
+}
+
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => navigateMock,
   Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
@@ -30,6 +34,17 @@ vi.mock('@/lib/pb', () => ({
       clear: (...args: unknown[]) => authStoreClearMock(...args),
     },
   },
+}))
+
+vi.mock('react-i18next', () => ({
+  initReactI18next: {
+    type: '3rdParty',
+    init: () => undefined,
+  },
+  useTranslation: () => ({
+    t: (key: string, options?: Record<string, unknown>) =>
+      options?.defaultValue ? interpolate(String(options.defaultValue), options) : key,
+  }),
 }))
 
 describe('AppsPage', () => {

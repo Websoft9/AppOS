@@ -1,5 +1,6 @@
 import { useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
 import {
@@ -22,6 +23,7 @@ import {
 import { User, LogOut, Settings } from 'lucide-react'
 
 export function UserMenu() {
+  const { t } = useTranslation('navigation')
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const [loggingOut, setLoggingOut] = useState(false)
@@ -41,23 +43,25 @@ export function UserMenu() {
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon" aria-label="User menu">
+          <Button variant="ghost" size="icon" aria-label={t('shell.userMenu')}>
             <User className="h-5 w-5" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-48">
           <div className="px-2 py-1.5 text-sm">
             <p className="font-medium truncate">{user?.email}</p>
-            <p className="text-xs text-muted-foreground">{isSuperuser ? 'Superuser' : 'User'}</p>
+            <p className="text-xs text-muted-foreground">
+              {isSuperuser ? t('shell.superuser') : t('shell.user')}
+            </p>
           </div>
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={() => navigate({ to: '/profile' })}>
             <Settings className="mr-2 h-4 w-4" />
-            Profile
+            {t('shell.profile')}
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => setDialogOpen(true)}>
             <LogOut className="mr-2 h-4 w-4" />
-            Logout
+            {t('shell.logout')}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -72,20 +76,18 @@ export function UserMenu() {
           {loggingOut ? (
             <div className="py-6 text-center">
               <div className="mb-3 text-3xl">✅</div>
-              <p className="text-lg font-medium">Successfully logged out</p>
-              <p className="text-sm text-muted-foreground mt-1">Redirecting to login...</p>
+              <p className="text-lg font-medium">{t('shell.logoutSuccess')}</p>
+              <p className="text-sm text-muted-foreground mt-1">{t('shell.redirectingToLogin')}</p>
             </div>
           ) : (
             <>
               <AlertDialogHeader>
-                <AlertDialogTitle>Logout</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Are you sure you want to exit the AppOS console?
-                </AlertDialogDescription>
+                <AlertDialogTitle>{t('shell.logoutConfirmTitle')}</AlertDialogTitle>
+                <AlertDialogDescription>{t('shell.logoutConfirmDescription')}</AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={handleLogout}>Confirm</AlertDialogAction>
+                <AlertDialogCancel>{t('common:cancel')}</AlertDialogCancel>
+                <AlertDialogAction onClick={handleLogout}>{t('common:confirm')}</AlertDialogAction>
               </AlertDialogFooter>
             </>
           )}

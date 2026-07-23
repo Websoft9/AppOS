@@ -1,10 +1,12 @@
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import type { FormEvent } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { pb } from '@/lib/pb'
 
 function RegisterPage() {
+  const { t } = useTranslation('auth')
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -46,11 +48,11 @@ function RegisterPage() {
       setError('')
 
       if (password !== passwordConfirm) {
-        setError('Passwords do not match')
+        setError(t('register.errors.passwordsDoNotMatch'))
         return
       }
       if (password.length < 8) {
-        setError('Password must be at least 8 characters')
+        setError(t('register.errors.passwordTooShort'))
         return
       }
 
@@ -64,7 +66,7 @@ function RegisterPage() {
         credentialsRef.current = { email, password }
         setSuccess(true)
       } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : 'Registration failed'
+        const message = err instanceof Error ? err.message : t('register.errors.fallback')
         setError(message)
       } finally {
         setLoading(false)
@@ -78,13 +80,15 @@ function RegisterPage() {
       <div className="flex items-center justify-center min-h-screen bg-background">
         <div className="w-full max-w-md p-8 bg-card rounded-lg shadow-md border border-border text-center">
           <div className="mb-4 text-4xl">✅</div>
-          <h2 className="text-2xl font-bold mb-2 text-card-foreground">Registration Successful!</h2>
-          <p className="text-muted-foreground mb-2">Your account has been created.</p>
+          <h2 className="text-2xl font-bold mb-2 text-card-foreground">
+            {t('register.successTitle')}
+          </h2>
+          <p className="text-muted-foreground mb-2">{t('register.successDescription')}</p>
           <p className="font-mono text-sm bg-muted p-2 rounded mb-4 text-foreground">
             {credentialsRef.current.email}
           </p>
           <p className="text-muted-foreground">
-            Auto-login in <span className="font-bold text-foreground">{countdown}</span>s...
+            {t('register.autoLogin', { count: countdown })}
           </p>
         </div>
       </div>
@@ -94,7 +98,9 @@ function RegisterPage() {
   return (
     <div className="flex items-center justify-center min-h-screen bg-background">
       <div className="w-full max-w-md p-8 bg-card rounded-lg shadow-md border border-border">
-        <h2 className="text-2xl font-bold text-center mb-6 text-card-foreground">Register</h2>
+        <h2 className="text-2xl font-bold text-center mb-6 text-card-foreground">
+          {t('register.title')}
+        </h2>
 
         {error && (
           <div className="mb-4 p-3 bg-destructive/10 border border-destructive/50 text-destructive rounded">
@@ -104,9 +110,9 @@ function RegisterPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="email" className="block text-sm font-medium mb-1 text-foreground">
-              Email
-            </label>
+              <label htmlFor="email" className="block text-sm font-medium mb-1 text-foreground">
+                {t('register.email')}
+              </label>
             <input
               type="email"
               id="email"
@@ -118,9 +124,9 @@ function RegisterPage() {
             />
           </div>
           <div>
-            <label htmlFor="password" className="block text-sm font-medium mb-1 text-foreground">
-              Password
-            </label>
+              <label htmlFor="password" className="block text-sm font-medium mb-1 text-foreground">
+                {t('register.password')}
+              </label>
             <input
               type="password"
               id="password"
@@ -137,7 +143,7 @@ function RegisterPage() {
               htmlFor="passwordConfirm"
               className="block text-sm font-medium mb-1 text-foreground"
             >
-              Confirm Password
+              {t('register.passwordConfirm')}
             </label>
             <input
               type="password"
@@ -151,13 +157,13 @@ function RegisterPage() {
             />
           </div>
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? 'Creating account...' : 'Create Account'}
+            {loading ? t('register.submitting') : t('register.submit')}
           </Button>
         </form>
         <p className="mt-4 text-center text-sm text-muted-foreground">
-          Already have an account?{' '}
+          {t('register.alreadyHaveAccount')}{' '}
           <Link to="/login" className="text-primary hover:underline">
-            Login
+            {t('register.login')}
           </Link>
         </p>
       </div>

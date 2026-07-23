@@ -1,14 +1,22 @@
 import { Suspense, lazy } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 
 const LazyDeployPage = lazy(() =>
   import('@/pages/deploy/DeployPage').then(module => ({ default: module.DeployPage }))
 )
 
 function DeployIndexPage() {
+  const { t } = useTranslation('common')
   const search = Route.useSearch()
   return (
-    <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Loading Deploy...</div>}>
+    <Suspense
+      fallback={
+        <div className="p-6 text-sm text-muted-foreground">
+          {t('loadingPage', { page: t('pages.deploy') })}
+        </div>
+      }
+    >
       <LazyDeployPage
         prefillMode={search.prefillMode}
         prefillSource={search.prefillSource}

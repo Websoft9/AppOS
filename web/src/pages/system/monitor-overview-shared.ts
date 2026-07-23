@@ -1,3 +1,5 @@
+import i18n from '@/lib/i18n'
+
 export type MonitorOverviewItem = {
   targetType?: string
   targetId: string
@@ -25,10 +27,12 @@ export const COUNT_KEYS = [
 ] as const
 
 export function formatStatusLabel(status: string): string {
-  return status
+  const fallback = status
     .split('_')
     .map(part => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ')
+
+  return i18n.t(`system:shared.statusLabels.${status}`, { defaultValue: fallback })
 }
 
 export function formatBytes(value: number): string {
@@ -44,14 +48,16 @@ export function formatBytes(value: number): string {
 }
 
 export function formatTimestamp(value: string): string {
-  if (!value) return '—'
+  if (!value) return i18n.t('system:shared.emptyDash', { defaultValue: '—' })
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
   return date.toLocaleString()
 }
 
 export function formatSummaryValue(key: string, value: unknown): string {
-  if (value === null || value === undefined || value === '') return '—'
+  if (value === null || value === undefined || value === '') {
+    return i18n.t('system:shared.emptyDash', { defaultValue: '—' })
+  }
   if (typeof value === 'number') {
     if (key.endsWith('_bytes')) return formatBytes(value)
     if (key.endsWith('_seconds')) {
@@ -62,7 +68,11 @@ export function formatSummaryValue(key: string, value: unknown): string {
     }
     return String(Number.isInteger(value) ? value : Number(value).toFixed(2))
   }
-  if (typeof value === 'boolean') return value ? 'Yes' : 'No'
+  if (typeof value === 'boolean') {
+    return value
+      ? i18n.t('system:shared.boolean.yes', { defaultValue: 'Yes' })
+      : i18n.t('system:shared.boolean.no', { defaultValue: 'No' })
+  }
   if (typeof value === 'string') return value.includes('T') ? formatTimestamp(value) : value
   return JSON.stringify(value)
 }

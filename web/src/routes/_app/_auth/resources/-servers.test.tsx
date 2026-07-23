@@ -128,6 +128,14 @@ vi.mock('react-i18next', () => ({
           'Failed to resolve the current AppOS hostname',
         'servers.secret.newCredential': 'New credential',
         'servers.secret.editSecret': 'Edit Secret',
+        'servers.secret.createTitle': 'Create Credential',
+        'servers.secret.createDescription':
+          'Create a reusable credential and attach it to this server.',
+        'servers.secret.editTitle': 'Edit Credential',
+        'servers.secret.editDescription':
+          'Update the selected Secret without leaving server editing.',
+        'servers.secret.loading': 'Loading secret...',
+        'servers.secret.save': 'Save Credential',
         'servers.secret.errors.load': 'Failed to load secret',
         'servers.secret.errors.nameRequired': 'Name is required',
         'servers.secret.errors.update': 'Failed to update secret',
@@ -156,6 +164,8 @@ vi.mock('react-i18next', () => ({
         'servers.actions.disable': 'Disable',
         'servers.actions.tunnelSetup': 'Tunnel Setup',
         'servers.actions.duplicateServer': 'Duplicate Server',
+        'servers.actions.restart': 'Restart',
+        'servers.actions.shutdown': 'Shutdown',
         'servers.enabled.yes': 'Yes',
         'servers.enabled.no': 'No',
         'servers.detail.restoreWidth': 'Restore detail width',
@@ -499,6 +509,15 @@ vi.mock('react-i18next', () => ({
         'servers.listSettings.title': 'List settings',
         'servers.listSettings.rowsPerPage': 'Rows per page',
         'servers.listSettings.columns': 'Columns',
+        'servers.dialogs.connecting.title': 'Connecting...',
+        'servers.dialogs.connecting.preparing': 'Preparing connection',
+        'servers.dialogs.connecting.checking': 'Running connectivity check...',
+        'servers.dialogs.connecting.offlineFallback': 'Server is offline.',
+        'servers.dialogs.power.restartTitle': 'Restart Server',
+        'servers.dialogs.power.shutdownTitle': 'Shutdown Server',
+        'servers.dialogs.power.description': 'Confirm server operation',
+        'servers.dialogs.power.delayLabel': 'Delay (min)',
+        'servers.dialogs.power.immediate': 'Immediate',
         'servers.validation.nameRequired': 'Name is required',
         'servers.validation.userRequired': 'User is required',
         'servers.validation.hostRequiredForDirect': 'Host is required for Direct SSH connections',
@@ -552,6 +571,12 @@ vi.mock('react-i18next', () => ({
       }
       if (key === 'servers.sessions.manyActive') {
         return `${String(options?.count ?? '')} active terminal sessions`
+      }
+      if (key === 'servers.dialogs.target') {
+        return `Target: ${String(options?.name ?? '')}`
+      }
+      if (key === 'servers.dialogs.power.delayFromNow') {
+        return `${String(options?.count ?? '')} min from now`
       }
       if (key === 'servers.listSettings.rowsPerPageOption') {
         return `${String(options?.count ?? '')} / page`

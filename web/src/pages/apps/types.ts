@@ -1,3 +1,5 @@
+import i18n from '@/lib/i18n'
+
 export type AppPipeline = {
   id: string
   operation_id: string
@@ -157,25 +159,25 @@ export function instanceStateVariant(
 export function formatInstanceStateLabel(state: string | undefined): string {
   switch ((state || '').toLowerCase()) {
     case 'running':
-      return 'Running'
+      return i18n.t('apps:states.running', 'Running')
     case 'degraded':
-      return 'Degraded'
+      return i18n.t('apps:states.degraded', 'Degraded')
     case 'stopped':
-      return 'Stopped'
+      return i18n.t('apps:states.stopped', 'Stopped')
     case 'updating':
-      return 'Updating'
+      return i18n.t('apps:states.updating', 'Updating')
     case 'installing':
-      return 'Installing'
+      return i18n.t('apps:states.installing', 'Installing')
     case 'uninstalling':
-      return 'Uninstalling'
+      return i18n.t('apps:states.uninstalling', 'Uninstalling')
     case 'attention_required':
-      return 'Attention Required'
+      return i18n.t('apps:states.attentionRequired', 'Attention Required')
     case 'retired':
-      return 'Retired'
+      return i18n.t('apps:states.retired', 'Retired')
     case 'unknown':
-      return 'Unknown'
+      return i18n.t('apps:states.unknown', 'Unknown')
     default:
-      return state || 'Unknown'
+      return state || i18n.t('apps:states.unknown', 'Unknown')
   }
 }
 
@@ -202,17 +204,17 @@ export function normalizeServerConnectionStatus(status?: string): string {
 export function formatServerConnectionLabel(status?: string): string {
   switch (normalizeServerConnectionStatus(status)) {
     case 'online':
-      return 'Server Online'
+      return i18n.t('apps:serverConnection.online', 'Server Online')
     case 'offline':
-      return 'Server Offline'
+      return i18n.t('apps:serverConnection.offline', 'Server Offline')
     case 'credential_invalid':
-      return 'Server Credentials Invalid'
+      return i18n.t('apps:serverConnection.credentialInvalid', 'Server Credentials Invalid')
     case 'tunnel_disconnected':
-      return 'Tunnel Disconnected'
+      return i18n.t('apps:serverConnection.tunnelDisconnected', 'Tunnel Disconnected')
     case 'unknown':
-      return 'Server Unknown'
+      return i18n.t('apps:serverConnection.unknown', 'Server Unknown')
     default:
-      return 'Server Unreachable'
+      return i18n.t('apps:serverConnection.unreachable', 'Server Unreachable')
   }
 }
 
@@ -250,7 +252,7 @@ export function hasBlockingServerConnectionIssue(
 export function formatEffectiveInstanceStateLabel(
   app?: Pick<AppInstance, 'server_id' | 'server_connection_status' | 'instance_state'> | null
 ): string {
-  if (hasBlockingServerConnectionIssue(app)) return 'Unavailable'
+  if (hasBlockingServerConnectionIssue(app)) return i18n.t('apps:states.unavailable', 'Unavailable')
   return formatInstanceStateLabel(app?.instance_state)
 }
 
@@ -264,7 +266,7 @@ export function effectiveInstanceStateVariant(
 export function formatEffectiveRuntimeLabel(
   app?: Pick<AppInstance, 'server_id' | 'server_connection_status' | 'runtime_status'> | null
 ): string {
-  if (hasBlockingServerConnectionIssue(app)) return 'Unavailable'
+  if (hasBlockingServerConnectionIssue(app)) return i18n.t('apps:states.unavailable', 'Unavailable')
   return app?.runtime_status || '-'
 }
 
@@ -278,7 +280,7 @@ export function formatEffectiveHealthLabel(
     | 'runtime_status'
   > | null
 ): string {
-  if (hasBlockingServerConnectionIssue(app)) return 'Unavailable'
+  if (hasBlockingServerConnectionIssue(app)) return i18n.t('apps:states.unavailable', 'Unavailable')
   if (app?.instance_state) return formatInstanceStateLabel(app.instance_state)
   return app?.health_summary || app?.runtime_status || '-'
 }

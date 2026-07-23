@@ -1,5 +1,6 @@
 {
   "loading": "Loading...",
+  "loadingPage": "Loading {{page}}...",
   "error": "An error occurred",
   "retry": "Retry",
   "close": "Close",
@@ -10,5 +11,153 @@
   "edit": "Edit",
   "back": "Back",
   "next": "Next",
-  "previous": "Previous"
+  "previous": "Previous",
+  "yes": "Yes",
+  "no": "No",
+  "refresh": "Refresh",
+  "search": "Search",
+  "pages": {
+    "overview": "Overview",
+    "apps": "Apps",
+    "appDetail": "App Detail",
+    "activity": "Activity",
+    "executionDetail": "Execution Detail",
+    "deploy": "Deploy",
+    "createDeployment": "Create Deployment",
+    "docker": "Docker",
+    "platformComponents": "Platform Components",
+    "tunnels": "Tunnels",
+    "terminal": "Terminal",
+    "environment": "Environment"
+  },
+  "placeholders": {
+    "futureEpic": "Placeholder entry. This page is managed by a future epic."
+  },
+  "overview": {
+    "title": "Overview",
+    "actions": {
+      "refreshAriaLabel": "Refresh overview"
+    },
+    "errors": {
+      "degraded": "Some overview sections are temporarily unavailable.",
+      "loadFailed": "Failed to load overview"
+    },
+    "kpis": {
+      "applications": {
+        "title": "Applications",
+        "description": "{{running}} running · {{error}} error · {{stopped}} stopped"
+      },
+      "servers": {
+        "title": "Servers",
+        "description": "{{tunnelOnline}} tunnel online · {{tunnelOffline}} tunnel offline · {{direct}} direct"
+      },
+      "attentionNeeded": {
+        "title": "Attention Needed",
+        "description": "{{monitorIssues}} monitor issues · {{offlineTunnels}} offline tunnels"
+      },
+      "credentialsRisk": {
+        "title": "Credentials Risk",
+        "description": "{{certificates}} certificate risks · {{secrets}} secret risks"
+      }
+    },
+    "sections": {
+      "needsAttention": {
+        "title": "Needs Attention",
+        "description": "Prioritized operational items collected from monitor, tunnel, and credential state.",
+        "loading": "Loading current issues...",
+        "empty": "No urgent issues right now."
+      },
+      "trends": {
+        "title": "1H Trends",
+        "description": "AppOS control-plane CPU, memory usage versus limit, disk, and network over the last hour.",
+        "linkAriaLabel": "View system status",
+        "loading": "Loading AppOS self metrics...",
+        "empty": "AppOS self metrics have not reported yet."
+      },
+      "recentApps": {
+        "title": "Recent App Changes",
+        "description": "Most recently updated application instances across the workspace.",
+        "loading": "Loading applications...",
+        "empty": "No applications deployed yet.",
+        "updated": "Updated"
+      },
+      "quickActions": {
+        "title": "Quick Actions",
+        "description": "Jump directly into the most common operational workflows."
+      }
+    },
+    "quickLinks": {
+      "deployApp": {
+        "title": "Deploy App",
+        "description": "Start a new deployment workflow."
+      },
+      "openMonitor": {
+        "title": "Open Monitor",
+        "description": "Inspect platform and unhealthy targets."
+      },
+      "manageServers": {
+        "title": "Manage Servers",
+        "description": "Review connected hosts and monitor agent rollout."
+      },
+      "reviewCredentials": {
+        "title": "Review Credentials",
+        "description": "Check secrets and certificates that may need action."
+      }
+    },
+    "issues": {
+      "monitorFallback": "{{status}} requires attention.",
+      "tunnelWaiting": "Waiting for first tunnel connection.",
+      "tunnelOffline": "Tunnel is offline.",
+      "certificateExpired": "Certificate is expired or revoked.",
+      "certificateExpiring": "Certificate is expiring within 30 days.",
+      "secretExpired": "Secret is expired or revoked.",
+      "secretExpiring": "Secret is expiring within 30 days."
+    },
+    "issueKinds": {
+      "monitor": "Monitor",
+      "tunnel": "Tunnel",
+      "certificate": "Certificate",
+      "secret": "Secret"
+    },
+    "seriesLabels": {
+      "cpu": "CPU",
+      "memory": "Memory",
+      "disk_usage": "Disk Usage",
+      "disk": "Disk IO",
+      "network": "Network Speed",
+      "network_traffic": "Network Traffic"
+    },
+    "statusLabels": {
+      "running": "Running",
+      "error": "Error",
+      "stopped": "Stopped",
+      "unknown": "Unknown",
+      "healthy": "Healthy",
+      "degraded": "Degraded",
+      "offline": "Offline",
+      "unreachable": "Unreachable",
+      "credential_invalid": "Credential Invalid"
+    },
+    "trendSummary": {
+      "memoryUsageWithLimit": "{{used}} used / {{limit}} limit",
+      "memoryUsage": "{{used}} used",
+      "diskUsage": "{{used}} used{{free}}",
+      "networkSpeed": "{{inbound}} in{{outbound}}",
+      "networkTraffic": "{{inbound}} in{{outbound}}",
+      "diskIo": "{{read}} read{{write}}",
+      "free": "free",
+      "out": "out",
+      "write": "write"
+    }
+  },
+  "embeddedIframe": {
+    "description": "Embedded external page rendered through an AppOS-owned proxy route.",
+    "openProxiedPage": "Open Proxied Page",
+    "checkingAvailability": "Checking embedded page availability...",
+    "unavailableTitle": "Embedded page unavailable",
+    "fallback": "Fallback: {{behavior}}",
+    "openInNewWindow": "Open In New Window",
+    "probeFailed": "Embedded page probe failed",
+    "targetReturned": "Target returned {{status}}"
+  }
 }

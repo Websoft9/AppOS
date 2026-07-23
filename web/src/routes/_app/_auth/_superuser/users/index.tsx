@@ -29,6 +29,7 @@ import {
 import { CreateUserSheet } from '@/components/users/CreateUserSheet'
 import { EditUserSheet } from '@/components/users/EditUserSheet'
 import { ResetPasswordDialog } from '@/components/users/ResetPasswordDialog'
+import { useTranslation } from 'react-i18next'
 
 // ─── Constants ───────────────────────────────────────────
 
@@ -87,6 +88,7 @@ interface UsersTableProps {
 }
 
 function UsersTable({ collection, onAddUser, refreshKey }: UsersTableProps) {
+  const { t } = useTranslation('superuser')
   const [records, setRecords] = useState<AuthRecord[]>([])
   const [totalItems, setTotalItems] = useState(0)
   const [page, setPage] = useState(1)
@@ -168,12 +170,12 @@ function UsersTable({ collection, onAddUser, refreshKey }: UsersTableProps) {
       setDeleteTarget(null)
       fetchRecords()
     } catch (e: unknown) {
-      const msg = (e as { message?: string })?.message ?? 'Delete failed'
+      const msg = (e as { message?: string })?.message ?? t('users.deleteDialog.deleteFailed')
       // Map backend guard messages
       if (msg.includes('cannot_delete_self')) {
-        setDeleteError('You cannot delete your own account.')
+        setDeleteError(t('users.deleteDialog.cannotDeleteSelf'))
       } else if (msg.includes('cannot_delete_last_superuser')) {
-        setDeleteError('Cannot delete the last superuser.')
+        setDeleteError(t('users.deleteDialog.cannotDeleteLastSuperuser'))
       } else {
         setDeleteError(msg)
       }
@@ -189,7 +191,11 @@ function UsersTable({ collection, onAddUser, refreshKey }: UsersTableProps) {
         <div className="relative flex-1">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder={collection === 'users' ? 'Search by name or email…' : 'Search by email…'}
+            placeholder={
+              collection === 'users'
+                ? t('users.search.users')
+                : t('users.search.superusers')
+            }
             className="pl-8"
             value={query}
             onChange={e => setQuery(e.target.value)}
@@ -197,7 +203,7 @@ function UsersTable({ collection, onAddUser, refreshKey }: UsersTableProps) {
         </div>
         <Button onClick={onAddUser} size="sm">
           <UserPlus className="mr-2 h-4 w-4" />
-          Add User
+          {t('users.actions.addUser')}
         </Button>
       </div>
 
@@ -208,10 +214,12 @@ function UsersTable({ collection, onAddUser, refreshKey }: UsersTableProps) {
         </div>
       ) : isEmpty ? (
         <div className="flex flex-col items-center gap-4 py-16 text-center">
-          <p className="text-muted-foreground">No users yet.</p>
+          <p className="text-muted-foreground">
+            {collection === 'users' ? t('users.empty.users') : t('users.empty.superusers')}
+          </p>
           <Button onClick={onAddUser}>
             <UserPlus className="mr-2 h-4 w-4" />
-            Add User
+            {t('users.actions.addUser')}
           </Button>
         </div>
       ) : (
@@ -219,10 +227,10 @@ function UsersTable({ collection, onAddUser, refreshKey }: UsersTableProps) {
           <TableHeader>
             <TableRow>
               <TableHead className="w-10" />
-              <TableHead>Name / Email</TableHead>
-              <TableHead>Verified</TableHead>
-              <TableHead>Created</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
+              <TableHead>{t('users.table.nameEmail')}</TableHead>
+              <TableHead>{t('users.table.verified')}</TableHead>
+              <TableHead>{t('users.table.created')}</TableHead>
+              <TableHead className="text-right">{t('users.table.actions')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -239,9 +247,9 @@ function UsersTable({ collection, onAddUser, refreshKey }: UsersTableProps) {
                 </TableCell>
                 <TableCell>
                   {record.verified ? (
-                    <Badge variant="secondary">Verified</Badge>
+                    <Badge variant="secondary">{t('users.table.verifiedBadge')}</Badge>
                   ) : (
-                    <Badge variant="outline">Unverified</Badge>
+                    <Badge variant="outline">{t('users.table.unverifiedBadge')}</Badge>
                   )}
                 </TableCell>
                 <TableCell className="text-muted-foreground text-sm">
@@ -252,7 +260,7 @@ function UsersTable({ collection, onAddUser, refreshKey }: UsersTableProps) {
                     <Button
                       variant="ghost"
                       size="icon"
-                      title="Edit"
+                      title={t('common:edit')}
                       onClick={() => setEditTarget(record)}
                     >
                       <Edit2 className="h-4 w-4" />
@@ -261,7 +269,7 @@ function UsersTable({ collection, onAddUser, refreshKey }: UsersTableProps) {
                       <Button
                         variant="ghost"
                         size="icon"
-                        title="Reset Password"
+                        title={t('users.actions.resetPassword')}
                         onClick={() => setResetTarget(record)}
                       >
                         <KeyRound className="h-4 w-4" />
@@ -271,7 +279,7 @@ function UsersTable({ collection, onAddUser, refreshKey }: UsersTableProps) {
                       <Button
                         variant="ghost"
                         size="icon"
-                        title="Delete"
+                        title={t('common:delete')}
                         className="text-destructive hover:text-destructive"
                         onClick={() => {
                           setDeleteTarget(record)
@@ -292,7 +300,7 @@ function UsersTable({ collection, onAddUser, refreshKey }: UsersTableProps) {
       {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between text-sm text-muted-foreground">
-          <span>{totalItems} total</span>
+          <span>{t('users.pagination.total', { count: totalItems })}</span>
           <div className="flex gap-2">
             <Button
               variant="outline"
@@ -300,7 +308,7 @@ function UsersTable({ collection, onAddUser, refreshKey }: UsersTableProps) {
               disabled={page <= 1}
               onClick={() => setPage(p => p - 1)}
             >
-              Previous
+              {t('common:previous')}
             </Button>
             <span className="flex items-center px-2">
               {page} / {totalPages}
@@ -311,7 +319,7 @@ function UsersTable({ collection, onAddUser, refreshKey }: UsersTableProps) {
               disabled={page >= totalPages}
               onClick={() => setPage(p => p + 1)}
             >
-              Next
+              {t('common:next')}
             </Button>
           </div>
         </div>
@@ -329,20 +337,19 @@ function UsersTable({ collection, onAddUser, refreshKey }: UsersTableProps) {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete user?</AlertDialogTitle>
+            <AlertDialogTitle>{t('users.deleteDialog.title')}</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete <strong>{deleteTarget?.email}</strong>. This action
-              cannot be undone.
+              {t('users.deleteDialog.description', { email: deleteTarget?.email ?? '' })}
               {deleteError && <span className="mt-2 block text-destructive">{deleteError}</span>}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t('common:cancel')}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={handleDelete}
             >
-              Delete
+              {t('common:delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -384,6 +391,7 @@ function UsersTable({ collection, onAddUser, refreshKey }: UsersTableProps) {
 // ─── Page ─────────────────────────────────────────────────
 
 function UsersPage() {
+  const { t } = useTranslation('superuser')
   const [addUserOpen, setAddUserOpen] = useState(false)
   const [membersRefreshKey, setMembersRefreshKey] = useState(0)
   const [superusersRefreshKey, setSuperusersRefreshKey] = useState(0)
@@ -402,14 +410,14 @@ function UsersPage() {
   return (
     <div className="container mx-auto max-w-5xl space-y-6 py-6">
       <div className="space-y-1">
-        <h1 className="text-2xl font-semibold">Users</h1>
-        <p className="text-sm text-muted-foreground">Manage platform members and superusers.</p>
+        <h1 className="text-2xl font-semibold">{t('users.page.title')}</h1>
+        <p className="text-sm text-muted-foreground">{t('users.page.description')}</p>
       </div>
 
       <Tabs value={activeTab} onValueChange={v => setActiveTab(v as 'members' | 'superusers')}>
         <TabsList>
-          <TabsTrigger value="members">Members</TabsTrigger>
-          <TabsTrigger value="superusers">Superusers</TabsTrigger>
+          <TabsTrigger value="members">{t('users.page.members')}</TabsTrigger>
+          <TabsTrigger value="superusers">{t('users.page.superusers')}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="members" className="mt-4">

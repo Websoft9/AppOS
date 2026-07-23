@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Languages } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -16,6 +17,7 @@ const LANG_LABELS: Record<string, string> = {
 }
 
 export function LanguageSwitcher() {
+  const { t } = useTranslation('navigation')
   const [lang, setLang] = useState<'en' | 'zh'>(getLocale)
 
   useEffect(() => {
@@ -35,18 +37,18 @@ export function LanguageSwitcher() {
           variant="ghost"
           size="sm"
           className="gap-1.5 px-2 text-xs font-medium"
-          aria-label="Change language"
+          aria-label={t('shell.changeLanguage')}
         >
           <Languages className="h-4 w-4" />
           <span className="hidden sm:inline">{LANG_LABELS[lang]}</span>
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-[100px]">
-        <DropdownMenuRadioGroup value={lang} onValueChange={handleChange}>
-          <DropdownMenuRadioItem value="en">English</DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value="zh">中文</DropdownMenuRadioItem>
-        </DropdownMenuRadioGroup>
-      </DropdownMenuContent>
+        <DropdownMenuContent align="end" className="min-w-[100px]">
+          <DropdownMenuRadioGroup value={lang} onValueChange={handleChange}>
+            <DropdownMenuRadioItem value="en">{t('shell.english')}</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="zh">中文</DropdownMenuRadioItem>
+          </DropdownMenuRadioGroup>
+        </DropdownMenuContent>
     </DropdownMenu>
   )
 }

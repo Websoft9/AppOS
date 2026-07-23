@@ -1,11 +1,16 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { AppDetailPage } from './AppDetailPage'
+
+let AppDetailPage: typeof import('./AppDetailPage').AppDetailPage
 
 const sendMock = vi.fn()
 const navigateMock = vi.fn()
 const iacReadMock = vi.fn()
 const iacSaveFileMock = vi.fn()
+
+function interpolate(defaultValue: string, values?: Record<string, unknown>) {
+  return defaultValue.replace(/\{\{(\w+)\}\}/g, (_, key) => String(values?.[key] ?? ''))
+}
 
 function paginatedActionsResponse(items: Array<Record<string, unknown>>) {
   return {
@@ -33,6 +38,94 @@ vi.mock('@/lib/pb', () => ({
 vi.mock('@/lib/iac-api', () => ({
   iacRead: (...args: unknown[]) => iacReadMock(...args),
   iacSaveFile: (...args: unknown[]) => iacSaveFileMock(...args),
+}))
+
+vi.mock('react-i18next', () => ({
+  initReactI18next: {
+    type: '3rdParty',
+    init: () => undefined,
+  },
+  useTranslation: () => ({
+    t: (key: string, options?: Record<string, unknown>) => {
+      const translations: Record<string, string> = {
+        'detail.runtime.summaryTitle': 'Runtime Summary',
+        'detail.runtime.summaryDescription': 'Container state and quick runtime actions.',
+        'detail.runtime.matchedContainers': 'Matched Containers',
+        'detail.runtime.running': 'Running',
+        'detail.runtime.totalCpu': 'Total CPU',
+        'detail.runtime.memoryUsed': 'Memory Used',
+        'detail.runtime.serverProject': 'Server {{server}}',
+        'detail.runtime.projectDirectory': 'Project directory {{path}}',
+        'detail.runtime.matchedBy': 'Matched by {{value}}',
+        'detail.runtime.containerState': 'State',
+        'detail.runtime.image': 'Image',
+        'detail.runtime.cpu': 'CPU',
+        'detail.runtime.memory': 'Memory',
+        'detail.runtime.ports': 'Ports',
+        'detail.runtime.logs': 'Logs',
+        'detail.runtime.exec': 'Exec',
+        'detail.runtime.files': 'Files',
+        'detail.runtime.unavailableInventory': 'Current Docker runtime inventory is unavailable because the server is unreachable.',
+        'detail.runtime.noContainers': 'No matching containers were found for this app in the current Docker inventory.',
+        'detail.runtime.nextStepTitle': 'Next Step',
+        'detail.runtime.nextStepDescription': 'Use server or Docker workspaces only when the summary above is not enough.',
+        'detail.secondary.openObservability': 'Open Observability',
+        'detail.secondary.openCompose': 'Open Compose',
+        'detail.secondary.openServerWorkspace': 'Open Server Workspace',
+        'detail.secondary.openDockerWorkspace': 'Open Docker Workspace',
+        'detail.compose.title': 'Compose',
+        'detail.compose.reload': 'Reload',
+        'detail.compose.validateDraft': 'Validate Draft',
+        'detail.compose.rollback': 'Rollback',
+        'detail.compose.openInIac': 'Open in IaC',
+        'detail.compose.iacPath': 'IaC Path:',
+        'detail.compose.projectDir': 'Project Dir:',
+        'detail.compose.validateBeforeSave': 'Validate the current draft before saving. Save remains disabled until the current content passes validation.',
+        'detail.compose.environmentFileTitle': 'Environment File',
+        'detail.compose.environmentFileDescription': 'Edit the app-local .env file beside the compose asset when present.',
+        'detail.compose.reloadEnv': 'Reload Env',
+        'detail.compose.saveEnv': 'Save Env',
+        'detail.compose.envPath': 'Env Path:',
+        'detail.compose.envStatus': 'Status:',
+        'detail.compose.envLoaded': 'loaded',
+        'detail.compose.envLoading': 'loading',
+        'detail.compose.envNotLoaded': 'not loaded',
+        'detail.compose.envUnavailable': 'Env editing is unavailable because the compose asset path is not resolved yet.',
+        'detail.compose.draftDiff': 'Draft Diff',
+        'detail.observability.metricsTitle': 'Metrics',
+        'detail.observability.signalsTitle': 'Signals',
+        'detail.observability.runtimeContainers': 'Runtime Containers',
+        'detail.observability.runningTotal': 'running / total matched containers',
+        'detail.observability.combinedResourceUse': 'Combined Resource Use',
+        'detail.observability.latestLifecycleExecution': 'Latest Lifecycle Execution',
+        'detail.observability.noScopedActions': 'No app-scoped actions have been observed yet.',
+        'detail.observability.containerRuntime': 'Container runtime:',
+        'detail.observability.health': 'Health:',
+        'detail.observability.stateReason': 'State reason:',
+        'detail.observability.lastProjectedRuntime': 'Last projected runtime:',
+        'detail.observability.lastProjectedAppState': 'Last projected app state:',
+        'detail.observability.healthSummary': 'Health summary:',
+        'detail.observability.publication': 'Publication:',
+        'detail.observability.primaryExposureHealth': 'Primary exposure health:',
+        'detail.observability.serverConnection': 'Server connection:',
+        'detail.observability.online': 'Online',
+        'detail.observability.lastExposureVerification': 'Last exposure verification:',
+        'detail.observability.heartbeat': 'Heartbeat is projected from app runtime and exposure health signals. The canonical product-facing state is `instance_state`.',
+        'detail.observability.monitorEmpty': 'No monitoring projection is available yet for {{name}}. Current runtime status is {{status}}.',
+        'detail.observability.logsTitle': 'Logs',
+        'detail.observability.noLogs': 'No logs yet.',
+        'detail.data.action': 'Action',
+        'labels.serverLocal': 'Local',
+        'states.unavailable': 'Unavailable',
+        'states.unknown': 'Unknown',
+        'common:save': 'Save',
+        'common:refresh': 'Refresh',
+      }
+
+      const template = translations[key] || options?.defaultValue || key
+      return interpolate(String(template), options)
+    },
+  }),
 }))
 
 vi.mock('@/pages/apps/AppDetailDisplaySection', () => ({
@@ -111,6 +204,12 @@ describe('AppDetailPage', () => {
   afterEach(() => {
     cleanup()
     windowOpenMock.mockRestore()
+  })
+
+  beforeEach(() => {
+    return import('./AppDetailPage').then(module => {
+      AppDetailPage = module.AppDetailPage
+    })
   })
 
   beforeEach(() => {
@@ -1886,7 +1985,8 @@ describe('AppDetailPage', () => {
       '/iac?path=apps%2Finstalled%2Fdemo-app%2Fdocker-compose.yml'
     )
     await waitFor(() => {
-      expect(screen.getByPlaceholderText('KEY=value')).toHaveValue('APP_ENV=demo\n')
+      const envEditor = screen.getAllByRole('textbox').find(node => node.textContent === 'APP_ENV=demo\n')
+      expect(envEditor).toBeTruthy()
     })
   })
 })

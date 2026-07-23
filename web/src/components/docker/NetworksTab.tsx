@@ -1,5 +1,6 @@
 import { Fragment, forwardRef, useEffect, useImperativeHandle, useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { pb } from '@/lib/pb'
 import { dockerApiPath } from '@/lib/docker-api'
 import {
@@ -140,6 +141,7 @@ export const NetworksTab = forwardRef<NetworksTabRef, NetworksTabProps>(function
   },
   ref
 ) {
+  const { t } = useTranslation('docker')
   const queryClient = useQueryClient()
   const [filter, setFilter] = useState('')
   const [newName, setNewName] = useState('')
@@ -265,7 +267,10 @@ export const NetworksTab = forwardRef<NetworksTabRef, NetworksTabProps>(function
     } catch (err) {
       setInspectMap(state => ({
         ...state,
-        [id]: getApiErrorMessage(err, 'Failed to inspect network'),
+          [id]: getApiErrorMessage(
+            err,
+            t('networks.errors.inspect', { defaultValue: 'Failed to inspect network' })
+          ),
       }))
     } finally {
       setInspectLoadingMap(state => ({ ...state, [id]: false }))
@@ -279,7 +284,9 @@ export const NetworksTab = forwardRef<NetworksTabRef, NetworksTabProps>(function
       await pb.send(dockerApiPath(serverId, `/networks/${id}`), { method: 'DELETE' })
       await queryClient.invalidateQueries({ queryKey: ['docker', 'networks', serverId] })
     } catch (err) {
-      setActionError(getApiErrorMessage(err, 'Failed to remove network'))
+      setActionError(
+        getApiErrorMessage(err, t('networks.errors.remove', { defaultValue: 'Failed to remove network' }))
+      )
     } finally {
       setRemovingNetworkId(current => (current === id ? null : current))
       setPendingDelete(current => (current?.ID === id ? null : current))
@@ -298,11 +305,15 @@ export const NetworksTab = forwardRef<NetworksTabRef, NetworksTabProps>(function
       setCreateDialogOpen(false)
       await queryClient.invalidateQueries({ queryKey: ['docker', 'networks', serverId] })
     } catch (err) {
-      setActionError(getApiErrorMessage(err, 'Failed to create network'))
+      setActionError(
+        getApiErrorMessage(err, t('networks.errors.create', { defaultValue: 'Failed to create network' }))
+      )
     }
   }
 
-  const loadError = error ? getApiErrorMessage(error, 'Failed to load networks') : null
+  const loadError = error
+    ? getApiErrorMessage(error, t('networks.errors.load', { defaultValue: 'Failed to load networks' }))
+    : null
   const visibleError = loadError || actionError
   const dependencyIssue = getDockerDependencyIssue(error ?? visibleError)
 
@@ -407,10 +418,12 @@ export const NetworksTab = forwardRef<NetworksTabRef, NetworksTabProps>(function
           <input
             value={filter}
             onChange={event => setFilter(event.target.value)}
-            placeholder="Search networks"
+            placeholder={t('networks.searchPlaceholder', { defaultValue: 'Search networks' })}
             className="h-8 w-full min-w-0 rounded-md border bg-background px-3 text-sm sm:mr-[5ch] sm:w-[20ch]"
           />
-          <span className="text-xs text-muted-foreground">{sorted.length} total</span>
+          <span className="text-xs text-muted-foreground">
+            {t('networks.total', { count: sorted.length, defaultValue: '{{count}} total' })}
+          </span>
           <div className="flex items-center gap-0.5 text-xs">
             <Button
               variant="ghost"
@@ -418,7 +431,7 @@ export const NetworksTab = forwardRef<NetworksTabRef, NetworksTabProps>(function
               className="h-7 min-w-0 px-0.5"
               onClick={() => setPage(Math.max(1, effectivePage - 1))}
               disabled={effectivePage <= 1}
-              aria-label="Previous networks page"
+               aria-label={t('networks.pagination.previous', { defaultValue: 'Previous networks page' })}
             >
               <ChevronLeft className="h-3.5 w-3.5" />
             </Button>
@@ -431,7 +444,7 @@ export const NetworksTab = forwardRef<NetworksTabRef, NetworksTabProps>(function
               className="h-7 min-w-0 px-0.5"
               onClick={() => setPage(Math.min(totalPages, effectivePage + 1))}
               disabled={effectivePage >= totalPages}
-              aria-label="Next networks page"
+               aria-label={t('networks.pagination.next', { defaultValue: 'Next networks page' })}
             >
               <ChevronRight className="h-3.5 w-3.5" />
             </Button>
@@ -441,9 +454,10 @@ export const NetworksTab = forwardRef<NetworksTabRef, NetworksTabProps>(function
             size="sm"
             className="h-8 px-2 text-xs"
             onClick={() => setCreateDialogOpen(true)}
-            title="Create network"
+             title={t('networks.actions.createNetwork', { defaultValue: 'Create network' })}
           >
-            <Plus className="mr-1 h-4 w-4" /> Create
+             <Plus className="mr-1 h-4 w-4" />
+             {t('networks.actions.create', { defaultValue: 'Create' })}
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -451,8 +465,8 @@ export const NetworksTab = forwardRef<NetworksTabRef, NetworksTabProps>(function
                 variant="outline"
                 size="icon"
                 className="h-8 w-8"
-                aria-label="Networks display settings"
-                title="Networks display settings"
+                 aria-label={t('networks.settings.button', { defaultValue: 'Networks display settings' })}
+                 title={t('networks.settings.button', { defaultValue: 'Networks display settings' })}
               >
                 <ArrowUpDown className="h-4 w-4" />
               </Button>
@@ -462,10 +476,16 @@ export const NetworksTab = forwardRef<NetworksTabRef, NetworksTabProps>(function
                 value={String(effectivePageSize)}
                 onValueChange={value => setPageSize(Number(value) as 25 | 50 | 100)}
               >
-                <DropdownMenuRadioItem value="25">25 / page</DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="50">50 / page</DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="100">100 / page</DropdownMenuRadioItem>
-              </DropdownMenuRadioGroup>
+                 <DropdownMenuRadioItem value="25">
+                   {t('networks.settings.perPage', { count: 25, defaultValue: '{{count}} / page' })}
+                 </DropdownMenuRadioItem>
+                 <DropdownMenuRadioItem value="50">
+                   {t('networks.settings.perPage', { count: 50, defaultValue: '{{count}} / page' })}
+                 </DropdownMenuRadioItem>
+                 <DropdownMenuRadioItem value="100">
+                   {t('networks.settings.perPage', { count: 100, defaultValue: '{{count}} / page' })}
+                 </DropdownMenuRadioItem>
+               </DropdownMenuRadioGroup>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -473,10 +493,26 @@ export const NetworksTab = forwardRef<NetworksTabRef, NetworksTabProps>(function
 
       {hasActiveFilters && (
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 rounded-lg border border-dashed bg-muted/10 px-3 py-2">
-          {filter.trim() ? <Badge variant="outline">Search: {filter.trim()}</Badge> : null}
-          {driverFilter !== 'all' ? <Badge variant="outline">Driver: {driverFilter}</Badge> : null}
-          {typeFilter !== 'all' ? <Badge variant="outline">Type: {typeFilter}</Badge> : null}
-          {scopeFilter !== 'all' ? <Badge variant="outline">Scope: {scopeFilter}</Badge> : null}
+          {filter.trim() ? (
+            <Badge variant="outline">
+              {t('networks.filters.searchBadge', { value: filter.trim(), defaultValue: 'Search: {{value}}' })}
+            </Badge>
+          ) : null}
+          {driverFilter !== 'all' ? (
+            <Badge variant="outline">
+              {t('networks.filters.driverBadge', { value: driverFilter, defaultValue: 'Driver: {{value}}' })}
+            </Badge>
+          ) : null}
+          {typeFilter !== 'all' ? (
+            <Badge variant="outline">
+              {t('networks.filters.typeBadge', { value: typeFilter, defaultValue: 'Type: {{value}}' })}
+            </Badge>
+          ) : null}
+          {scopeFilter !== 'all' ? (
+            <Badge variant="outline">
+              {t('networks.filters.scopeBadge', { value: scopeFilter, defaultValue: 'Scope: {{value}}' })}
+            </Badge>
+          ) : null}
           <Button
             variant="outline"
             size="sm"
@@ -487,7 +523,7 @@ export const NetworksTab = forwardRef<NetworksTabRef, NetworksTabProps>(function
               setScopeFilter('all')
             }}
           >
-            Clear filters
+            {t('networks.filters.clear', { defaultValue: 'Clear filters' })}
           </Button>
         </div>
       )}
@@ -499,15 +535,17 @@ export const NetworksTab = forwardRef<NetworksTabRef, NetworksTabProps>(function
               <TableRow>
                 <TableHead className="min-w-[240px] pl-4 pr-2">
                   <div className="flex items-center">
-                    <SortHead label="Name" keyName="name" />
+                     <SortHead label={t('networks.columns.name', { defaultValue: 'Name' })} keyName="name" />
                   </div>
                 </TableHead>
                 <TableHead className="min-w-[120px] text-xs font-medium text-foreground">
-                  ID
+                  {t('networks.columns.id', { defaultValue: 'ID' })}
                 </TableHead>
                 <TableHead className="min-w-[160px]">
                   <div className="flex items-center gap-1">
-                    <span className="text-xs font-medium text-foreground">Driver</span>
+                    <span className="text-xs font-medium text-foreground">
+                      {t('networks.columns.driver', { defaultValue: 'Driver' })}
+                    </span>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button
@@ -518,12 +556,15 @@ export const NetworksTab = forwardRef<NetworksTabRef, NetworksTabProps>(function
                             driverFilter !== 'all' &&
                               'bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary'
                           )}
-                          aria-label="Filter network driver"
-                          title={
-                            driverFilter === 'all'
-                              ? 'Filter network driver'
-                              : `Network driver: ${driverFilter}`
-                          }
+                           aria-label={t('networks.filters.driverAria', { defaultValue: 'Filter network driver' })}
+                           title={
+                             driverFilter === 'all'
+                               ? t('networks.filters.driverAria', { defaultValue: 'Filter network driver' })
+                               : t('networks.filters.driverTitle', {
+                                   value: driverFilter,
+                                   defaultValue: 'Network driver: {{value}}',
+                                 })
+                           }
                         >
                           <Filter className="h-3.5 w-3.5" />
                         </Button>
@@ -534,8 +575,11 @@ export const NetworksTab = forwardRef<NetworksTabRef, NetworksTabProps>(function
                           onValueChange={setDriverFilter}
                         >
                           <DropdownMenuRadioItem value="all">
-                            All drivers ({networks.length})
-                          </DropdownMenuRadioItem>
+                             {t('networks.filters.allDrivers', {
+                               count: networks.length,
+                               defaultValue: 'All drivers ({{count}})',
+                             })}
+                           </DropdownMenuRadioItem>
                           {driverCounts.map(([driver, count]) => (
                             <DropdownMenuRadioItem key={driver} value={driver}>
                               {driver} ({count})
@@ -548,7 +592,9 @@ export const NetworksTab = forwardRef<NetworksTabRef, NetworksTabProps>(function
                 </TableHead>
                 <TableHead className="min-w-[140px]">
                   <div className="flex items-center gap-1">
-                    <span className="text-xs font-medium text-foreground">Type</span>
+                    <span className="text-xs font-medium text-foreground">
+                      {t('networks.columns.type', { defaultValue: 'Type' })}
+                    </span>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button
@@ -559,12 +605,15 @@ export const NetworksTab = forwardRef<NetworksTabRef, NetworksTabProps>(function
                             typeFilter !== 'all' &&
                               'bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary'
                           )}
-                          aria-label="Filter network type"
-                          title={
-                            typeFilter === 'all'
-                              ? 'Filter network type'
-                              : `Network type: ${typeFilter}`
-                          }
+                           aria-label={t('networks.filters.typeAria', { defaultValue: 'Filter network type' })}
+                           title={
+                             typeFilter === 'all'
+                               ? t('networks.filters.typeAria', { defaultValue: 'Filter network type' })
+                               : t('networks.filters.typeTitle', {
+                                   value: typeFilter,
+                                   defaultValue: 'Network type: {{value}}',
+                                 })
+                           }
                         >
                           <Filter className="h-3.5 w-3.5" />
                         </Button>
@@ -575,14 +624,23 @@ export const NetworksTab = forwardRef<NetworksTabRef, NetworksTabProps>(function
                           onValueChange={value => setTypeFilter(value as 'all' | 'system' | 'user')}
                         >
                           <DropdownMenuRadioItem value="all">
-                            All types ({typeCounts.all})
-                          </DropdownMenuRadioItem>
-                          <DropdownMenuRadioItem value="system">
-                            System ({typeCounts.system})
-                          </DropdownMenuRadioItem>
-                          <DropdownMenuRadioItem value="user">
-                            User ({typeCounts.user})
-                          </DropdownMenuRadioItem>
+                             {t('networks.filters.allTypes', {
+                               count: typeCounts.all,
+                               defaultValue: 'All types ({{count}})',
+                             })}
+                           </DropdownMenuRadioItem>
+                           <DropdownMenuRadioItem value="system">
+                             {t('networks.filters.system', {
+                               count: typeCounts.system,
+                               defaultValue: 'System ({{count}})',
+                             })}
+                           </DropdownMenuRadioItem>
+                           <DropdownMenuRadioItem value="user">
+                             {t('networks.filters.user', {
+                               count: typeCounts.user,
+                               defaultValue: 'User ({{count}})',
+                             })}
+                           </DropdownMenuRadioItem>
                         </DropdownMenuRadioGroup>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -590,7 +648,9 @@ export const NetworksTab = forwardRef<NetworksTabRef, NetworksTabProps>(function
                 </TableHead>
                 <TableHead className="min-w-[140px]">
                   <div className="flex items-center gap-1">
-                    <span className="text-xs font-medium text-foreground">Scope</span>
+                    <span className="text-xs font-medium text-foreground">
+                      {t('networks.columns.scope', { defaultValue: 'Scope' })}
+                    </span>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button
@@ -601,12 +661,15 @@ export const NetworksTab = forwardRef<NetworksTabRef, NetworksTabProps>(function
                             scopeFilter !== 'all' &&
                               'bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary'
                           )}
-                          aria-label="Filter network scope"
-                          title={
-                            scopeFilter === 'all'
-                              ? 'Filter network scope'
-                              : `Network scope: ${scopeFilter}`
-                          }
+                           aria-label={t('networks.filters.scopeAria', { defaultValue: 'Filter network scope' })}
+                           title={
+                             scopeFilter === 'all'
+                               ? t('networks.filters.scopeAria', { defaultValue: 'Filter network scope' })
+                               : t('networks.filters.scopeTitle', {
+                                   value: scopeFilter,
+                                   defaultValue: 'Network scope: {{value}}',
+                                 })
+                           }
                         >
                           <Filter className="h-3.5 w-3.5" />
                         </Button>
@@ -614,8 +677,11 @@ export const NetworksTab = forwardRef<NetworksTabRef, NetworksTabProps>(function
                       <DropdownMenuContent align="start">
                         <DropdownMenuRadioGroup value={scopeFilter} onValueChange={setScopeFilter}>
                           <DropdownMenuRadioItem value="all">
-                            All scopes ({networks.length})
-                          </DropdownMenuRadioItem>
+                             {t('networks.filters.allScopes', {
+                               count: networks.length,
+                               defaultValue: 'All scopes ({{count}})',
+                             })}
+                           </DropdownMenuRadioItem>
                           {scopeCounts.map(([scope, count]) => (
                             <DropdownMenuRadioItem key={scope} value={scope}>
                               {scope} ({count})
@@ -627,7 +693,7 @@ export const NetworksTab = forwardRef<NetworksTabRef, NetworksTabProps>(function
                   </div>
                 </TableHead>
                 <TableHead className="w-[52px] text-center text-xs font-medium text-foreground">
-                  Actions
+                  {t('networks.columns.actions', { defaultValue: 'Actions' })}
                 </TableHead>
               </TableRow>
             </TableHeader>
@@ -637,7 +703,7 @@ export const NetworksTab = forwardRef<NetworksTabRef, NetworksTabProps>(function
                   <TableCell colSpan={6} className="text-center text-muted-foreground">
                     <span className="inline-flex items-center gap-2">
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      Loading...
+                      {t('common:loading', { defaultValue: 'Loading...' })}
                     </span>
                   </TableCell>
                 </TableRow>
@@ -678,13 +744,13 @@ export const NetworksTab = forwardRef<NetworksTabRef, NetworksTabProps>(function
                       <TableCell className="py-3 text-xs">
                         {isSystemNetwork(network) ? (
                           <Badge variant="secondary" className="text-[11px] font-medium">
-                            System
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="text-[11px] font-medium">
-                            User
-                          </Badge>
-                        )}
+                             {t('networks.types.system', { defaultValue: 'System' })}
+                           </Badge>
+                         ) : (
+                           <Badge variant="outline" className="text-[11px] font-medium">
+                             {t('networks.types.user', { defaultValue: 'User' })}
+                           </Badge>
+                         )}
                       </TableCell>
                       <TableCell className="py-3 text-xs">{network.Scope}</TableCell>
                       <TableCell className="py-3 text-center align-middle">
@@ -704,8 +770,9 @@ export const NetworksTab = forwardRef<NetworksTabRef, NetworksTabProps>(function
                                 onSelect={() => setTimeout(() => setPendingDelete(network), 0)}
                                 className="text-destructive"
                               >
-                                <Trash2 className="mr-2 h-4 w-4" /> Remove
-                              </DropdownMenuItem>
+                                 <Trash2 className="mr-2 h-4 w-4" />
+                                 {t('networks.actions.remove', { defaultValue: 'Remove' })}
+                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
                         )}
@@ -716,12 +783,13 @@ export const NetworksTab = forwardRef<NetworksTabRef, NetworksTabProps>(function
                         <TableCell colSpan={6} className="bg-muted/20 px-0 py-3">
                           {inspectLoadingMap[network.ID] ? (
                             <div className="inline-flex items-center gap-2 text-xs text-muted-foreground">
-                              <Loader2 className="h-4 w-4 animate-spin" /> Loading inspect...
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              {t('networks.loading.inspect', { defaultValue: 'Loading inspect...' })}
                             </div>
                           ) : (
                             <pre className="max-h-[300px] overflow-auto whitespace-pre-wrap rounded-md border bg-muted/40 p-3 font-mono text-xs">
-                              {inspectMap[network.ID] || '(empty output)'}
-                            </pre>
+                               {inspectMap[network.ID] || t('networks.empty.inspect', { defaultValue: '(empty output)' })}
+                             </pre>
                           )}
                         </TableCell>
                       </TableRow>
@@ -732,7 +800,7 @@ export const NetworksTab = forwardRef<NetworksTabRef, NetworksTabProps>(function
               {!loading && sorted.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center text-muted-foreground">
-                    No networks found
+                    {t('networks.empty.list', { defaultValue: 'No networks found' })}
                   </TableCell>
                 </TableRow>
               )}
@@ -744,14 +812,16 @@ export const NetworksTab = forwardRef<NetworksTabRef, NetworksTabProps>(function
       <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Create network</DialogTitle>
+            <DialogTitle>{t('networks.dialogs.createTitle', { defaultValue: 'Create network' })}</DialogTitle>
             <DialogDescription>
-              Enter a network name to create a new Docker network.
+              {t('networks.dialogs.createDescription', {
+                defaultValue: 'Enter a network name to create a new Docker network.',
+              })}
             </DialogDescription>
           </DialogHeader>
           <input
             type="text"
-            placeholder="Network name"
+            placeholder={t('networks.dialogs.namePlaceholder', { defaultValue: 'Network name' })}
             className="h-9 rounded-md border bg-background px-3 text-sm"
             value={newName}
             onChange={event => setNewName(event.target.value)}
@@ -763,10 +833,10 @@ export const NetworksTab = forwardRef<NetworksTabRef, NetworksTabProps>(function
           />
           <DialogFooter>
             <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>
-              Cancel
+              {t('common:cancel', { defaultValue: 'Cancel' })}
             </Button>
             <Button onClick={() => void createNetwork()} disabled={!newName.trim()}>
-              Create
+              {t('networks.actions.create', { defaultValue: 'Create' })}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -775,16 +845,24 @@ export const NetworksTab = forwardRef<NetworksTabRef, NetworksTabProps>(function
       <AlertDialog open={!!pendingDelete} onOpenChange={open => !open && setPendingDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Remove network?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {t('networks.dialogs.removeTitle', { defaultValue: 'Remove network?' })}
+            </AlertDialogTitle>
             <AlertDialogDescription>
               {pendingDelete
-                ? `This will remove the network \"${pendingDelete.Name}\". Containers still attached to it may block the operation.`
-                : 'This will remove the selected network.'}
+                ? t('networks.dialogs.removeDescriptionNamed', {
+                    name: pendingDelete.Name,
+                    defaultValue:
+                      'This will remove the network "{{name}}". Containers still attached to it may block the operation.',
+                  })
+                : t('networks.dialogs.removeDescription', {
+                    defaultValue: 'This will remove the selected network.',
+                  })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={removingNetworkId === pendingDelete?.ID}>
-              Cancel
+              {t('common:cancel', { defaultValue: 'Cancel' })}
             </AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
@@ -795,7 +873,9 @@ export const NetworksTab = forwardRef<NetworksTabRef, NetworksTabProps>(function
                 void removeNetwork(pendingDelete.ID)
               }}
             >
-              {removingNetworkId === pendingDelete?.ID ? 'Removing...' : 'Remove'}
+              {removingNetworkId === pendingDelete?.ID
+                ? t('networks.actions.removing', { defaultValue: 'Removing...' })
+                : t('networks.actions.remove', { defaultValue: 'Remove' })}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

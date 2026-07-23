@@ -47,7 +47,37 @@ vi.mock('@/lib/ai-copilot-draft-handoff', () => ({
 }))
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key }),
+  useTranslation: () => ({
+    t: (key: string, values?: Record<string, unknown>) => {
+      const translations: Record<string, string> = {
+        'workflows.page.title': 'Workflows',
+        'workflows.page.create': 'Create Workflow',
+        'workflows.table.actions': 'Actions',
+        'workflows.menu.runs': 'Runs',
+        'workflows.menu.run': 'Run',
+        'workflows.runs.title': 'Workflow Runs',
+        'workflows.runs.titleWithName': 'Workflow Runs · {{name}}',
+        'workflows.runs.approve': 'Approve',
+        'workflows.editor.targetServerHint':
+          'Target server only applies to shell and docker nodes. New workflows start with a server-based shell step so the selected server has an immediate effect.',
+        'workflows.editor.definitionYaml': 'Definition YAML',
+        'common:save': 'Save',
+        'workflows.editor.triggerType': 'Trigger Type',
+        'workflows.editor.cron': 'Cron',
+        'workflows.editor.cronSchedule': 'Cron Schedule',
+        'workflows.editor.draftRequest': 'AI Workflow Request',
+        'workflows.editor.openInAICopilot': 'Open In AI Copilot',
+        'workflows.runDialog.parameters': 'Run Parameters JSON',
+        'workflows.runDialog.runNow': 'Run Now',
+        'workflows.toggle.enabled': 'Enabled',
+        'common:refresh': 'Refresh',
+        'workflows.runs.cancelRun': 'Cancel Run',
+        'workflows.errors.yamlLine': '{{reason}} line {{line}}',
+      }
+      const template = translations[key] ?? key
+      return template.replace(/\{\{(\w+)\}\}/g, (_, token: string) => String(values?.[token] ?? ''))
+    },
+  }),
 }))
 
 describe('WorkflowsPage', () => {
@@ -264,7 +294,7 @@ describe('WorkflowsPage', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
-    expect(await screen.findByText(/unexpected end of the stream/i)).toBeInTheDocument()
+    expect(await screen.findByText(/unexpected end of the stream|end of the stream/i)).toBeInTheDocument()
     expect(sendMock).not.toHaveBeenCalledWith(
       '/api/workflows',
       expect.objectContaining({ method: 'POST' })

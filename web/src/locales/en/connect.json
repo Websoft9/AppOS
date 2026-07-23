@@ -1,0 +1,137 @@
+{
+  "hub": {
+    "description": "Open, resume, and manage server terminals with shell and files.",
+    "connecting": "Connecting...",
+    "disconnecting": "Disconnecting...",
+    "preparing": "Preparing connection",
+    "target": "Target: {{target}}",
+    "establishing": "Establishing secure connection...",
+    "close": "Close",
+    "idle": "Idle",
+    "connected": "Connected",
+    "activeSession": "1 active session",
+    "lastActive": "Last active {{count}} min ago",
+    "exit": "Exit",
+    "resume": "Resume",
+    "openTerminal": "Open Terminal",
+    "retry": "Retry",
+    "availableServers": "Available Servers",
+    "activeSessions": "Active Sessions",
+    "restoreWorkspace": "Restore Workspace",
+    "idleSession": "Idle session",
+    "empty": {
+      "noServersTitle": "No servers configured",
+      "noServersDescription": "Add a server in Resources to get started",
+      "noOnlineTitle": "No online servers",
+      "noOnlineDescription": "Only servers that are currently online are shown here.",
+      "noActiveTitle": "No active sessions",
+      "noActiveDescription": "Open a server terminal to keep a resumable session here."
+    },
+    "sessionCount": "{{count}} session",
+    "sessionCount_other": "{{count}} sessions",
+    "state": {
+      "live": "Live",
+      "detached": "Detached"
+    },
+    "errors": {
+      "loadServers": "Failed to load servers"
+    },
+    "actions": {
+      "addServer": "Add Server"
+    }
+  },
+  "server": {
+    "title": "Server Terminal",
+    "description": "Work with this server's shell and files in one place.",
+    "shell": "Shell",
+    "files": "Files",
+    "tools": "Tools",
+    "runScript": "Run Script",
+    "runScriptHint": "Run script in terminal",
+    "noScripts": "No scripts",
+    "newScript": "New Script",
+    "serverDetail": "Server Detail",
+    "overview": "Overview",
+    "systemd": "Systemd",
+    "docker": "Docker",
+    "ports": "Ports",
+    "monitor": "Monitor",
+    "layoutPresets": "Layout presets",
+    "expandConnections": "Click or double-click to expand Connections",
+    "reset": "Reset",
+    "layout": "Layout {{left}} / {{right}}",
+    "fullscreen": "Toggle fullscreen",
+    "connecting": "Connecting...",
+    "disconnecting": "Disconnecting...",
+    "connectionLimitReached": "Connection Limit Reached",
+    "preparing": "Preparing connection",
+    "target": "Target: {{target}}",
+    "establishing": "Establishing secure connection...",
+    "safeDisconnect": "Safely disconnecting...",
+    "openAnotherSession": "Open another session?",
+    "openAnotherSessionDescription": "Server {{server}} already has {{count}} active session(s). Open a new one anyway?",
+    "openAnotherSessionFallback": "This server already has active session(s). Open a new one anyway?",
+    "openNewSession": "Open New Session",
+    "limitReached": "Reached max connections limit ({{count}}).",
+    "serverOffline": "Server is offline.",
+    "close": "Close",
+    "newConnection": "New",
+    "searchServer": "Search server...",
+    "noServers": "No servers",
+    "addServer": "Add Server",
+    "closeConnection": "Close {{title}}",
+    "connectType": {
+      "tunnel": "Tunnel",
+      "direct": "Direct SSH"
+    },
+    "systemdManager": {
+      "title": "Service Manager",
+      "description": "Search service and run operations.",
+      "searchPlaceholder": "Search service keyword...",
+      "loading": "Loading services...",
+      "searchHint": "Enter keyword to search services.",
+      "empty": "No matched services.",
+      "cat": "Cat",
+      "logs": "Logs",
+      "edit": "Edit",
+      "serviceAction": "Service Action",
+      "start": "Start",
+      "restart": "Restart",
+      "stop": "Stop",
+      "enable": "Enable",
+      "disable": "Disable",
+      "loadingState": "Loading...",
+      "noStatus": "No status output.",
+      "noContent": "No service content.",
+      "unitFile": "Unit file: {{path}}",
+      "unitPlaceholder": "[Unit]\nDescription=...",
+      "validate": "Validate",
+      "apply": "Apply",
+      "cancelEdit": "Cancel Edit",
+      "noLogs": "No logs.",
+      "chooseOperation": "Choose one operation above to continue.",
+      "confirm": {
+        "validateTitle": "Validate unit file?",
+        "applyTitle": "Apply unit changes?",
+        "serviceActionTitle": "Confirm service action?",
+        "validateDescription": "Service: {{service}}\nThis will run systemd-analyze verify.",
+        "applyDescription": "Service: {{service}}\nThis will save current editor content, then run daemon-reload and try-restart.",
+        "actionDescription": "Service: {{service}}\nAction: {{action}}"
+      }
+    },
+    "actions": {
+      "systemdApplied": "Action {{action}} applied. Next: check Status or Logs."
+    },
+    "results": {
+      "validatePassed": "Validate passed.",
+      "applyCompleted": "Apply completed."
+    },
+    "errors": {
+      "loadServices": "Failed to load services",
+      "operationFailed": "Operation failed",
+      "loadUnit": "Failed to load unit file",
+      "validateUnit": "Failed to validate unit file",
+      "applyUnit": "Failed to apply unit file"
+    }
+  }
+}

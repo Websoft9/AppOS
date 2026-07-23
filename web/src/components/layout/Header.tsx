@@ -1,4 +1,5 @@
 import { Menu } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { ModeToggle } from '@/components/mode-toggle'
 import { Logo } from './Logo'
@@ -12,6 +13,7 @@ interface HeaderProps {
 }
 
 export function Header({ actions }: HeaderProps) {
+  const { t } = useTranslation('navigation')
   const { isDesktop, toggleSidebar, sidebarCollapsed, headerRightStartContent } = useLayout()
 
   return (
@@ -39,7 +41,7 @@ export function Header({ actions }: HeaderProps) {
               variant="ghost"
               size="icon"
               onClick={toggleSidebar}
-              aria-label="Toggle navigation menu"
+              aria-label={t('shell.toggleNavigationMenu')}
             >
               <Menu className="h-5 w-5" />
             </Button>

@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   Upload,
   Trash2,
@@ -543,6 +544,7 @@ function ItemMenu({
 // ─── Page ────────────────────────────────────────────────
 
 function FilesPage() {
+  const { t } = useTranslation('space')
   const [items, setItems] = useState<UserFile[]>([])
   const [quota, setQuota] = useState<Quota | null>(null)
   const [loading, setLoading] = useState(true)
@@ -840,7 +842,7 @@ function FilesPage() {
       setSelectedIds(new Set())
       fetchAll()
     } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : 'Failed to delete some items')
+      alert(e instanceof Error ? e.message : t('alerts.bulkDeleteFailed', { defaultValue: 'Failed to delete some items' }))
     } finally {
       setBulkDeleting(false)
     }
@@ -855,7 +857,7 @@ function FilesPage() {
       setSelectedIds(new Set())
       fetchAll()
     } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : 'Failed to restore some items')
+      alert(e instanceof Error ? e.message : t('alerts.bulkRestoreFailed', { defaultValue: 'Failed to restore some items' }))
     }
   }
 
@@ -874,7 +876,7 @@ function FilesPage() {
       setBulkMoveOpen(false)
       fetchAll()
     } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : 'Failed to move some items')
+      alert(e instanceof Error ? e.message : t('alerts.bulkMoveFailed', { defaultValue: 'Failed to move some items' }))
     } finally {
       setBulkMoving(false)
     }
@@ -922,7 +924,7 @@ function FilesPage() {
       if (isSessionExpiredError(e)) {
         return
       }
-      alert(e instanceof Error ? e.message : 'Failed to duplicate file')
+      alert(e instanceof Error ? e.message : t('alerts.duplicateFailed', { defaultValue: 'Failed to duplicate file' }))
     }
   }
 
@@ -1304,7 +1306,7 @@ function FilesPage() {
       await pb.collection('user_files').update(item.id, { is_deleted: false })
       fetchAll()
     } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : 'Failed to restore')
+      alert(e instanceof Error ? e.message : t('alerts.restoreFailed', { defaultValue: 'Failed to restore' }))
     }
   }
 
@@ -1321,7 +1323,7 @@ function FilesPage() {
       setEmptyTrashOpen(false)
       fetchAll()
     } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : 'Failed to empty trash')
+      alert(e instanceof Error ? e.message : t('alerts.emptyTrashFailed', { defaultValue: 'Failed to empty trash' }))
     } finally {
       setEmptyingTrash(false)
     }
@@ -1370,7 +1372,7 @@ function FilesPage() {
       if (isSessionExpiredError(e)) {
         return
       }
-      alert(e instanceof Error ? e.message : 'Share failed')
+      alert(e instanceof Error ? e.message : t('alerts.shareFailed', { defaultValue: 'Share failed' }))
     } finally {
       setSharing(false)
     }
@@ -1394,7 +1396,7 @@ function FilesPage() {
       if (isSessionExpiredError(e)) {
         return
       }
-      alert(e instanceof Error ? e.message : 'Revoke failed')
+      alert(e instanceof Error ? e.message : t('alerts.revokeFailed', { defaultValue: 'Revoke failed' }))
     }
   }
 
@@ -1443,13 +1445,13 @@ function FilesPage() {
     <div className="space-y-6">
       <div className="space-y-1">
         <div className="flex items-center justify-between gap-3">
-          <h1 className="text-2xl font-bold tracking-tight">Space</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{t('page.title')}</h1>
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
               size="icon"
               onClick={() => setStatsOpen(true)}
-              aria-label="Open space stats"
+                aria-label={t('stats.openAria', { defaultValue: 'Open space stats' })}
             >
               <ChartColumn className="h-4 w-4" />
             </Button>
@@ -1458,13 +1460,13 @@ function FilesPage() {
               size="icon"
               onClick={fetchAll}
               disabled={loading}
-              aria-label="Refresh"
+              aria-label={t('common:refresh')}
             >
               <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             </Button>
           </div>
         </div>
-        <p className="text-sm text-muted-foreground">Your files, folders, and shares.</p>
+        <p className="text-sm text-muted-foreground">{t('page.description')}</p>
       </div>
 
       <div className="space-y-4 pt-4">
@@ -1475,7 +1477,7 @@ function FilesPage() {
             <div className="flex items-center gap-2 shrink-0">
               <span className="text-muted-foreground text-sm">/</span>
               <span className="text-sm font-semibold text-foreground flex items-center gap-1">
-                <Archive className="h-3.5 w-3.5" /> Trash
+                <Archive className="h-3.5 w-3.5" /> {t('trash.title', { defaultValue: 'Trash' })}
               </span>
               <Button
                 variant="ghost"
@@ -1486,7 +1488,7 @@ function FilesPage() {
                   setSearch('')
                 }}
               >
-                ← Back to Files
+                {t('trash.backToFilesWithArrow', { defaultValue: '← Back to Files' })}
               </Button>
             </div>
           ) : (
@@ -1514,10 +1516,10 @@ function FilesPage() {
           {/* Search */}
           <div className="relative min-w-[12rem] flex-1 sm:flex-none sm:w-44">
             <Search className="h-4 w-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-            <Input
-              className="pl-8 h-8 text-sm w-full"
-              placeholder="Search by name…"
-              value={search}
+             <Input
+               className="pl-8 h-8 text-sm w-full"
+               placeholder={t('common:search')}
+               value={search}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
             />
           </div>
@@ -1526,12 +1528,12 @@ function FilesPage() {
             onValueChange={(value: SharedFilter) => setSharedFilter(value)}
           >
             <SelectTrigger className="h-8 w-[92px] text-xs">
-              <SelectValue placeholder="Shared" />
+              <SelectValue placeholder={t('filters.shared', { defaultValue: 'Shared' })} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All</SelectItem>
-              <SelectItem value="yes">Yes</SelectItem>
-              <SelectItem value="no">No</SelectItem>
+              <SelectItem value="all">{t('filters.all', { defaultValue: 'All' })}</SelectItem>
+              <SelectItem value="yes">{t('common:yes', { defaultValue: 'Yes' })}</SelectItem>
+              <SelectItem value="no">{t('common:no', { defaultValue: 'No' })}</SelectItem>
             </SelectContent>
           </Select>
           {search && (
@@ -1541,7 +1543,11 @@ function FilesPage() {
           )}
           {!loading && search && (
             <span className="text-xs text-muted-foreground">
-              {viewItems.length} item{viewItems.length !== 1 ? 's' : ''}
+              {t('page.itemsCount', {
+                count: viewItems.length,
+                defaultValue_one: '{{count}} item',
+                defaultValue_other: '{{count}} items',
+              })}
             </span>
           )}
 
@@ -1552,7 +1558,11 @@ function FilesPage() {
             <Button
               variant="outline"
               size="sm"
-              title={viewMode === 'list' ? 'Switch to Grid view' : 'Switch to List view'}
+              title={
+                viewMode === 'list'
+                  ? t('view.switchToGrid', { defaultValue: 'Switch to Grid view' })
+                  : t('view.switchToList', { defaultValue: 'Switch to List view' })
+              }
               onClick={() => setViewMode(m => (m === 'list' ? 'grid' : 'list'))}
             >
               {viewMode === 'list' ? (
@@ -1564,7 +1574,7 @@ function FilesPage() {
             <Button
               variant={trashView ? 'secondary' : 'outline'}
               size="sm"
-              title="Trash"
+              title={t('trash.title', { defaultValue: 'Trash' })}
               className="relative"
               onClick={() => {
                 setTrashView(v => !v)
@@ -1582,16 +1592,20 @@ function FilesPage() {
             {!trashView && (
               <>
                 <Button variant="outline" size="sm" onClick={openNewFolder}>
-                  <FolderPlus className="h-4 w-4 mr-1" /> New Folder
+                  <FolderPlus className="h-4 w-4 mr-1" />
+                  {t('actions.newFolder', { defaultValue: 'New Folder' })}
                 </Button>
                 <Button variant="outline" size="sm" onClick={openNewFile}>
-                  <FilePlus className="h-4 w-4 mr-1" /> New File
+                  <FilePlus className="h-4 w-4 mr-1" />
+                  {t('actions.newFile', { defaultValue: 'New File' })}
                 </Button>
                 <Button size="sm" onClick={openUpload}>
-                  <Upload className="h-4 w-4 mr-1" /> Upload
+                  <Upload className="h-4 w-4 mr-1" />
+                  {t('actions.upload', { defaultValue: 'Upload' })}
                 </Button>
                 <Button variant="outline" size="sm" onClick={openFetch}>
-                  <Globe className="h-4 w-4 mr-1" /> Fetch URL
+                  <Globe className="h-4 w-4 mr-1" />
+                  {t('actions.fetchUrl', { defaultValue: 'Fetch URL' })}
                 </Button>
               </>
             )}
@@ -1603,14 +1617,16 @@ function FilesPage() {
                 variant="outline"
                 size="icon"
                 className="md:hidden"
-                aria-label="Open space actions"
+                aria-label={t('actions.openMenu', { defaultValue: 'Open space actions' })}
               >
                 <MoreVertical className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="md:hidden">
               <DropdownMenuItem onClick={() => setViewMode(m => (m === 'list' ? 'grid' : 'list'))}>
-                {viewMode === 'list' ? 'Switch to Grid View' : 'Switch to List View'}
+                {viewMode === 'list'
+                  ? t('view.switchToGridMenu', { defaultValue: 'Switch to Grid View' })
+                  : t('view.switchToListMenu', { defaultValue: 'Switch to List View' })}
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => {
@@ -1619,15 +1635,25 @@ function FilesPage() {
                   setSearch('')
                 }}
               >
-                {trashView ? 'Back to Files' : 'Open Trash'}
+                {trashView
+                  ? t('trash.backToFiles', { defaultValue: 'Back to Files' })
+                  : t('trash.open', { defaultValue: 'Open Trash' })}
               </DropdownMenuItem>
               {!trashView ? (
                 <>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={openNewFolder}>New Folder</DropdownMenuItem>
-                  <DropdownMenuItem onClick={openNewFile}>New File</DropdownMenuItem>
-                  <DropdownMenuItem onClick={openUpload}>Upload</DropdownMenuItem>
-                  <DropdownMenuItem onClick={openFetch}>Fetch URL</DropdownMenuItem>
+                  <DropdownMenuItem onClick={openNewFolder}>
+                    {t('actions.newFolder', { defaultValue: 'New Folder' })}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={openNewFile}>
+                    {t('actions.newFile', { defaultValue: 'New File' })}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={openUpload}>
+                    {t('actions.upload', { defaultValue: 'Upload' })}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={openFetch}>
+                    {t('actions.fetchUrl', { defaultValue: 'Fetch URL' })}
+                  </DropdownMenuItem>
                 </>
               ) : null}
             </DropdownMenuContent>
@@ -1636,9 +1662,9 @@ function FilesPage() {
 
         {loading && (
           <div className="flex items-center gap-2 text-muted-foreground py-2">
-            <Loader2 className="h-4 w-4 animate-spin" /> Loading…
-          </div>
-        )}
+             <Loader2 className="h-4 w-4 animate-spin" /> {t('page.loading')}
+           </div>
+         )}
         {error && <p className="text-destructive text-sm">{error}</p>}
 
         {!loading && viewItems.length === 0 && !error && (
@@ -1651,10 +1677,15 @@ function FilesPage() {
               )}
               <p>
                 {trashView
-                  ? 'Trash is empty.'
+                  ? t('empty.trash', { defaultValue: 'Trash is empty.' })
                   : search
-                    ? `No items match "${search}".`
-                    : 'This folder is empty. Create a subfolder or upload your first file.'}
+                    ? t('empty.noMatch', {
+                        query: search,
+                        defaultValue: 'No items match "{{query}}".',
+                      })
+                    : t('empty.folder', {
+                        defaultValue: 'This folder is empty. Create a subfolder or upload your first file.',
+                      })}
               </p>
             </CardContent>
           </Card>
@@ -1663,12 +1694,18 @@ function FilesPage() {
         {/* ── Bulk action bar ────────────────────────────── */}
         {selectedIds.size > 0 && (
           <div className="flex items-center gap-2 px-3 py-2 rounded-md border bg-muted/50 text-sm">
-            <span className="text-muted-foreground">{selectedIds.size} selected</span>
+            <span className="text-muted-foreground">
+              {t('selection.selectedCount', {
+                count: selectedIds.size,
+                defaultValue: '{{count}} selected',
+              })}
+            </span>
             <div className="flex-1" />
             {trashView ? (
               <>
                 <Button size="sm" variant="outline" onClick={handleBulkRestore}>
-                  <RotateCcw className="h-4 w-4 mr-1" /> Restore
+                  <RotateCcw className="h-4 w-4 mr-1" />
+                  {t('actions.restore', { defaultValue: 'Restore' })}
                 </Button>
                 <Button
                   size="sm"
@@ -1677,7 +1714,8 @@ function FilesPage() {
                   onClick={handleBulkDelete}
                 >
                   {bulkDeleting && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
-                  <Trash2 className="h-4 w-4 mr-1" /> Delete Permanently
+                  <Trash2 className="h-4 w-4 mr-1" />
+                  {t('actions.deletePermanently', { defaultValue: 'Delete Permanently' })}
                 </Button>
               </>
             ) : (
@@ -1690,7 +1728,8 @@ function FilesPage() {
                     setBulkMoveOpen(true)
                   }}
                 >
-                  <FolderInput className="h-4 w-4 mr-1" /> Move to…
+                  <FolderInput className="h-4 w-4 mr-1" />
+                  {t('actions.moveTo', { defaultValue: 'Move to…' })}
                 </Button>
                 <Button
                   size="sm"
@@ -1699,7 +1738,8 @@ function FilesPage() {
                   onClick={handleBulkDelete}
                 >
                   {bulkDeleting && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
-                  <Trash2 className="h-4 w-4 mr-1" /> Move to Trash
+                  <Trash2 className="h-4 w-4 mr-1" />
+                  {t('actions.moveToTrash', { defaultValue: 'Move to Trash' })}
                 </Button>
               </>
             )}
@@ -1726,14 +1766,17 @@ function FilesPage() {
                               className="h-4 w-4 cursor-pointer"
                               checked={isAllPageSelected()}
                               onChange={toggleSelectPage}
-                              title="Select all on this page"
-                            />
+                               title={t('selection.selectAllPage', {
+                                 defaultValue: 'Select all on this page',
+                               })}
+                             />
                             <button
                               className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground/80 transition-colors hover:text-foreground"
                               onClick={() => toggleSort('name')}
                             >
-                              Name <SortIcon field="name" sortBy={sortBy} sortDir={sortDir} />
-                            </button>
+                            {t('columns.name', { defaultValue: 'Name' })}{' '}
+                            <SortIcon field="name" sortBy={sortBy} sortDir={sortDir} />
+                          </button>
                           </div>
                         </TableHead>
                         <TableHead className="min-w-[140px]">
@@ -1741,7 +1784,8 @@ function FilesPage() {
                             className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground/80 transition-colors hover:text-foreground"
                             onClick={() => toggleSort('type')}
                           >
-                            Type <SortIcon field="type" sortBy={sortBy} sortDir={sortDir} />
+                            {t('columns.type', { defaultValue: 'Type' })}{' '}
+                            <SortIcon field="type" sortBy={sortBy} sortDir={sortDir} />
                           </button>
                         </TableHead>
                         <TableHead className="w-[110px] min-w-[110px]">
@@ -1749,18 +1793,20 @@ function FilesPage() {
                             className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground/80 transition-colors hover:text-foreground"
                             onClick={() => toggleSort('size')}
                           >
-                            Size <SortIcon field="size" sortBy={sortBy} sortDir={sortDir} />
+                            {t('columns.size', { defaultValue: 'Size' })}{' '}
+                            <SortIcon field="size" sortBy={sortBy} sortDir={sortDir} />
                           </button>
                         </TableHead>
                         <TableHead className="w-[96px] min-w-[96px] text-xs font-medium text-foreground">
-                          Shared
+                          {t('columns.shared', { defaultValue: 'Shared' })}
                         </TableHead>
                         <TableHead className="min-w-[150px]">
                           <button
                             className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground/80 transition-colors hover:text-foreground"
                             onClick={() => toggleSort('created')}
                           >
-                            Created <SortIcon field="created" sortBy={sortBy} sortDir={sortDir} />
+                            {t('columns.created', { defaultValue: 'Created' })}{' '}
+                            <SortIcon field="created" sortBy={sortBy} sortDir={sortDir} />
                           </button>
                         </TableHead>
                         <TableHead className="min-w-[150px]">
@@ -1768,7 +1814,8 @@ function FilesPage() {
                             className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground/80 transition-colors hover:text-foreground"
                             onClick={() => toggleSort('updated')}
                           >
-                            Modified <SortIcon field="updated" sortBy={sortBy} sortDir={sortDir} />
+                            {t('columns.modified', { defaultValue: 'Modified' })}{' '}
+                            <SortIcon field="updated" sortBy={sortBy} sortDir={sortDir} />
                           </button>
                         </TableHead>
                         <TableHead className="w-[52px] text-xs font-medium text-foreground" />
@@ -1780,7 +1827,9 @@ function FilesPage() {
                         const itemPath = buildPath(item, items)
                         const previewType = getPreviewType(item, quota)
                         const isExpanded = expandedId === item.id
-                        const mime = item.is_folder ? 'Folder' : item.mime_type || '—'
+                        const mime = item.is_folder
+                          ? t('item.folderType', { defaultValue: 'Folder' })
+                          : item.mime_type || '—'
                         return (
                           <>
                             <TableRow key={item.id} className={isExpanded ? 'bg-muted/30' : ''}>
@@ -1823,7 +1872,7 @@ function FilesPage() {
                               <TableCell className="py-3">
                                 {isShared(item) ? (
                                   <Badge variant="secondary" className="text-xs whitespace-nowrap">
-                                    Shared
+                                    {t('item.sharedBadge', { defaultValue: 'Shared' })}
                                   </Badge>
                                 ) : (
                                   <span className="text-muted-foreground text-xs">—</span>
@@ -1871,24 +1920,34 @@ function FilesPage() {
                                       </div>
                                     )}
                                     <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
-                                      <dt className="text-muted-foreground font-medium">Name</dt>
+                                      <dt className="text-muted-foreground font-medium">
+                                        {t('columns.name', { defaultValue: 'Name' })}
+                                      </dt>
                                       <dd className="font-mono break-all">{item.name}</dd>
-                                      <dt className="text-muted-foreground font-medium">Path</dt>
+                                      <dt className="text-muted-foreground font-medium">
+                                        {t('item.path', { defaultValue: 'Path' })}
+                                      </dt>
                                       <dd className="font-mono break-all">{itemPath}</dd>
-                                      <dt className="text-muted-foreground font-medium">Type</dt>
+                                      <dt className="text-muted-foreground font-medium">
+                                        {t('columns.type', { defaultValue: 'Type' })}
+                                      </dt>
                                       <dd>{item.mime_type || '—'}</dd>
-                                      <dt className="text-muted-foreground font-medium">Size</dt>
+                                      <dt className="text-muted-foreground font-medium">
+                                        {t('columns.size', { defaultValue: 'Size' })}
+                                      </dt>
                                       <dd>{formatFileSize(item.size)}</dd>
-                                      <dt className="text-muted-foreground font-medium">Created</dt>
+                                      <dt className="text-muted-foreground font-medium">
+                                        {t('columns.created', { defaultValue: 'Created' })}
+                                      </dt>
                                       <dd>{formatDate(item.created)}</dd>
                                       <dt className="text-muted-foreground font-medium">
-                                        Modified
+                                        {t('columns.modified', { defaultValue: 'Modified' })}
                                       </dt>
                                       <dd>{formatDate(item.updated)}</dd>
                                       {item.share_token && !isExpired(item.share_expires_at) && (
                                         <>
                                           <dt className="text-muted-foreground font-medium">
-                                            Shared until
+                                            {t('item.sharedUntil', { defaultValue: 'Shared until' })}
                                           </dt>
                                           <dd>{formatDate(item.share_expires_at)}</dd>
                                         </>
@@ -1981,7 +2040,7 @@ function FilesPage() {
           <div className="flex items-center justify-end text-sm text-muted-foreground flex-wrap gap-2">
             <div className="flex items-center gap-2">
               <label className="flex items-center gap-1.5 text-xs">
-                Per page
+                {t('pagination.perPage', { defaultValue: 'Per page' })}
                 <select
                   className="h-7 rounded-md border border-input bg-background px-2 text-xs"
                   value={pageSize}
@@ -2002,7 +2061,7 @@ function FilesPage() {
                 size="sm"
                 disabled={safePage <= 1}
                 onClick={() => setPage(p => Math.max(1, p - 1))}
-                aria-label="Previous page"
+                aria-label={t('pagination.previous', { defaultValue: 'Previous page' })}
               >
                 ‹
               </Button>
@@ -2014,7 +2073,7 @@ function FilesPage() {
                 size="sm"
                 disabled={safePage >= totalPages}
                 onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                aria-label="Next page"
+                aria-label={t('pagination.next', { defaultValue: 'Next page' })}
               >
                 ›
               </Button>
@@ -2024,7 +2083,11 @@ function FilesPage() {
         {trashView && trashCount > 0 && (
           <div className="flex items-center gap-2">
             <Button variant="destructive" size="sm" onClick={handleEmptyTrash}>
-              <Trash2 className="h-4 w-4 mr-1" /> Empty Trash ({trashCount})
+              <Trash2 className="h-4 w-4 mr-1" />
+              {t('trash.emptyButton', {
+                count: trashCount,
+                defaultValue: 'Empty Trash ({{count}})',
+              })}
             </Button>
           </div>
         )}
@@ -2033,20 +2096,22 @@ function FilesPage() {
       <Dialog open={statsOpen} onOpenChange={setStatsOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Space Stats</DialogTitle>
-            <DialogDescription>Usage and limits for your current space.</DialogDescription>
+            <DialogTitle>{t('stats.title', { defaultValue: 'Space Stats' })}</DialogTitle>
+            <DialogDescription>
+              {t('stats.description', { defaultValue: 'Usage and limits for your current space.' })}
+            </DialogDescription>
           </DialogHeader>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="rounded-lg border bg-muted/20 px-4 py-3">
-              <div className="text-xs text-muted-foreground">Folders</div>
+               <div className="text-xs text-muted-foreground">{t('stats.folders', { defaultValue: 'Folders' })}</div>
               <div className="mt-1 text-2xl font-semibold text-foreground">{allFolders.length}</div>
             </div>
             <div className="rounded-lg border bg-muted/20 px-4 py-3">
-              <div className="text-xs text-muted-foreground">Files</div>
+               <div className="text-xs text-muted-foreground">{t('stats.files', { defaultValue: 'Files' })}</div>
               <div className="mt-1 text-2xl font-semibold text-foreground">{allFiles.length}</div>
             </div>
             <div className="rounded-lg border bg-muted/20 px-4 py-3">
-              <div className="text-xs text-muted-foreground">Items Used</div>
+               <div className="text-xs text-muted-foreground">{t('stats.itemsUsed', { defaultValue: 'Items Used' })}</div>
               <div className="mt-1 text-2xl font-semibold text-foreground">
                 {items.filter(i => !i.is_deleted).length}
                 {quota ? (
@@ -2055,17 +2120,21 @@ function FilesPage() {
               </div>
             </div>
             <div className="rounded-lg border bg-muted/20 px-4 py-3">
-              <div className="text-xs text-muted-foreground">Max File Size</div>
+               <div className="text-xs text-muted-foreground">{t('stats.maxFileSize', { defaultValue: 'Max File Size' })}</div>
               <div className="mt-1 text-2xl font-semibold text-foreground">
                 {quota ? formatBytes(quota.max_size_mb) : '—'}
               </div>
             </div>
             <div className="rounded-lg border bg-muted/20 px-4 py-3 sm:col-span-2">
-              <div className="text-xs text-muted-foreground">Trash</div>
-              <div className="mt-1 text-sm text-foreground">
-                {trashCount} item{trashCount !== 1 ? 's' : ''} currently in trash.
-              </div>
-            </div>
+               <div className="text-xs text-muted-foreground">{t('trash.title', { defaultValue: 'Trash' })}</div>
+               <div className="mt-1 text-sm text-foreground">
+                 {t('trash.currentCount', {
+                   count: trashCount,
+                   defaultValue_one: '{{count}} item currently in trash.',
+                   defaultValue_other: '{{count}} items currently in trash.',
+                 })}
+               </div>
+             </div>
           </div>
         </DialogContent>
       </Dialog>
@@ -2087,13 +2156,13 @@ function FilesPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
-            <Label>Target folder</Label>
+             <Label>{t('dialogs.bulkMove.targetFolder', { defaultValue: 'Target folder' })}</Label>
             <select
               className="mt-1 w-full h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm"
               value={bulkMoveFolderId}
               onChange={e => setBulkMoveFolderId(e.target.value)}
             >
-              <option value="">/ (root)</option>
+              <option value="">{t('dialogs.rootOption', { defaultValue: '/ (root)' })}</option>
               {allFolders
                 .filter(f => !selectedIds.has(f.id))
                 .map(f => (
@@ -2105,11 +2174,11 @@ function FilesPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setBulkMoveOpen(false)}>
-              Cancel
+              {t('common:cancel', { defaultValue: 'Cancel' })}
             </Button>
             <Button onClick={handleBulkMove} disabled={bulkMoving}>
               {bulkMoving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-              Move
+              {t('actions.move', { defaultValue: 'Move' })}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -2124,10 +2193,15 @@ function FilesPage() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Rename "{renameItem?.name}"</DialogTitle>
+            <DialogTitle>
+              {t('dialogs.rename.title', {
+                name: renameItem?.name,
+                defaultValue: 'Rename "{{name}}"',
+              })}
+            </DialogTitle>
           </DialogHeader>
           <div className="space-y-2">
-            <Label>New name</Label>
+            <Label>{t('dialogs.rename.newName', { defaultValue: 'New name' })}</Label>
             <Input
               autoFocus
               value={renameName}
@@ -2140,11 +2214,11 @@ function FilesPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setRenameItem(null)}>
-              Cancel
+              {t('common:cancel', { defaultValue: 'Cancel' })}
             </Button>
             <Button onClick={handleRename} disabled={!renameName.trim() || renaming}>
               {renaming && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-              Rename
+              {t('actions.rename', { defaultValue: 'Rename' })}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -2154,27 +2228,36 @@ function FilesPage() {
       <Dialog open={folderOpen} onOpenChange={setFolderOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>New Folder</DialogTitle>
-            <DialogDescription>Create a new folder to organise your files.</DialogDescription>
+            <DialogTitle>{t('dialogs.newFolder.title', { defaultValue: 'New Folder' })}</DialogTitle>
+            <DialogDescription>
+              {t('dialogs.newFolder.description', {
+                defaultValue: 'Create a new folder to organise your files.',
+              })}
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label>Folder name</Label>
+              <Label>{t('dialogs.newFolder.name', { defaultValue: 'Folder name' })}</Label>
               <Input
                 className="mt-1"
                 value={folderName}
-                placeholder="e.g. scripts"
+                placeholder={t('dialogs.newFolder.namePlaceholder', { defaultValue: 'e.g. scripts' })}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFolderName(e.target.value)}
               />
               {quota?.reserved_folder_names?.length && !folderParent && (
                 <p className="text-xs text-muted-foreground mt-1">
-                  Reserved names (root only): {quota.reserved_folder_names.join(', ')}
+                  {t('dialogs.newFolder.reservedNames', {
+                    names: quota.reserved_folder_names.join(', '),
+                    defaultValue: 'Reserved names (root only): {{names}}',
+                  })}
                 </p>
               )}
             </div>
             {allFolders.length > 0 && (
               <div>
-                <Label>Parent folder (optional)</Label>
+                <Label>
+                  {t('dialogs.newFolder.parentFolder', { defaultValue: 'Parent folder (optional)' })}
+                </Label>
                 <select
                   className="mt-1 w-full h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm"
                   value={folderParent}
@@ -2182,7 +2265,7 @@ function FilesPage() {
                     setFolderParent(e.target.value)
                   }
                 >
-                  <option value="">/ (root)</option>
+                  <option value="">{t('dialogs.rootOption', { defaultValue: '/ (root)' })}</option>
                   {allFolders.map(f => (
                     <option key={f.id} value={f.id}>
                       {buildPath(f, items)}
@@ -2195,11 +2278,11 @@ function FilesPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setFolderOpen(false)}>
-              Cancel
+              {t('common:cancel', { defaultValue: 'Cancel' })}
             </Button>
             <Button onClick={handleCreateFolder} disabled={!folderName.trim() || creatingFolder}>
               {creatingFolder && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-              Create
+              {t('actions.create', { defaultValue: 'Create' })}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -2209,24 +2292,30 @@ function FilesPage() {
       <Dialog open={newFileOpen} onOpenChange={setNewFileOpen}>
         <DialogContent className="sm:max-w-3xl w-full">
           <DialogHeader>
-            <DialogTitle>New Text File</DialogTitle>
-            <DialogDescription>Create a new text or code file online.</DialogDescription>
+            <DialogTitle>{t('dialogs.newFile.title', { defaultValue: 'New Text File' })}</DialogTitle>
+            <DialogDescription>
+              {t('dialogs.newFile.description', {
+                defaultValue: 'Create a new text or code file online.',
+              })}
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="flex gap-3 flex-wrap">
               <div className="flex-1 min-w-40">
-                <Label>Filename</Label>
+                <Label>{t('dialogs.newFile.filename', { defaultValue: 'Filename' })}</Label>
                 <Input
                   className="mt-1"
                   value={newFileName}
-                  placeholder="e.g. script.py"
+                  placeholder={t('dialogs.newFile.filenamePlaceholder', {
+                    defaultValue: 'e.g. script.py',
+                  })}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                     setNewFileName(e.target.value)
                   }
                 />
               </div>
               <div className="w-48">
-                <Label>Folder</Label>
+                <Label>{t('dialogs.newFile.folder', { defaultValue: 'Folder' })}</Label>
                 <select
                   className="mt-1 w-full h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm"
                   value={newFileParent}
@@ -2234,7 +2323,7 @@ function FilesPage() {
                     setNewFileParent(e.target.value)
                   }
                 >
-                  <option value="">/ (root)</option>
+                  <option value="">{t('dialogs.rootOption', { defaultValue: '/ (root)' })}</option>
                   {allFolders.map(f => (
                     <option key={f.id} value={f.id}>
                       {buildPath(f, items)}
@@ -2244,11 +2333,13 @@ function FilesPage() {
               </div>
             </div>
             <div>
-              <Label>Content (optional)</Label>
+              <Label>{t('dialogs.newFile.content', { defaultValue: 'Content (optional)' })}</Label>
               <Textarea
                 className="mt-1 font-mono text-sm min-h-[200px]"
                 value={newFileContent}
-                placeholder="# Start writing here…"
+                placeholder={t('dialogs.newFile.contentPlaceholder', {
+                  defaultValue: '# Start writing here…',
+                })}
                 onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
                   setNewFileContent(e.target.value)
                 }
@@ -2258,11 +2349,11 @@ function FilesPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setNewFileOpen(false)}>
-              Cancel
+              {t('common:cancel', { defaultValue: 'Cancel' })}
             </Button>
             <Button onClick={handleCreateFile} disabled={!newFileName.trim() || creatingFile}>
               {creatingFile && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-              Create
+              {t('actions.create', { defaultValue: 'Create' })}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -2272,7 +2363,7 @@ function FilesPage() {
       <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Upload Files</DialogTitle>
+            <DialogTitle>{t('dialogs.upload.title', { defaultValue: 'Upload Files' })}</DialogTitle>
             <DialogDescription>
               {`Max size: ${formatBytes(quota?.max_size_mb ?? 10)}. `}
               {`Max files per upload: ${uploadMaxFiles}. `}
@@ -2281,7 +2372,7 @@ function FilesPage() {
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label>File</Label>
+              <Label>{t('dialogs.upload.file', { defaultValue: 'File' })}</Label>
               <input
                 ref={fileInputRef}
                 type="file"
@@ -2295,24 +2386,32 @@ function FilesPage() {
                 onClick={() => fileInputRef.current?.click()}
               >
                 {uploadFiles.length === 0
-                  ? 'Choose file(s)…'
+                  ? t('dialogs.upload.chooseFiles', { defaultValue: 'Choose file(s)…' })
                   : uploadFiles.length === 1
                     ? uploadFiles[0].name
-                    : `${uploadFiles.length} files selected`}
+                    : t('dialogs.upload.filesSelected', {
+                        count: uploadFiles.length,
+                        defaultValue: '{{count}} files selected',
+                      })}
               </Button>
               <p className="text-xs text-muted-foreground mt-1">
-                Batch upload supports up to {uploadMaxFiles} files.
+                {t('dialogs.upload.batchHint', {
+                  count: uploadMaxFiles,
+                  defaultValue: 'Batch upload supports up to {{count}} files.',
+                })}
               </p>
             </div>
             {uploadFiles.length > 0 && (
               <>
                 {uploadFiles.length === 1 && (
                   <div>
-                    <Label>Display name</Label>
+                    <Label>{t('dialogs.upload.displayName', { defaultValue: 'Display name' })}</Label>
                     <Input
                       className="mt-1"
                       value={uploadName}
-                      placeholder="e.g. notes.md"
+                      placeholder={t('dialogs.upload.displayNamePlaceholder', {
+                        defaultValue: 'e.g. notes.md',
+                      })}
                       onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                         setUploadName(e.target.value)
                       }
@@ -2320,7 +2419,7 @@ function FilesPage() {
                   </div>
                 )}
                 <div>
-                  <Label>Folder (optional)</Label>
+                  <Label>{t('dialogs.upload.folder', { defaultValue: 'Folder (optional)' })}</Label>
                   <select
                     className="w-full h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm"
                     value={uploadParent}
@@ -2328,7 +2427,7 @@ function FilesPage() {
                       setUploadParent(e.target.value)
                     }
                   >
-                    <option value="">/ (root)</option>
+                    <option value="">{t('dialogs.rootOption', { defaultValue: '/ (root)' })}</option>
                     {allFolders.map(f => (
                       <option key={f.id} value={f.id}>
                         {buildPath(f, items)}
@@ -2342,11 +2441,11 @@ function FilesPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setUploadOpen(false)}>
-              Cancel
+              {t('common:cancel', { defaultValue: 'Cancel' })}
             </Button>
             <Button onClick={handleUpload} disabled={uploadFiles.length === 0 || uploading}>
               {uploading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-              Upload
+              {t('actions.upload', { defaultValue: 'Upload' })}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -2361,10 +2460,12 @@ function FilesPage() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Fetch File from URL</DialogTitle>
+            <DialogTitle>{t('dialogs.fetch.title', { defaultValue: 'Fetch File from URL' })}</DialogTitle>
             <DialogDescription>
-              Download a file from a public URL directly into your Space. The same upload policy
-              (size & extension limits) applies.
+              {t('dialogs.fetch.description', {
+                defaultValue:
+                  'Download a file from a public URL directly into your Space. The same upload policy (size & extension limits) applies.',
+              })}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -2374,7 +2475,9 @@ function FilesPage() {
               </Label>
               <Input
                 className="mt-1"
-                placeholder="https://example.com/file.zip"
+                placeholder={t('dialogs.fetch.urlPlaceholder', {
+                  defaultValue: 'https://example.com/file.zip',
+                })}
                 value={fetchUrl}
                 disabled={fetching}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFetchUrl(e.target.value)}
@@ -2387,19 +2490,21 @@ function FilesPage() {
               <Label>
                 Save as{' '}
                 <span className="text-muted-foreground text-xs">
-                  (optional — detected from URL if blank)
+                  {t('dialogs.fetch.saveAsHint', {
+                    defaultValue: '(optional — detected from URL if blank)',
+                  })}
                 </span>
               </Label>
               <Input
                 className="mt-1"
-                placeholder="e.g. report.pdf"
+                placeholder={t('dialogs.fetch.namePlaceholder', { defaultValue: 'e.g. report.pdf' })}
                 value={fetchName}
                 disabled={fetching}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFetchName(e.target.value)}
               />
             </div>
             <div>
-              <Label>Destination folder</Label>
+              <Label>{t('dialogs.fetch.destinationFolder', { defaultValue: 'Destination folder' })}</Label>
               <select
                 className="mt-1 w-full h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm"
                 value={fetchParent}
@@ -2408,7 +2513,7 @@ function FilesPage() {
                   setFetchParent(e.target.value)
                 }
               >
-                <option value="">/ (root)</option>
+                <option value="">{t('dialogs.rootOption', { defaultValue: '/ (root)' })}</option>
                 {allFolders.map(f => (
                   <option key={f.id} value={f.id}>
                     {buildPath(f, items)}
@@ -2423,23 +2528,25 @@ function FilesPage() {
                   ? ` Allowlist: ${quota.upload_allow_exts.join(', ')}.`
                   : quota.upload_deny_exts?.length > 0
                     ? ` Blocked: ${quota.upload_deny_exts.join(', ')}.`
-                    : ' Any extension allowed.'}
-              </p>
-            )}
+                     : t('dialogs.fetch.anyExtensionAllowed', { defaultValue: ' Any extension allowed.' })}
+               </p>
+             )}
             {fetchError && <p className="text-destructive text-sm">{fetchError}</p>}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setFetchOpen(false)} disabled={fetching}>
-              Cancel
+              {t('common:cancel', { defaultValue: 'Cancel' })}
             </Button>
             <Button onClick={handleFetch} disabled={!fetchUrl.trim() || fetching}>
               {fetching ? (
                 <>
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" /> Downloading…
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  {t('dialogs.fetch.downloading', { defaultValue: 'Downloading…' })}
                 </>
               ) : (
                 <>
-                  <Globe className="h-4 w-4 mr-1" /> Fetch
+                  <Globe className="h-4 w-4 mr-1" />
+                  {t('actions.fetch', { defaultValue: 'Fetch' })}
                 </>
               )}
             </Button>
@@ -2472,7 +2579,11 @@ function FilesPage() {
                   size="icon"
                   className="h-8 w-8"
                   onClick={() => setPreviewFullscreen(f => !f)}
-                  title={previewFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+                    title={
+                      previewFullscreen
+                        ? t('preview.exitFullscreen', { defaultValue: 'Exit fullscreen' })
+                        : t('preview.fullscreen', { defaultValue: 'Fullscreen' })
+                    }
                 >
                   {previewFullscreen ? (
                     <Minimize2 className="h-4 w-4" />
@@ -2485,7 +2596,7 @@ function FilesPage() {
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8"
-                    aria-label="Close preview"
+                    aria-label={t('preview.close', { defaultValue: 'Close preview' })}
                   >
                     <X className="h-4 w-4" />
                   </Button>
@@ -2498,7 +2609,8 @@ function FilesPage() {
           >
             {previewLoading && (
               <div className="flex items-center gap-2 text-muted-foreground">
-                <Loader2 className="h-5 w-5 animate-spin" /> Loading preview…
+                <Loader2 className="h-5 w-5 animate-spin" />
+                {t('preview.loading', { defaultValue: 'Loading preview…' })}
               </div>
             )}
             {previewError && <p className="text-destructive text-sm">{previewError}</p>}
@@ -2562,7 +2674,8 @@ function FilesPage() {
                     }
                   }}
                 >
-                  <Edit3 className="h-4 w-4 mr-1" /> Edit
+                  <Edit3 className="h-4 w-4 mr-1" />
+                  {t('common:edit', { defaultValue: 'Edit' })}
                 </Button>
               )}
           </DialogFooter>
@@ -2578,12 +2691,18 @@ function FilesPage() {
       >
         <DialogContent className="sm:max-w-3xl w-full">
           <DialogHeader>
-            <DialogTitle>Edit: {editFile?.name}</DialogTitle>
+            <DialogTitle>
+              {t('dialogs.edit.title', {
+                name: editFile?.name,
+                defaultValue: 'Edit: {{name}}',
+              })}
+            </DialogTitle>
           </DialogHeader>
           <div className="max-h-[65vh] overflow-y-auto">
             {editLoading ? (
               <div className="flex items-center gap-2 py-8 justify-center text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" /> Loading content…
+                <Loader2 className="h-4 w-4 animate-spin" />
+                {t('dialogs.edit.loading', { defaultValue: 'Loading content…' })}
               </div>
             ) : (
               <Textarea
@@ -2598,11 +2717,11 @@ function FilesPage() {
           {editError && <p className="text-destructive text-sm">{editError}</p>}
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditFile(null)}>
-              Cancel
+              {t('common:cancel', { defaultValue: 'Cancel' })}
             </Button>
             <Button onClick={handleSave} disabled={saving || editLoading}>
               {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-              Save
+              {t('common:save', { defaultValue: 'Save' })}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -2619,24 +2738,43 @@ function FilesPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>
               {deleteItem?.is_deleted
-                ? 'Delete Permanently?'
-                : `Move ${deleteItem?.is_folder ? 'folder' : 'file'} to Trash?`}
+                ? t('dialogs.delete.permanentTitle', { defaultValue: 'Delete Permanently?' })
+                : t('dialogs.delete.moveToTrashTitle', {
+                    kind: deleteItem?.is_folder
+                      ? t('item.folderLower', { defaultValue: 'folder' })
+                      : t('item.fileLower', { defaultValue: 'file' }),
+                    defaultValue: 'Move {{kind}} to Trash?',
+                  })}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {deleteItem?.is_deleted
-                ? `"${deleteItem?.name}" will be permanently deleted and cannot be recovered.`
-                : `"${deleteItem?.name}" will be moved to Trash.${deleteItem?.is_folder ? ' Note: files inside this folder are NOT automatically moved.' : ''}`}
+                ? t('dialogs.delete.permanentDescription', {
+                    name: deleteItem?.name,
+                    defaultValue: '"{{name}}" will be permanently deleted and cannot be recovered.',
+                  })
+                : t('dialogs.delete.moveToTrashDescription', {
+                    name: deleteItem?.name,
+                    note: deleteItem?.is_folder
+                      ? t('dialogs.delete.folderNote', {
+                          defaultValue:
+                            ' Note: files inside this folder are NOT automatically moved.',
+                        })
+                      : '',
+                    defaultValue: '"{{name}}" will be moved to Trash.{{note}}',
+                  })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t('common:cancel', { defaultValue: 'Cancel' })}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
               disabled={deleting}
               className="bg-destructive text-white hover:bg-destructive/90"
             >
               {deleting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-              {deleteItem?.is_deleted ? 'Delete Permanently' : 'Move to Trash'}
+              {deleteItem?.is_deleted
+                ? t('actions.deletePermanently', { defaultValue: 'Delete Permanently' })
+                : t('actions.moveToTrash', { defaultValue: 'Move to Trash' })}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -2646,21 +2784,28 @@ function FilesPage() {
       <AlertDialog open={emptyTrashOpen} onOpenChange={setEmptyTrashOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Empty Trash?</AlertDialogTitle>
+            <AlertDialogTitle>{t('trash.emptyTitle', { defaultValue: 'Empty Trash?' })}</AlertDialogTitle>
             <AlertDialogDescription>
-              All {trashCount} item{trashCount !== 1 ? 's' : ''} in Trash will be permanently
-              deleted. This action cannot be undone.
+              {t('trash.emptyDescription', {
+                count: trashCount,
+                defaultValue:
+                  'All {{count}} item in Trash will be permanently deleted. This action cannot be undone.',
+                defaultValue_other:
+                  'All {{count}} items in Trash will be permanently deleted. This action cannot be undone.',
+              })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={emptyingTrash}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={emptyingTrash}>
+              {t('common:cancel', { defaultValue: 'Cancel' })}
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={doEmptyTrash}
               disabled={emptyingTrash}
               className="bg-destructive text-white hover:bg-destructive/90"
             >
               {emptyingTrash && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-              Empty Trash
+              {t('trash.emptyAction', { defaultValue: 'Empty Trash' })}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -2680,15 +2825,20 @@ function FilesPage() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Share: {shareFile?.name}</DialogTitle>
+            <DialogTitle>
+              {t('share.title', { name: shareFile?.name, defaultValue: 'Share: {{name}}' })}
+            </DialogTitle>
             <DialogDescription>
-              Generate a public download link — no login required. Anyone with the link can download
-              the file. Max validity: {quota?.share_max_minutes ?? 60} min.
+              {t('share.description', {
+                minutes: quota?.share_max_minutes ?? 60,
+                defaultValue:
+                  'Generate a public download link — no login required. Anyone with the link can download the file. Max validity: {{minutes}} min.',
+              })}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label>Validity (minutes)</Label>
+              <Label>{t('share.validity', { defaultValue: 'Validity (minutes)' })}</Label>
               <Input
                 type="number"
                 className="mt-1"
@@ -2702,7 +2852,7 @@ function FilesPage() {
             </div>
             {shareUrl && (
               <div className="space-y-2">
-                <Label>Public download link</Label>
+                <Label>{t('share.publicLink', { defaultValue: 'Public download link' })}</Label>
                 <div className="flex gap-2 mt-1">
                   <Input
                     ref={shareUrlInputRef}
@@ -2710,7 +2860,12 @@ function FilesPage() {
                     value={shareUrl}
                     className="text-xs font-mono"
                   />
-                  <Button size="icon" variant="outline" onClick={doCopy} title="Copy link">
+                  <Button
+                    size="icon"
+                    variant="outline"
+                    onClick={doCopy}
+                    title={t('share.copyLink', { defaultValue: 'Copy link' })}
+                  >
                     {copied ? (
                       <Check className="h-4 w-4 text-green-500" />
                     ) : (
@@ -2722,7 +2877,7 @@ function FilesPage() {
                     variant="ghost"
                     className="text-destructive"
                     onClick={handleRevoke}
-                    title="Revoke link"
+                    title={t('share.revokeLink', { defaultValue: 'Revoke link' })}
                   >
                     <X className="h-4 w-4" />
                   </Button>
@@ -2730,7 +2885,7 @@ function FilesPage() {
                     size="icon"
                     variant="outline"
                     onClick={handleGenerateQr}
-                    title="Generate QR code"
+                    title={t('share.generateQr', { defaultValue: 'Generate QR code' })}
                     disabled={qrGenerating}
                   >
                     {qrGenerating ? (
@@ -2740,15 +2895,24 @@ function FilesPage() {
                     )}
                   </Button>
                 </div>
-                {copied && <p className="text-xs text-green-600">Copied to clipboard!</p>}
+                {copied && (
+                  <p className="text-xs text-green-600">
+                    {t('share.copied', { defaultValue: 'Copied to clipboard!' })}
+                  </p>
+                )}
                 {qrError && <p className="text-xs text-destructive">{qrError}</p>}
                 {qrCodeDataUrl && (
                   <div className="space-y-2">
                     <div className="w-fit rounded-md border border-border p-2 bg-background">
-                      <img src={qrCodeDataUrl} alt="Share QR code" className="h-40 w-40" />
+                      <img
+                        src={qrCodeDataUrl}
+                        alt={t('share.qrAlt', { defaultValue: 'Share QR code' })}
+                        className="h-40 w-40"
+                      />
                     </div>
                     <Button variant="outline" size="sm" onClick={handleDownloadQr}>
-                      <Download className="h-4 w-4 mr-1" /> Download QR
+                      <Download className="h-4 w-4 mr-1" />
+                      {t('share.downloadQr', { defaultValue: 'Download QR' })}
                     </Button>
                   </div>
                 )}
@@ -2765,11 +2929,13 @@ function FilesPage() {
                 setQrError(null)
               }}
             >
-              Close
+              {t('common:close', { defaultValue: 'Close' })}
             </Button>
             <Button onClick={handleShare} disabled={sharing}>
               {sharing && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-              {shareUrl ? 'Refresh link' : 'Generate link'}
+              {shareUrl
+                ? t('share.refreshLink', { defaultValue: 'Refresh link' })
+                : t('share.generateLink', { defaultValue: 'Generate link' })}
             </Button>
           </DialogFooter>
         </DialogContent>

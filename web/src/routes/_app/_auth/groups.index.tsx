@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, type FormEvent } from 'react'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 import {
   Pencil,
   Trash2,
@@ -96,6 +97,7 @@ const PAGE_SIZE = 20
 function GroupsListPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
+  const { t } = useTranslation('groups')
 
   const [groups, setGroups] = useState<GroupRecord[]>([])
   const [items, setItems] = useState<GroupItemRecord[]>([])
@@ -132,7 +134,7 @@ function GroupsListPage() {
       setItems(itemsRes.items ?? [])
       setError('')
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Failed to load groups'))
+      setError(getApiErrorMessage(err, t('errors.loadGroups')))
     } finally {
       setLoading(false)
     }
@@ -233,7 +235,7 @@ function GroupsListPage() {
     e.preventDefault()
     const trimmedName = formName.trim()
     if (!trimmedName) {
-      setFormError('Name is required')
+      setFormError(t('errors.nameRequired'))
       return
     }
     setSaving(true)
@@ -259,7 +261,7 @@ function GroupsListPage() {
         })
       }
     } catch (err) {
-      setFormError(getApiErrorMessage(err, 'Save failed'))
+      setFormError(getApiErrorMessage(err, t('errors.save')))
     } finally {
       setSaving(false)
     }
@@ -273,7 +275,7 @@ function GroupsListPage() {
       setDeleteTarget(null)
       await fetchData()
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Delete failed'))
+      setError(getApiErrorMessage(err, t('errors.delete')))
     } finally {
       setDeleting(false)
     }
@@ -304,7 +306,7 @@ function GroupsListPage() {
           <button
             type="button"
             className="inline-flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
-            aria-label="Filter breakdown"
+            aria-label={t('list.filterBreakdown')}
           >
             <Filter className={`h-3.5 w-3.5 ${isTypeFilterActive ? 'text-primary' : ''}`} />
           </button>
@@ -318,7 +320,7 @@ function GroupsListPage() {
               if (checked) setTypeFilter('all')
             }}
           >
-            All Types
+            {t('list.allTypes')}
           </DropdownMenuCheckboxItem>
           {presentTypes.map(type => (
             <DropdownMenuCheckboxItem
@@ -351,9 +353,9 @@ function GroupsListPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Groups</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{t('list.title')}</h1>
           <p className="text-muted-foreground mt-1">
-            Organize applications and reusable platform objects for clearer management
+            {t('list.description')}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -361,11 +363,11 @@ function GroupsListPage() {
             variant="outline"
             size="icon"
             onClick={() => void handleRefresh()}
-            title="Refresh"
+            title={t('list.refresh')}
           >
             <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
           </Button>
-          <Button onClick={openCreate}>New Group</Button>
+          <Button onClick={openCreate}>{t('list.new')}</Button>
         </div>
       </div>
 
@@ -373,7 +375,7 @@ function GroupsListPage() {
         <div className="bg-destructive/10 text-destructive px-4 py-3 rounded-md text-sm">
           {error}
           <Button variant="ghost" size="sm" className="ml-2" onClick={fetchData}>
-            Retry
+            {t('list.retry')}
           </Button>
         </div>
       )}
@@ -383,7 +385,7 @@ function GroupsListPage() {
         <div className="relative flex-1 min-w-[200px] max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search name..."
+            placeholder={t('list.searchPlaceholder')}
             value={search}
             onChange={e => setSearch(e.target.value)}
             className="pl-9"
@@ -391,14 +393,14 @@ function GroupsListPage() {
         </div>
         {filteredRows.length > 0 && (
           <div className="ml-auto flex items-center gap-3 text-sm text-muted-foreground">
-            <span className="whitespace-nowrap">Total {filteredRows.length} items</span>
+            <span className="whitespace-nowrap">{t('list.totalItems', { count: filteredRows.length })}</span>
             <div className="flex items-center gap-1">
               <button
                 type="button"
                 className="rounded p-0.5 transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
                 disabled={page <= 1}
                 onClick={() => setPage(p => p - 1)}
-                aria-label="Previous page"
+                aria-label={t('common:previous')}
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
@@ -410,7 +412,7 @@ function GroupsListPage() {
                 className="rounded p-0.5 transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
                 disabled={page >= totalPages}
                 onClick={() => setPage(p => p + 1)}
-                aria-label="Next page"
+                aria-label={t('common:next')}
               >
                 <ChevronRight className="h-4 w-4" />
               </button>
@@ -422,17 +424,17 @@ function GroupsListPage() {
       {/* Table */}
       {filteredRows.length === 0 && !search && typeFilter === 'all' ? (
         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground border rounded-lg">
-          <p className="text-lg font-medium">No groups yet</p>
+          <p className="text-lg font-medium">{t('list.empty.title')}</p>
           <p className="text-sm mt-1">
-            Create the first Group to organize related applications and resources.
+            {t('list.empty.description')}
           </p>
           <Button className="mt-4" onClick={openCreate}>
-            New Group
+            {t('list.new')}
           </Button>
         </div>
       ) : filteredRows.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12 text-muted-foreground border rounded-lg">
-          <p>No groups match your filters</p>
+          <p>{t('list.empty.filtered')}</p>
         </div>
       ) : (
         <Table>
@@ -444,7 +446,7 @@ function GroupsListPage() {
                   className="flex items-center gap-1 hover:text-foreground"
                   onClick={() => toggleSort('name')}
                 >
-                  Name
+                  {t('list.table.name')}
                   {sortField === 'name' &&
                     (sortDir === 'asc' ? (
                       <ArrowUp className="h-3 w-3" />
@@ -459,7 +461,7 @@ function GroupsListPage() {
                   className="flex items-center gap-1 hover:text-foreground"
                   onClick={() => toggleSort('description')}
                 >
-                  Description
+                  {t('list.table.description')}
                   {sortField === 'description' &&
                     (sortDir === 'asc' ? (
                       <ArrowUp className="h-3 w-3" />
@@ -474,7 +476,7 @@ function GroupsListPage() {
                   className="flex items-center gap-1 hover:text-foreground"
                   onClick={() => toggleSort('totalItems')}
                 >
-                  Total Items
+                  {t('list.table.totalItems')}
                   {sortField === 'totalItems' &&
                     (sortDir === 'asc' ? (
                       <ArrowUp className="h-3 w-3" />
@@ -490,7 +492,7 @@ function GroupsListPage() {
                     className="flex items-center gap-1 hover:text-foreground"
                     onClick={() => toggleSort('breakdown')}
                   >
-                    Breakdown
+                    {t('list.table.breakdown')}
                     {sortField === 'breakdown' &&
                       (sortDir === 'asc' ? (
                         <ArrowUp className="h-3 w-3" />
@@ -507,7 +509,7 @@ function GroupsListPage() {
                   className="flex items-center gap-1 hover:text-foreground"
                   onClick={() => toggleSort('creator')}
                 >
-                  Creator
+                  {t('list.table.creator')}
                   {sortField === 'creator' &&
                     (sortDir === 'asc' ? (
                       <ArrowUp className="h-3 w-3" />
@@ -522,7 +524,7 @@ function GroupsListPage() {
                   className="flex items-center gap-1 hover:text-foreground"
                   onClick={() => toggleSort('created')}
                 >
-                  Created
+                  {t('list.table.created')}
                   {sortField === 'created' &&
                     (sortDir === 'asc' ? (
                       <ArrowUp className="h-3 w-3" />
@@ -537,7 +539,7 @@ function GroupsListPage() {
                   className="flex items-center gap-1 hover:text-foreground"
                   onClick={() => toggleSort('updated')}
                 >
-                  Updated
+                  {t('list.table.updated')}
                   {sortField === 'updated' &&
                     (sortDir === 'asc' ? (
                       <ArrowUp className="h-3 w-3" />
@@ -546,7 +548,7 @@ function GroupsListPage() {
                     ))}
                 </button>
               </TableHead>
-              <TableHead className="w-[100px] text-right">Actions</TableHead>
+               <TableHead className="w-[100px] text-right">{t('list.table.actions')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -563,11 +565,11 @@ function GroupsListPage() {
                   </Link>
                 </TableCell>
                 <TableCell className="text-muted-foreground max-w-[200px] truncate">
-                  {row.description || '—'}
+                  {row.description || '\u2014'}
                 </TableCell>
                 <TableCell>{row.totalItems}</TableCell>
                 <TableCell className="text-sm text-muted-foreground max-w-[200px] truncate">
-                  {row.breakdownLabel || '—'}
+                  {row.breakdownLabel || '\u2014'}
                 </TableCell>
                 <TableCell className="text-muted-foreground text-sm">{row.creatorName}</TableCell>
                 <TableCell className="text-muted-foreground">{formatDate(row.created)}</TableCell>
@@ -575,21 +577,21 @@ function GroupsListPage() {
                 <TableCell className="text-right">
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8" title="More actions">
+                      <Button variant="ghost" size="icon" className="h-8 w-8" title={t('list.moreActions')}>
                         <MoreVertical className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem onClick={() => openEdit(row)}>
                         <Pencil className="h-4 w-4" />
-                        Edit
+                        {t('list.edit')}
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         className="text-destructive focus:text-destructive"
                         onClick={() => setDeleteTarget(row)}
                       >
                         <Trash2 className="h-4 w-4" />
-                        Delete
+                        {t('list.delete')}
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -605,29 +607,29 @@ function GroupsListPage() {
         <DialogContent className="sm:max-w-4xl">
           <form onSubmit={handleSubmit}>
             <DialogHeader>
-              <DialogTitle>{editingGroup ? 'Edit Group' : 'New Group'}</DialogTitle>
+              <DialogTitle>{editingGroup ? t('list.dialog.editTitle') : t('list.dialog.newTitle')}</DialogTitle>
               <DialogDescription>
-                {editingGroup ? 'Update group details.' : 'Create a new group to organize objects.'}
+                {editingGroup ? t('list.dialog.editDescription') : t('list.dialog.newDescription')}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="group-name">Name</Label>
+                <Label htmlFor="group-name">{t('list.dialog.name')}</Label>
                 <Input
                   id="group-name"
                   value={formName}
                   onChange={e => setFormName(e.target.value)}
-                  placeholder="Group name"
+                  placeholder={t('list.dialog.namePlaceholder')}
                   required
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="group-desc">Description</Label>
+                <Label htmlFor="group-desc">{t('list.dialog.description')}</Label>
                 <Textarea
                   id="group-desc"
                   value={formDesc}
                   onChange={e => setFormDesc(e.target.value)}
-                  placeholder="Optional description"
+                  placeholder={t('list.dialog.descriptionPlaceholder')}
                   rows={3}
                 />
               </div>
@@ -635,11 +637,11 @@ function GroupsListPage() {
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
-                Cancel
+                {t('common:cancel')}
               </Button>
               <Button type="submit" disabled={saving}>
                 {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                {editingGroup ? 'Save' : 'Create'}
+                {editingGroup ? t('list.dialog.save') : t('list.dialog.create')}
               </Button>
             </DialogFooter>
           </form>
@@ -650,21 +652,20 @@ function GroupsListPage() {
       <AlertDialog open={!!deleteTarget} onOpenChange={open => !open && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Group</AlertDialogTitle>
+            <AlertDialogTitle>{t('list.deleteDialog.title')}</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete &ldquo;{deleteTarget?.name}&rdquo;? All items in this
-              group will be removed. This action cannot be undone.
+              {t('list.deleteDialog.description', { name: deleteTarget?.name ?? '' })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t('common:cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
               disabled={deleting}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {deleting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              Delete
+              {t('list.delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

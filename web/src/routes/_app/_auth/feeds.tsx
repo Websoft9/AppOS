@@ -1,5 +1,6 @@
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 import {
   Bookmark,
   ChevronLeft,
@@ -295,29 +296,29 @@ function getFeedItemDetail(item: Pick<FeedItemRecord, 'content_raw' | 'summary'>
   }
 }
 
-function formatRelativeTime(value?: string): string {
-  if (!value) return 'Unknown time'
+function formatRelativeTime(value: string | undefined, t: (key: string, values?: Record<string, unknown>) => string): string {
+  if (!value) return t('time.unknown')
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
 
   const diffMs = Date.now() - date.getTime()
-  if (diffMs < 0) return 'Just now'
+  if (diffMs < 0) return t('time.justNow')
 
   const diffMinutes = Math.floor(diffMs / (60 * 1000))
-  if (diffMinutes < 1) return 'Just now'
-  if (diffMinutes < 60) return `${diffMinutes} minute${diffMinutes === 1 ? '' : 's'} ago`
+  if (diffMinutes < 1) return t('time.justNow')
+  if (diffMinutes < 60) return t('time.minutesAgo', { count: diffMinutes })
 
   const diffHours = Math.floor(diffMinutes / 60)
-  if (diffHours < 24) return `${diffHours} hour${diffHours === 1 ? '' : 's'} ago`
+  if (diffHours < 24) return t('time.hoursAgo', { count: diffHours })
 
   const diffDays = Math.floor(diffHours / 24)
-  if (diffDays < 30) return `${diffDays} day${diffDays === 1 ? '' : 's'} ago`
+  if (diffDays < 30) return t('time.daysAgo', { count: diffDays })
 
   const diffMonths = Math.floor(diffDays / 30)
-  if (diffMonths < 12) return `${diffMonths} month${diffMonths === 1 ? '' : 's'} ago`
+  if (diffMonths < 12) return t('time.monthsAgo', { count: diffMonths })
 
   const diffYears = Math.floor(diffMonths / 12)
-  return `${diffYears} year${diffYears === 1 ? '' : 's'} ago`
+  return t('time.yearsAgo', { count: diffYears })
 }
 
 function getSiteOrigin(feedUrl: string): string {
@@ -401,22 +402,32 @@ function legacyCopyText(value: string): boolean {
   }
 }
 
-function getSourcePullStatus(source: FeedSourceRecord): string {
+function getSourcePullStatus(
+  source: FeedSourceRecord,
+  t: (key: string, values?: Record<string, unknown>) => string
+): string {
   if (source.last_error?.trim()) {
     const attemptedAt = source.last_fetched_at || source.updated
-    const attemptedLabel = attemptedAt ? formatRelativeTime(attemptedAt) : 'recently'
-    return `Last pull failed ${attemptedLabel}: ${source.last_error.trim()}`
+    const attemptedLabel = attemptedAt ? formatRelativeTime(attemptedAt, t) : t('time.recently')
+    return t('status.pullFailed', { time: attemptedLabel, error: source.last_error.trim() })
   }
 
   if (source.last_success_at) {
-    return `Last pull succeeded ${formatRelativeTime(source.last_success_at)}`
+    return t('status.pullSucceeded', { time: formatRelativeTime(source.last_success_at, t) })
   }
 
   if (source.last_fetched_at) {
-    return `Last pull attempted ${formatRelativeTime(source.last_fetched_at)}`
+    return t('status.pullAttempted', { time: formatRelativeTime(source.last_fetched_at, t) })
   }
 
-  return 'Not pulled yet'
+  return t('status.notPulled')
+}
+
+function getSourceStatusLabel(
+  status: FeedSourceRecord['status'],
+  t: (key: string, values?: Record<string, unknown>) => string
+): string {
+  return t(`sourceStatus.${status}`)
 }
 
 function SourceFavicon({
@@ -429,6 +440,7 @@ function SourceFavicon({
   faviconUrl?: string
   fallbackLabel?: string
 }) {
+  const { t } = useTranslation('feeds')
   const { user } = useAuth()
   const authToken = user ? pb.authStore.token : ''
   const resolvedFaviconUrl = faviconUrl?.trim() || ''
@@ -456,7 +468,7 @@ function SourceFavicon({
           ref={imgRef}
           key={faviconSrc}
           src={faviconSrc}
-          alt={`${name} favicon`}
+          alt={t('page.faviconAlt', { name })}
           loading="lazy"
           decoding="async"
           className={`absolute inset-0 h-full w-full rounded-md bg-background object-cover transition-opacity duration-200 ${visible ? 'opacity-100' : 'opacity-0'}`}
@@ -525,10 +537,11 @@ function WebsiteMetaCard({
   url: string
   faviconUrl?: string
 }) {
+  const { t } = useTranslation('feeds')
   return (
     <div className="rounded-xl bg-muted/35 px-4 py-3">
       <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-        Website
+        {t('dialogs.website')}
       </div>
       <div className="mt-2 flex items-start gap-3">
         <div className="pt-0.5">
@@ -536,9 +549,9 @@ function WebsiteMetaCard({
         </div>
         <div className="min-w-0">
           <div className="truncate text-sm font-medium text-foreground/90">
-            {title || 'Unknown site'}
+            {title || t('dialogs.unknownSite')}
           </div>
-          <div className="truncate text-xs text-muted-foreground">{url || 'Not available'}</div>
+          <div className="truncate text-xs text-muted-foreground">{url || t('dialogs.notAvailable')}</div>
         </div>
       </div>
     </div>
@@ -554,6 +567,7 @@ function FaviconMetaCard({
   url: string
   faviconUrl?: string
 }) {
+  const { t } = useTranslation('feeds')
   const trimmedFaviconUrl = faviconUrl?.trim() || ''
   if (!trimmedFaviconUrl) return null
 
@@ -565,7 +579,7 @@ function FaviconMetaCard({
         faviconUrl={trimmedFaviconUrl}
       />
       <div className="min-w-0">
-        <div className="text-sm font-medium text-foreground">Detected favicon</div>
+        <div className="text-sm font-medium text-foreground">{t('dialogs.detectedFavicon')}</div>
         <div className="truncate text-xs text-muted-foreground" title={trimmedFaviconUrl}>
           {trimmedFaviconUrl}
         </div>
@@ -599,16 +613,19 @@ function SourceInlineLabel({
   )
 }
 
-function getFeedSourceSaveErrorMessage(error: unknown): string {
+function getFeedSourceSaveErrorMessage(
+  error: unknown,
+  t: (key: string, values?: Record<string, unknown>) => string
+): string {
   const maybe = error as { response?: { data?: { code?: string; message?: string } } }
   if (maybe?.response?.data?.code === 'feed_source_exists') {
-    return 'This RSS or Atom URL has already been added.'
+    return t('errors.saveSourceDuplicate')
   }
   if (maybe?.response?.data?.code === 'feed_source_identity_locked') {
-    return 'Feed URL and format cannot be changed. Create a new source instead.'
+    return t('errors.saveSourceLocked')
   }
 
-  const message = getApiErrorMessage(error, 'Failed to save feed source')
+  const message = getApiErrorMessage(error, t('errors.saveSource'))
   const normalized = message.toLowerCase()
 
   if (
@@ -617,49 +634,55 @@ function getFeedSourceSaveErrorMessage(error: unknown): string {
     (normalized.includes('unique') && normalized.includes('url')) ||
     normalized.includes('already exists')
   ) {
-    return 'This RSS or Atom URL has already been added.'
+    return t('errors.saveSourceDuplicate')
   }
 
   return message
 }
 
-function getBookmarkSaveErrorMessage(error: unknown): string {
+function getBookmarkSaveErrorMessage(
+  error: unknown,
+  t: (key: string, values?: Record<string, unknown>) => string
+): string {
   const maybe = error as { response?: { data?: BookmarkConflictError } }
   if (maybe?.response?.data?.code === 'bookmark_exists') {
-    return 'This bookmark already exists.'
+    return t('errors.saveBookmarkDuplicate')
   }
 
-  const message = getApiErrorMessage(error, 'Unable to save bookmark. Check the URL and try again.')
+  const message = getApiErrorMessage(error, t('errors.saveBookmark'))
   if (message.toLowerCase().includes('failed to create bookmark')) {
-    return 'Unable to save bookmark. Check the URL and try again.'
+    return t('errors.saveBookmark')
   }
 
   return message
 }
 
-function getBookmarkAnalyzeErrorMessage(error: unknown): string {
-  const message = getApiErrorMessage(error, 'Unable to fetch bookmark details.')
+function getBookmarkAnalyzeErrorMessage(
+  error: unknown,
+  t: (key: string, values?: Record<string, unknown>) => string
+): string {
+  const message = getApiErrorMessage(error, t('errors.bookmarkAnalyze'))
   const normalized = message.toLowerCase()
   const httpStatusMatch = normalized.match(/http\s+(\d{3})/)
 
   if (normalized.includes('bookmark url is required')) {
-    return 'Enter a bookmark URL first.'
+    return t('errors.bookmarkRequired')
   }
 
   if (normalized.includes('only http and https urls are supported')) {
-    return 'Enter a valid http:// or https:// URL.'
+    return t('errors.bookmarkInvalid')
   }
 
   if (normalized.includes('private/loopback')) {
-    return 'Private or local URLs cannot be analyzed.'
+    return t('errors.bookmarkPrivate')
   }
 
   if (normalized.includes('too many redirects')) {
-    return 'This website redirected too many times. Try the final page URL instead.'
+    return t('errors.bookmarkRedirects')
   }
 
   if (httpStatusMatch) {
-    return `This website could not be fetched right now (HTTP ${httpStatusMatch[1]}).`
+    return t('errors.bookmarkHttp', { status: httpStatusMatch[1] })
   }
 
   if (
@@ -670,21 +693,22 @@ function getBookmarkAnalyzeErrorMessage(error: unknown): string {
     normalized.includes('temporary failure in name resolution') ||
     normalized.includes('connection refused')
   ) {
-    return 'Unable to reach this website right now. Try again in a moment.'
+    return t('errors.bookmarkUnreachable')
   }
 
   if (normalized.includes('exceeded') && normalized.includes('byte limit')) {
-    return 'This page is too large to analyze automatically.'
+    return t('errors.bookmarkTooLarge')
   }
 
   if (normalized.includes('failed to analyze bookmark url')) {
-    return 'Unable to fetch bookmark details from this URL.'
+    return t('errors.bookmarkAnalyze')
   }
 
   return message
 }
 
 function FeedsPage() {
+  const { t } = useTranslation('feeds')
   const { user } = useAuth()
   const isSuperuser = user?.collectionName === '_superusers'
 
@@ -821,14 +845,14 @@ function FeedsPage() {
       )
       setError('')
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Failed to load feed sources'))
+      setError(getApiErrorMessage(err, t('errors.loadSources')))
       throw err
     } finally {
       if (!options?.background) {
         setSourcesLoading(false)
       }
     }
-  }, [])
+  }, [t])
 
   const fetchFeedSummary = useCallback(async () => {
     try {
@@ -892,14 +916,14 @@ function FeedsPage() {
         setFeedTotalItems(response.totalItems ?? 0)
         setError('')
       } catch (err) {
-        setError(getApiErrorMessage(err, 'Failed to load feed items'))
+        setError(getApiErrorMessage(err, t('errors.loadItems')))
       } finally {
         if (append) {
           setFeedLoadingMore(false)
         }
       }
     },
-    []
+    [t]
   )
 
   const loadNextFeedPage = useCallback(() => {
@@ -954,11 +978,11 @@ function FeedsPage() {
       }
       setError('')
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Failed to load bookmarks'))
+      setError(getApiErrorMessage(err, t('errors.loadBookmarks')))
     } finally {
       setBookmarkLoading(false)
     }
-  }, [])
+  }, [t])
 
   useEffect(() => {
     let cancelled = false
@@ -1048,9 +1072,9 @@ function FeedsPage() {
 
   const selectedSourcePullStatus = useMemo(() => {
     if (!selectedSource) return ''
-    if (sourcePollingId === selectedSource.id) return 'Pulling source now...'
-    return getSourcePullStatus(selectedSource)
-  }, [selectedSource, sourcePollingId])
+    if (sourcePollingId === selectedSource.id) return t('status.pullingNow')
+    return getSourcePullStatus(selectedSource, t)
+  }, [selectedSource, sourcePollingId, t])
 
   const clearSourceMaxCount = clearSourceTarget ? (sourceItemCounts[clearSourceTarget.id] ?? 0) : 0
 
@@ -1065,12 +1089,12 @@ function FeedsPage() {
 
   const activeSourceName =
     itemSourceFilter === 'all'
-      ? 'All'
+      ? t('page.all')
       : itemSourceFilter === 'bookmark'
-        ? 'Bookmark'
+        ? t('page.bookmark')
         : itemSourceFilter === 'starred'
-          ? 'Starred'
-          : sourceNameByID.get(itemSourceFilter) || 'Unknown source'
+          ? t('page.starred')
+          : sourceNameByID.get(itemSourceFilter) || t('page.unknownSource')
 
   function openBookmarkCreate() {
     setBookmarkEditTarget(null)
@@ -1101,7 +1125,7 @@ function FeedsPage() {
   async function handleAnalyzeBookmark() {
     const url = normalizeURL(bookmarkURL)
     if (!url) {
-      setBookmarkError('Bookmark URL is required.')
+      setBookmarkError(t('errors.bookmarkRequired'))
       return
     }
 
@@ -1117,7 +1141,7 @@ function FeedsPage() {
       setBookmarkSummary(analysis.description?.trim() || '')
       setBookmarkFaviconURL(analysis.favicon_url?.trim() || '')
     } catch (err) {
-      setBookmarkError(getBookmarkAnalyzeErrorMessage(err))
+      setBookmarkError(getBookmarkAnalyzeErrorMessage(err, t))
     } finally {
       setBookmarkAnalyzing(false)
     }
@@ -1128,7 +1152,7 @@ function FeedsPage() {
 
     const url = normalizeURL(bookmarkURL)
     if (!url) {
-      setBookmarkError('Bookmark URL is required.')
+      setBookmarkError(t('errors.bookmarkRequired'))
       return
     }
 
@@ -1160,7 +1184,7 @@ function FeedsPage() {
         await fetchBookmarks(1, bookmarkSearchQuery)
       }
     } catch (err) {
-      setBookmarkError(getBookmarkSaveErrorMessage(err))
+      setBookmarkError(getBookmarkSaveErrorMessage(err, t))
     } finally {
       setBookmarkSaving(false)
     }
@@ -1215,7 +1239,7 @@ function FeedsPage() {
     const url = normalizeURL(analyzeURL)
 
     if (!url) {
-      setFormError('Feed URL is required.')
+      setFormError(t('errors.sourceUrlRequired'))
       return
     }
 
@@ -1250,7 +1274,7 @@ function FeedsPage() {
       setCreateStep('details')
     } catch (err) {
       setAnalysisState('idle')
-      setFormError(getApiErrorMessage(err, 'Failed to analyze feed URL'))
+      setFormError(getApiErrorMessage(err, t('errors.analyzeSource')))
     } finally {
       setAnalyzing(false)
     }
@@ -1263,7 +1287,7 @@ function FeedsPage() {
     const url = formURL.trim()
 
     if (!name || !url) {
-      setFormError('Name and feed URL are required.')
+      setFormError(t('errors.sourceNameAndUrlRequired'))
       return
     }
 
@@ -1299,9 +1323,7 @@ function FeedsPage() {
               method: 'POST',
             })
           } catch (pollErr) {
-            setError(
-              getApiErrorMessage(pollErr, `Source saved, but initial pull failed for ${name}`)
-            )
+            setError(getApiErrorMessage(pollErr, t('errors.sourceInitialPullFailed', { name })))
           }
 
           setItemSourceFilter(createdSource.id)
@@ -1313,7 +1335,7 @@ function FeedsPage() {
       await fetchSources()
       void fetchFeedSummary()
     } catch (err) {
-      setFormError(getFeedSourceSaveErrorMessage(err))
+      setFormError(getFeedSourceSaveErrorMessage(err, t))
     } finally {
       setSaving(false)
     }
@@ -1333,7 +1355,7 @@ function FeedsPage() {
         setItemSourceFilter('all')
         setExpandedItemId(null)
       }
-      setNotice(`Deleted source ${deleteSourceTarget.name}.`)
+      setNotice(t('page.deleteSourceSuccess', { name: deleteSourceTarget.name }))
       await Promise.all([
         fetchSources(),
         fetchFeedItems({
@@ -1344,7 +1366,7 @@ function FeedsPage() {
       ])
       void fetchFeedSummary()
     } catch (err) {
-      setFormError(getApiErrorMessage(err, 'Failed to delete feed source'))
+      setFormError(getApiErrorMessage(err, t('errors.deleteSource')))
     } finally {
       setDeletingSource(false)
     }
@@ -1369,7 +1391,7 @@ function FeedsPage() {
         }
       }
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Failed to reload feeds'))
+      setError(getApiErrorMessage(err, t('errors.reloadFeeds')))
     } finally {
       setRefreshing(false)
     }
@@ -1388,7 +1410,7 @@ function FeedsPage() {
       ])
       void fetchFeedSummary()
     } catch (err) {
-      setError(getApiErrorMessage(err, `Failed to pull ${source.name}`))
+      setError(getApiErrorMessage(err, t('errors.pullSource', { name: source.name })))
     } finally {
       setSourcePollingId('')
     }
@@ -1399,7 +1421,7 @@ function FeedsPage() {
 
     const requestedCount = clampDeleteCount(clearSourceCount, clearSourceMaxCount)
     if (requestedCount <= 0) {
-      setError(`No articles available for ${clearSourceTarget.name}.`)
+      setError(t('page.noArticlesAvailable', { name: clearSourceTarget.name }))
       return
     }
 
@@ -1421,11 +1443,14 @@ function FeedsPage() {
       setClearSourceCount(0)
       setNotice(
         result.deleted_count > 0
-          ? `Deleted ${result.deleted_count} oldest article${result.deleted_count === 1 ? '' : 's'} from ${clearSourceTarget.name}.`
-          : `No articles deleted from ${clearSourceTarget.name}.`
+          ? t('page.deleteArticlesSuccess', {
+              count: result.deleted_count,
+              name: clearSourceTarget.name,
+            })
+          : t('page.deleteArticlesNone', { name: clearSourceTarget.name })
       )
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Failed to delete source articles'))
+      setError(getApiErrorMessage(err, t('errors.deleteSourceArticles')))
     } finally {
       setClearingSource(false)
     }
@@ -1508,7 +1533,7 @@ function FeedsPage() {
         method: 'DELETE',
       })
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Failed to remove bookmark'))
+      setError(getApiErrorMessage(err, t('errors.removeBookmark')))
       setItemUpdatingId(current => (current === item.id ? '' : current))
       return
     }
@@ -1521,7 +1546,7 @@ function FeedsPage() {
       summary: item.summary?.trim() || '',
       favicon_url: item.favicon_url,
     })
-    setNotice(`Removed ${item.title} from bookmarks.`)
+    setNotice(t('page.removeBookmarkSuccess', { title: item.title }))
     await fetchBookmarks(bookmarkPage, bookmarkSearchQuery)
   }
 
@@ -1539,11 +1564,11 @@ function FeedsPage() {
           favicon_url: pendingBookmarkUndo.favicon_url || '',
         },
       })
-      setNotice(`Restored ${pendingBookmarkUndo.title}.`)
+      setNotice(t('page.restoreBookmarkSuccess', { title: pendingBookmarkUndo.title }))
       setPendingBookmarkUndo(null)
       await fetchBookmarks(bookmarkPage, bookmarkSearchQuery)
     } catch (err) {
-      setError(getBookmarkSaveErrorMessage(err))
+      setError(getBookmarkSaveErrorMessage(err, t))
     } finally {
       setBookmarkSaving(false)
     }
@@ -1553,7 +1578,7 @@ function FeedsPage() {
     const shouldExpand = expandedItemId !== item.id
     setExpandedItemId(current => (current === item.id ? null : item.id))
     if (shouldExpand && item.read_state === 'unread') {
-      void patchItemPreferences(item.id, { read_state: 'read' }, 'Failed to mark feed item as read')
+      void patchItemPreferences(item.id, { read_state: 'read' }, t('errors.markRead'))
     }
   }
 
@@ -1618,9 +1643,9 @@ function FeedsPage() {
         return
       }
 
-      setError('Failed to copy bookmark URL')
+      setError(t('errors.copyBookmark'))
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Failed to copy bookmark URL'))
+      setError(getApiErrorMessage(err, t('errors.copyBookmark')))
     }
   }
 
@@ -1665,10 +1690,10 @@ function FeedsPage() {
       setExpandedItemId(null)
       setItemSourceFilter('bookmark')
       setBookmarkPage(1)
-      setNotice(`Moved ${bookmark.title || item.title} to bookmarks.`)
+      setNotice(t('page.moveToBookmarksSuccess', { title: bookmark.title || item.title }))
       await fetchBookmarks(1, bookmarkSearchQuery)
     } catch (err) {
-      setError(getBookmarkSaveErrorMessage(err))
+      setError(getBookmarkSaveErrorMessage(err, t))
     } finally {
       setItemUpdatingId(current => (current === item.id ? '' : current))
     }
@@ -1726,9 +1751,9 @@ function FeedsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Feeds</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{t('page.title')}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Your feed — RSS subscriptions, web content and bookmarks in one place.
+            {t('page.description')}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -1737,8 +1762,8 @@ function FeedsPage() {
             variant={itemSourceFilter === 'bookmark' ? 'default' : 'outline'}
             size="icon"
             onClick={() => void handleSelectSource('bookmark')}
-            title="Bookmarks"
-            aria-label="Open bookmarks"
+            title={t('page.bookmark')}
+            aria-label={t('page.openBookmarks')}
           >
             <Bookmark className="h-4 w-4" />
           </Button>
@@ -1748,8 +1773,8 @@ function FeedsPage() {
             size="icon"
             onClick={() => void handleRefresh()}
             disabled={refreshing}
-            title="Reload"
-            aria-label="Refresh"
+            title={t('common:refresh')}
+            aria-label={t('common:refresh')}
           >
             {refreshing ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -1759,7 +1784,7 @@ function FeedsPage() {
           </Button>
           {isSuperuser ? (
             <Button type="button" onClick={openCreate}>
-              Add Source
+              {t('page.addSource')}
             </Button>
           ) : null}
         </div>
@@ -1773,7 +1798,7 @@ function FeedsPage() {
               type="button"
               variant="ghost"
               size="icon"
-              aria-label="Dismiss error"
+              aria-label={t('page.dismissError')}
               onClick={dismissError}
             >
               <X className="h-4 w-4" />
@@ -1794,14 +1819,14 @@ function FeedsPage() {
                   size="sm"
                   onClick={() => void handleBookmarkUndo()}
                 >
-                  Undo
+                   {t('page.undo')}
                 </Button>
               ) : null}
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
-                aria-label="Dismiss notification"
+                 aria-label={t('page.dismissNotification')}
                 onClick={dismissNotice}
               >
                 <X className="h-4 w-4" />
@@ -1814,7 +1839,7 @@ function FeedsPage() {
       <div className="grid gap-6 xl:grid-cols-[340px_minmax(0,1fr)]">
         <section className="rounded-lg border bg-card text-card-foreground shadow-sm xl:sticky xl:top-6 xl:self-start">
           <div className="border-b p-4">
-            <h2 className="text-lg font-semibold tracking-tight">Sources</h2>
+            <h2 className="text-lg font-semibold tracking-tight">{t('page.sources')}</h2>
           </div>
 
           <div className="max-h-[calc(100vh-12rem)] overflow-y-auto p-2">
@@ -1828,7 +1853,7 @@ function FeedsPage() {
                   <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-muted text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground ring-1 ring-border/70">
                     A
                   </div>
-                  <span className="truncate">All</span>
+                  <span className="truncate">{t('page.all')}</span>
                 </span>
                 <span className="rounded-full border border-border/70 bg-background px-2.5 py-0.5 text-xs font-medium text-foreground/80">
                   {Object.values(sourceItemCounts).reduce((sum, count) => sum + count, 0)}
@@ -1842,7 +1867,7 @@ function FeedsPage() {
               >
                 <span className="flex min-w-0 items-center gap-2">
                   <Bookmark className="h-4 w-4 text-sky-600" />
-                  <span className="truncate">Bookmark</span>
+                  <span className="truncate">{t('page.bookmark')}</span>
                 </span>
                 <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-0.5 text-xs font-medium text-sky-700">
                   {bookmarkLoading ? (
@@ -1862,7 +1887,7 @@ function FeedsPage() {
               >
                 <span className="flex min-w-0 items-center gap-2">
                   <Star className="h-4 w-4 text-amber-500" />
-                  <span className="truncate">Starred</span>
+                  <span className="truncate">{t('page.starred')}</span>
                 </span>
                 <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700">
                   {starredCount}
@@ -1872,10 +1897,10 @@ function FeedsPage() {
               {sourcesLoading ? (
                 <div className="flex h-24 items-center justify-center gap-2 text-sm text-muted-foreground">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Loading feed sources...
+                  {t('page.loadingSources')}
                 </div>
               ) : sources.length === 0 ? (
-                <div className="px-3 py-6 text-sm text-muted-foreground">No feed sources yet.</div>
+                 <div className="px-3 py-6 text-sm text-muted-foreground">{t('page.emptySources')}</div>
               ) : (
                 sortedSources.map(source => (
                   <button
@@ -1925,8 +1950,8 @@ function FeedsPage() {
                         type="button"
                         variant="ghost"
                         size="icon"
-                        aria-label="Pull selected source now"
-                        title="Pull selected source now"
+                        aria-label={t('actions.pullSelected')}
+                        title={t('actions.pullSelected')}
                         disabled={sourcePollingId === selectedSource.id}
                         onClick={() => void handleSourcePoll(selectedSource)}
                       >
@@ -1940,8 +1965,8 @@ function FeedsPage() {
                         type="button"
                         variant="ghost"
                         size="icon"
-                        aria-label="Edit selected source"
-                        title="Edit selected source"
+                         aria-label={t('actions.editSelected')}
+                         title={t('actions.editSelected')}
                         onClick={() => openEdit(selectedSource)}
                       >
                         <Pencil className="h-4 w-4" />
@@ -1950,8 +1975,8 @@ function FeedsPage() {
                         type="button"
                         variant="ghost"
                         size="icon"
-                        aria-label="Delete selected source articles"
-                        title="Delete selected source articles"
+                         aria-label={t('actions.deleteSelectedArticles')}
+                         title={t('actions.deleteSelectedArticles')}
                         onClick={() => openSourceDeleteDialog(selectedSource)}
                       >
                         <Eraser className="h-4 w-4" />
@@ -1969,7 +1994,7 @@ function FeedsPage() {
                 ) : null}
                 {itemSourceFilter === 'bookmark' ? (
                   <div className="mt-1 text-xs text-muted-foreground">
-                    Centralize AppOS-related resources and personal favorite links here.
+                    {t('page.bookmarkDescription')}
                   </div>
                 ) : null}
               </div>
@@ -1980,15 +2005,15 @@ function FeedsPage() {
                   <Input
                     value={searchQuery}
                     onChange={event => setSearchQuery(event.target.value)}
-                    placeholder="Search articles"
-                    aria-label="Search articles"
+                    placeholder={t('page.searchArticles')}
+                    aria-label={t('page.searchArticles')}
                     className="w-64"
                   />
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon"
-                    aria-label="Close search"
+                    aria-label={t('page.closeSearch')}
                     onClick={toggleSearch}
                   >
                     <X className="h-4 w-4" />
@@ -1999,7 +2024,7 @@ function FeedsPage() {
                   type="button"
                   variant="outline"
                   size="icon"
-                  aria-label="Open article search"
+                   aria-label={t('page.openArticleSearch')}
                   onClick={toggleSearch}
                 >
                   <Search className="h-4 w-4" />
@@ -2012,7 +2037,7 @@ function FeedsPage() {
             {loading ? (
               <div className="flex h-36 items-center justify-center gap-2 rounded-lg border bg-card text-sm text-muted-foreground shadow-sm">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Loading feed items...
+                {t('page.loadingItems')}
               </div>
             ) : itemSourceFilter === 'bookmark' ? (
               <>
@@ -2023,8 +2048,8 @@ function FeedsPage() {
                         type="button"
                         variant="outline"
                         size="icon"
-                        aria-label="Add Bookmark"
-                        title="Add Bookmark"
+                        aria-label={t('dialogs.addBookmark')}
+                        title={t('dialogs.addBookmark')}
                         onClick={openBookmarkCreate}
                       >
                         <Plus className="h-4 w-4" />
@@ -2032,21 +2057,21 @@ function FeedsPage() {
                       <Input
                         value={bookmarkSearchQuery}
                         onChange={event => setBookmarkSearchQuery(event.target.value)}
-                        placeholder="Search bookmarks"
-                        aria-label="Search bookmarks"
+                        placeholder={t('page.searchBookmarks')}
+                        aria-label={t('page.searchBookmarks')}
                         className="w-72"
                       />
                     </div>
                     <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                      <span>Total: {bookmarkTotalBookmarks}</span>
-                      <span>Showing: {bookmarkRangeLabel}</span>
+                      <span>{t('page.total', { count: bookmarkTotalBookmarks })}</span>
+                      <span>{t('page.showing', { range: bookmarkRangeLabel })}</span>
                       <div className="flex items-center gap-0.5 text-xs">
                         <Button
                           type="button"
                           variant="ghost"
                           size="sm"
                           className="h-7 min-w-0 px-0.5"
-                          aria-label="Previous bookmark page"
+                          aria-label={t('actions.previousBookmarkPage')}
                           disabled={bookmarkPage <= 1}
                           onClick={() => setBookmarkPage(current => Math.max(1, current - 1))}
                         >
@@ -2060,7 +2085,7 @@ function FeedsPage() {
                           variant="ghost"
                           size="sm"
                           className="h-7 min-w-0 px-0.5"
-                          aria-label="Next bookmark page"
+                          aria-label={t('actions.nextBookmarkPage')}
                           disabled={bookmarkPage >= bookmarkPageCount}
                           onClick={() =>
                             setBookmarkPage(current => Math.min(bookmarkPageCount, current + 1))
@@ -2073,12 +2098,12 @@ function FeedsPage() {
                   </div>
 
                   <div className="grid grid-cols-[minmax(0,2.8fr)_minmax(0,1.1fr)_7rem] gap-3 border-b bg-background px-4 py-2 text-left text-xs font-medium text-muted-foreground">
-                    <span>Title</span>
-                    <span className="text-left">Domain</span>
-                    <span className="text-left">Actions</span>
-                  </div>
+                     <span>{t('dialogs.title')}</span>
+                     <span className="text-left">{t('table.domain', { ns: 'certificates' })}</span>
+                     <span className="text-left">{t('page.actions')}</span>
+                   </div>
 
-                  <div role="list" aria-label="Bookmarks list" className="divide-y">
+                  <div role="list" aria-label={t('page.bookmarksList')} className="divide-y">
                     {bookmarkItems.map(item => {
                       const isUpdating = itemUpdatingId === item.id
                       const copied = copiedBookmarkId === item.id
@@ -2089,7 +2114,7 @@ function FeedsPage() {
                         <div
                           key={item.id}
                           role="listitem"
-                          aria-label={`Bookmark ${displayTitle}`}
+                           aria-label={`${t('page.bookmark')} ${displayTitle}`}
                           className="grid grid-cols-[minmax(0,2.8fr)_minmax(0,1.1fr)_7rem] items-center gap-3 bg-card px-4 py-3 text-left"
                         >
                           <div className="flex min-w-0 items-center gap-3">
@@ -2120,8 +2145,8 @@ function FeedsPage() {
                               variant="ghost"
                               size="icon"
                               className="h-7 w-7 shrink-0"
-                              aria-label={`Copy bookmark URL ${displayTitle}`}
-                              title={`Copy bookmark URL ${displayTitle}`}
+                               aria-label={t('actions.copyBookmarkUrl', { title: displayTitle })}
+                               title={t('actions.copyBookmarkUrl', { title: displayTitle })}
                               onClick={() => void handleCopyBookmarkURL(item)}
                             >
                               {copied ? (
@@ -2131,7 +2156,7 @@ function FeedsPage() {
                               )}
                             </Button>
                             {copied ? (
-                              <span className="shrink-0 text-[11px] text-emerald-600">Copied</span>
+                               <span className="shrink-0 text-[11px] text-emerald-600">{t('page.copied')}</span>
                             ) : null}
                           </div>
                           <div className="flex w-28 shrink-0 items-center justify-start gap-1 text-left">
@@ -2139,8 +2164,8 @@ function FeedsPage() {
                               type="button"
                               variant="ghost"
                               size="icon"
-                              aria-label={`Edit bookmark ${displayTitle}`}
-                              title={`Edit bookmark ${displayTitle}`}
+                               aria-label={t('actions.editBookmark', { title: displayTitle })}
+                               title={t('actions.editBookmark', { title: displayTitle })}
                               disabled={isUpdating}
                               onClick={() => openBookmarkEdit(item)}
                             >
@@ -2150,8 +2175,8 @@ function FeedsPage() {
                               type="button"
                               variant="ghost"
                               size="icon"
-                              aria-label={`Remove bookmark ${displayTitle}`}
-                              title={`Remove bookmark ${displayTitle}`}
+                               aria-label={t('actions.removeBookmark', { title: displayTitle })}
+                               title={t('actions.removeBookmark', { title: displayTitle })}
                               disabled={isUpdating}
                               onClick={() => void handleBookmarkRemove(item)}
                             >
@@ -2169,22 +2194,22 @@ function FeedsPage() {
                 </div>
                 {bookmarkLoading && bookmarkItems.length === 0 ? (
                   <div className="rounded-lg border bg-card px-4 py-12 text-center text-sm text-muted-foreground shadow-sm">
-                    Loading bookmarks...
+                     {t('page.loadingBookmarks')}
                   </div>
                 ) : null}
                 {!bookmarkLoading && bookmarkTotalItems === 0 ? (
                   <div className="rounded-lg border bg-card px-4 py-12 text-center text-sm text-muted-foreground shadow-sm">
                     {bookmarkTotalBookmarks === 0
-                      ? 'No bookmarks saved yet.'
-                      : 'No bookmarks match this search.'}
+                       ? t('page.emptyBookmarks')
+                       : t('page.emptyBookmarkSearch')}
                   </div>
                 ) : null}
               </>
             ) : items.length === 0 ? (
               <div className="rounded-lg border bg-card px-4 py-12 text-center text-sm text-muted-foreground shadow-sm">
                 {feedTotalItems === 0 && itemSourceFilter === 'all' && !searchQuery.trim()
-                  ? 'No feed items ingested yet.'
-                  : 'No feed items for this source.'}
+                   ? t('page.emptyAll')
+                   : t('page.emptySource')}
               </div>
             ) : (
               visibleItems.map(item => {
@@ -2194,7 +2219,7 @@ function FeedsPage() {
                     ? getHostLabel(item.link)
                     : item.expand?.source_id?.name ||
                       (item.source_id ? sourceNameByID.get(item.source_id) : '') ||
-                      'Unknown source'
+                      t('page.unknownSource')
                 const source =
                   item.origin_type === 'bookmark'
                     ? undefined
@@ -2228,7 +2253,7 @@ function FeedsPage() {
                           </span>
                         </div>
                         <div className="mt-1 flex items-center gap-2 text-[11px] text-muted-foreground">
-                          <span>{formatRelativeTime(item.published_at)}</span>
+                           <span>{formatRelativeTime(item.published_at, t)}</span>
                           <span>&middot;</span>
                           <SourceInlineLabel
                             name={sourceName}
@@ -2250,8 +2275,8 @@ function FeedsPage() {
                         target="_blank"
                         rel="noreferrer"
                         className="mt-0.5 inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
-                        aria-label={`Open ${displayTitle}`}
-                        title={`Open ${displayTitle}`}
+                         aria-label={t('page.openItem', { title: displayTitle })}
+                         title={t('page.openItem', { title: displayTitle })}
                       >
                         <ExternalLink className="h-4 w-4" />
                       </a>
@@ -2267,22 +2292,21 @@ function FeedsPage() {
                             />
                           ) : (
                             <div className="whitespace-pre-wrap break-words text-sm leading-7 text-foreground/90">
-                              {detail.text || 'No summary extracted for this article.'}
+                              {detail.text || t('page.articleSummaryFallback')}
                             </div>
                           )}
                         </div>
 
                         <div className="space-y-2 text-xs leading-5 text-muted-foreground">
                           <div>
-                            Type: {item.origin_type === 'bookmark' ? 'Bookmark' : 'Feed item'}
+                            {t('page.typeLabel', { type: item.origin_type === 'bookmark' ? t('page.bookmark') : t('page.feedItem') })}
                           </div>
                           <div>
-                            Published:{' '}
-                            {item.published_at
-                              ? new Date(item.published_at).toLocaleString()
-                              : 'Unknown'}
+                            {t('page.publishedLabel', {
+                              value: item.published_at ? new Date(item.published_at).toLocaleString() : t('page.unknown'),
+                            })}
                           </div>
-                          <div>Source: {sourceName}</div>
+                          <div>{t('page.sourceLabel', { value: sourceName })}</div>
                         </div>
 
                         <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -2290,12 +2314,13 @@ function FeedsPage() {
                             type="button"
                             variant="outline"
                             size="sm"
+                            aria-label={t('page.keepUnread')}
                             disabled={isUpdating}
                             onClick={() =>
                               void patchItemPreferences(
                                 item.id,
                                 { read_state: 'unread' },
-                                'Failed to keep feed item unread'
+                                t('errors.keepUnread')
                               )
                             }
                           >
@@ -2304,18 +2329,19 @@ function FeedsPage() {
                             ) : (
                               <Undo2 className="mr-2 h-4 w-4" />
                             )}
-                            Keep Unread
+                            {t('page.keepUnread')}
                           </Button>
                           <Button
                             type="button"
                             variant="outline"
                             size="sm"
+                            aria-label={isStarred ? t('page.starredAction') : t('page.star')}
                             disabled={isUpdating}
                             onClick={() =>
                               void patchItemPreferences(
                                 item.id,
                                 { is_starred: !isStarred },
-                                'Failed to update feed item star'
+                                t('errors.updateStar')
                               )
                             }
                           >
@@ -2324,21 +2350,23 @@ function FeedsPage() {
                             ) : (
                               <Star className={`mr-2 h-4 w-4 ${isStarred ? 'fill-current' : ''}`} />
                             )}
-                            {isStarred ? 'Starred' : 'Star'}
+                            {isStarred ? t('page.starredAction') : t('page.star')}
                           </Button>
                           <Button
                             type="button"
                             variant="outline"
                             size="sm"
+                            aria-label={t('page.share')}
                             onClick={() => void handleShare(item)}
                           >
                             <Share2 className="mr-2 h-4 w-4" />
-                            Share
+                            {t('page.share')}
                           </Button>
                           <Button
                             type="button"
                             variant="outline"
                             size="sm"
+                            aria-label={t('page.bookmarkAction')}
                             disabled={isUpdating}
                             onClick={() => void handleConvertItemToBookmark(item)}
                           >
@@ -2347,12 +2375,12 @@ function FeedsPage() {
                             ) : (
                               <Bookmark className="mr-2 h-4 w-4" />
                             )}
-                            Bookmark
+                            {t('page.bookmarkAction')}
                           </Button>
                           <Button type="button" variant="outline" size="sm" asChild>
                             <a href={item.link} target="_blank" rel="noreferrer">
                               <ExternalLink className="mr-2 h-4 w-4" />
-                              Open Link
+                              {t('page.openLink')}
                             </a>
                           </Button>
                         </div>
@@ -2368,16 +2396,16 @@ function FeedsPage() {
                   {feedLoadingMore ? (
                     <span className="inline-flex items-center gap-2">
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      Loading more... ({items.length}/{feedTotalItems})
+                       {t('page.loadingMore', { loaded: items.length, total: feedTotalItems })}
                     </span>
                   ) : (
                     <span>
-                      Loaded {items.length} of {feedTotalItems}. Scroll to load more
+                       {t('page.loadedProgress', { loaded: items.length, total: feedTotalItems })}
                     </span>
                   )}
                   {!feedLoadingMore ? (
                     <Button type="button" variant="outline" size="sm" onClick={loadNextFeedPage}>
-                      Load more
+                       {t('page.loadMore')}
                     </Button>
                   ) : null}
                   <div ref={feedLoadMoreSentinelRef} aria-hidden="true" className="h-px w-full" />
@@ -2392,13 +2420,13 @@ function FeedsPage() {
         <DialogContent className="sm:max-w-4xl">
           <form className="space-y-4" onSubmit={handleSubmit}>
             <DialogHeader>
-              <DialogTitle>{editingSource ? 'Edit Feed Source' : 'Add Feed Source'}</DialogTitle>
+              <DialogTitle>{editingSource ? t('dialogs.editFeedSource') : t('dialogs.addFeedSource')}</DialogTitle>
               <DialogDescription>
                 {editingSource
-                  ? 'Update one RSS or Atom source for the Feeds ingestion loop.'
+                  ? t('dialogs.editFeedSourceDescription')
                   : createStep === 'url'
-                    ? 'Step 1 of 2. Enter an RSS or Atom URL to analyze before subscribing.'
-                    : 'Step 2 of 2. Review the detected metadata and finish subscribing.'}
+                    ? t('dialogs.step1')
+                    : t('dialogs.step2')}
               </DialogDescription>
               {!editingSource ? (
                 <div className="mt-4 rounded-2xl bg-muted/35 px-5 py-4">
@@ -2406,8 +2434,8 @@ function FeedsPage() {
                     <div className="min-w-0 flex-1">
                       <StepBadge
                         index={1}
-                        title="Analyze Feed"
-                        description="Check the URL and fetch metadata"
+                         title={t('dialogs.analyzeFeed')}
+                         description={t('dialogs.analyzeFeedDescription')}
                         state={createStep === 'url' ? 'active' : 'complete'}
                       />
                     </div>
@@ -2417,8 +2445,8 @@ function FeedsPage() {
                     <div className="min-w-0 flex-1">
                       <StepBadge
                         index={2}
-                        title="Subscribe"
-                        description="Review details and save the source"
+                         title={t('dialogs.subscribe')}
+                         description={t('dialogs.subscribeDescription')}
                         state={createStep === 'details' ? 'active' : 'upcoming'}
                       />
                     </div>
@@ -2430,10 +2458,10 @@ function FeedsPage() {
             {!editingSource && createStep === 'url' ? (
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="feed-source-discovery-url">RSS or Atom URL</Label>
-                  <p className="text-xs text-muted-foreground">
-                    Paste the feed URL and we will auto-fill the next step.
-                  </p>
+                   <Label htmlFor="feed-source-discovery-url">{t('dialogs.rssUrl')}</Label>
+                   <p className="text-xs text-muted-foreground">
+                     {t('dialogs.rssUrlHelp')}
+                   </p>
                   <Input
                     id="feed-source-discovery-url"
                     value={analyzeURL}
@@ -2441,18 +2469,17 @@ function FeedsPage() {
                       setAnalyzeURL(event.target.value)
                       setAnalysisState('idle')
                     }}
-                    placeholder="https://example.com/feed.xml"
+                     placeholder={t('dialogs.feedUrlPlaceholder')}
                   />
                 </div>
                 {analysisState === 'loading' ? (
                   <div className="flex items-start gap-3 rounded-xl bg-primary/8 px-4 py-3 text-sm text-primary">
                     <Loader2 className="mt-0.5 h-4 w-4 animate-spin" />
                     <div>
-                      <div className="font-medium">Analyzing feed URL</div>
-                      <div className="text-primary/80">
-                        Fetching metadata, detecting feed format, and preparing the subscription
-                        details.
-                      </div>
+                       <div className="font-medium">{t('dialogs.analyzingTitle')}</div>
+                       <div className="text-primary/80">
+                         {t('dialogs.analyzingDescription')}
+                       </div>
                     </div>
                   </div>
                 ) : null}
@@ -2460,12 +2487,12 @@ function FeedsPage() {
             ) : (
               <>
                 <div className="space-y-2">
-                  <Label htmlFor="feed-source-name">Name</Label>
+                   <Label htmlFor="feed-source-name">{t('dialogs.name')}</Label>
                   <Input
                     id="feed-source-name"
                     value={formName}
                     onChange={event => setFormName(event.target.value)}
-                    placeholder="Vendor release feed"
+                    placeholder={t('dialogs.namePlaceholder')}
                   />
                 </div>
 
@@ -2473,10 +2500,10 @@ function FeedsPage() {
                   <div className="flex items-start gap-3 rounded-xl bg-primary/8 px-4 py-3 text-sm text-primary">
                     <Check className="mt-0.5 h-4 w-4" />
                     <div>
-                      <div className="font-medium">Analysis complete</div>
-                      <div className="text-primary/80">
-                        The source metadata has been detected and stored for this subscription.
-                      </div>
+                       <div className="font-medium">{t('dialogs.analysisCompleteTitle')}</div>
+                       <div className="text-primary/80">
+                         {t('dialogs.analysisCompleteDescription')}
+                       </div>
                     </div>
                   </div>
                 ) : null}
@@ -2484,9 +2511,9 @@ function FeedsPage() {
                 {editingSource ? (
                   <div className="space-y-4">
                     <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_220px]">
-                      <MetaField label="Feed URL" value={formURL || 'Not available'} />
+                       <MetaField label={t('dialogs.feedUrl')} value={formURL || t('dialogs.notAvailable')} />
                       <div className="space-y-2">
-                        <Label>Status</Label>
+                         <Label>{t('dialogs.status')}</Label>
                         <Select
                           value={formStatus}
                           onValueChange={value =>
@@ -2497,18 +2524,17 @@ function FeedsPage() {
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="active">Active</SelectItem>
-                            <SelectItem value="paused">Paused</SelectItem>
-                            <SelectItem value="archived">Archived</SelectItem>
+                             <SelectItem value="active">{getSourceStatusLabel('active', t)}</SelectItem>
+                             <SelectItem value="paused">{getSourceStatusLabel('paused', t)}</SelectItem>
+                             <SelectItem value="archived">{getSourceStatusLabel('archived', t)}</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
-                      <MetaField label="Format" value={formFormat.toUpperCase()} />
-                      <MetaField label="Website" value={analyzedSiteURL || 'Not available'} />
+                     <MetaField label={t('dialogs.format')} value={formFormat.toUpperCase()} />
+                     <MetaField label={t('dialogs.website')} value={analyzedSiteURL || t('dialogs.notAvailable')} />
                     </div>
                     <div className="rounded-md border border-border/70 bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
-                      Feed URL and format are immutable identity fields. Create a new source if the
-                      upstream feed changes.
+                       {t('dialogs.identityImmutable')}
                     </div>
                     <FaviconMetaCard
                       title={analyzedSiteTitle || formName}
@@ -2519,14 +2545,14 @@ function FeedsPage() {
                 ) : (
                   <div className="space-y-4">
                     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                      <MetaField label="Feed URL" value={formURL || 'Not available'} />
+                       <MetaField label={t('dialogs.feedUrl')} value={formURL || t('dialogs.notAvailable')} />
                       <WebsiteMetaCard
                         title={analyzedSiteTitle}
                         url={analyzedSiteURL}
                         faviconUrl={formFaviconURL}
                       />
-                      <MetaField label="Format" value={formFormat.toUpperCase()} />
-                      <MetaField label="Status" value={formStatus} />
+                       <MetaField label={t('dialogs.format')} value={formFormat.toUpperCase()} />
+                       <MetaField label={t('dialogs.status')} value={getSourceStatusLabel(formStatus, t)} />
                     </div>
                     <FaviconMetaCard
                       title={analyzedSiteTitle || formName}
@@ -2554,7 +2580,7 @@ function FeedsPage() {
                   disabled={saving}
                 >
                   <Trash2 className="mr-2 h-4 w-4" />
-                  Delete Source
+                   {t('dialogs.deleteSource')}
                 </Button>
               ) : null}
               <Button
@@ -2563,7 +2589,7 @@ function FeedsPage() {
                 onClick={() => setDialogOpen(false)}
                 disabled={saving || analyzing}
               >
-                Cancel
+                 {t('common:cancel')}
               </Button>
               {!editingSource && createStep === 'details' ? (
                 <Button
@@ -2572,7 +2598,7 @@ function FeedsPage() {
                   onClick={() => setCreateStep('url')}
                   disabled={saving}
                 >
-                  Back
+                   {t('common:back')}
                 </Button>
               ) : null}
               {!editingSource && createStep === 'url' ? (
@@ -2582,12 +2608,12 @@ function FeedsPage() {
                   disabled={analyzing}
                 >
                   {analyzing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                  Analyze Feed
+                   {t('dialogs.analyzeFeed')}
                 </Button>
               ) : (
                 <Button type="submit" disabled={saving}>
                   {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                  {editingSource ? 'Save Changes' : 'Subscribe'}
+                   {editingSource ? t('dialogs.saveChanges') : t('dialogs.subscribe')}
                 </Button>
               )}
             </DialogFooter>
@@ -2599,22 +2625,22 @@ function FeedsPage() {
         <DialogContent className="sm:max-w-2xl">
           <form className="space-y-4" onSubmit={handleBookmarkSubmit}>
             <DialogHeader>
-              <DialogTitle>{bookmarkEditTarget ? 'Edit Bookmark' : 'Add Bookmark'}</DialogTitle>
+              <DialogTitle>{bookmarkEditTarget ? t('dialogs.editBookmark') : t('dialogs.addBookmark')}</DialogTitle>
               <DialogDescription>
                 {bookmarkEditTarget
-                  ? 'Update one saved link without turning it into a polling source.'
-                  : 'Save one manual link into the Feeds workspace without turning it into a polling source.'}
+                  ? t('dialogs.editBookmarkDescription')
+                  : t('dialogs.addBookmarkDescription')}
               </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-2">
-              <Label htmlFor="bookmark-url">Bookmark URL</Label>
+              <Label htmlFor="bookmark-url">{t('dialogs.bookmarkUrl')}</Label>
               <div className="flex items-center gap-2">
                 <Input
                   id="bookmark-url"
                   value={bookmarkURL}
                   onChange={event => setBookmarkURL(event.target.value)}
-                  placeholder="https://example.com/article"
+                  placeholder={t('dialogs.bookmarkUrlPlaceholder')}
                 />
                 <Button
                   type="button"
@@ -2623,11 +2649,11 @@ function FeedsPage() {
                   disabled={bookmarkAnalyzing}
                 >
                   {bookmarkAnalyzing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                  Fetch Details
+                  {t('dialogs.fetchDetails')}
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground">
-                Fetch the page metadata to auto-fill title, description, and favicon.
+                {t('dialogs.bookmarkHelp')}
               </p>
             </div>
 
@@ -2639,7 +2665,7 @@ function FeedsPage() {
                   faviconUrl={bookmarkFaviconURL}
                 />
                 <div className="min-w-0">
-                  <div className="text-sm font-medium text-foreground">Detected favicon</div>
+                  <div className="text-sm font-medium text-foreground">{t('dialogs.detectedFavicon')}</div>
                   <div
                     className="truncate text-xs text-muted-foreground"
                     title={bookmarkFaviconURL}
@@ -2651,22 +2677,22 @@ function FeedsPage() {
             ) : null}
 
             <div className="space-y-2">
-              <Label htmlFor="bookmark-title">Title</Label>
+              <Label htmlFor="bookmark-title">{t('dialogs.title')}</Label>
               <Input
                 id="bookmark-title"
                 value={bookmarkTitle}
                 onChange={event => setBookmarkTitle(event.target.value)}
-                placeholder="Page title"
+                placeholder={t('dialogs.pageTitle')}
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="bookmark-summary">Description</Label>
+              <Label htmlFor="bookmark-summary">{t('dialogs.description')}</Label>
               <Input
                 id="bookmark-summary"
                 value={bookmarkSummary}
                 onChange={event => setBookmarkSummary(event.target.value)}
-                placeholder="Page description"
+                placeholder={t('dialogs.pageDescription')}
               />
             </div>
 
@@ -2686,7 +2712,7 @@ function FeedsPage() {
                 }}
                 disabled={bookmarkSaving}
               >
-                Cancel
+                {t('common:cancel')}
               </Button>
               <Button type="submit" disabled={bookmarkSaving || bookmarkAnalyzing}>
                 {bookmarkSaving ? (
@@ -2696,7 +2722,7 @@ function FeedsPage() {
                 ) : (
                   <Plus className="mr-2 h-4 w-4" />
                 )}
-                {bookmarkEditTarget ? 'Save Changes' : 'Save Bookmark'}
+                {bookmarkEditTarget ? t('dialogs.saveChanges') : t('dialogs.saveBookmark')}
               </Button>
             </DialogFooter>
           </form>
@@ -2715,45 +2741,46 @@ function FeedsPage() {
           {shareTarget ? (
             <>
               <DialogHeader>
-                <DialogTitle>Share</DialogTitle>
+                <DialogTitle>{t('dialogs.shareTitle')}</DialogTitle>
                 <DialogDescription>
-                  Share {shareTarget.title} with a tracked URL or QR code.
+                  {t('dialogs.shareDescription', { title: shareTarget.title })}
                 </DialogDescription>
               </DialogHeader>
 
               <div className="space-y-6">
                 <div className="space-y-2">
-                  <Label htmlFor="share-url">Share URL</Label>
-                  <Input id="share-url" value={shareURL} readOnly aria-label="Share URL" />
+                  <Label htmlFor="share-url">{t('dialogs.shareUrl')}</Label>
+                  <Input id="share-url" value={shareURL} readOnly aria-label={t('dialogs.shareUrl')} />
                   <div className="flex flex-wrap items-center gap-2">
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
+                      aria-label={shareLinkCopied ? t('page.copied') : t('page.copyUrl')}
                       onClick={() => void handleCopyShareURL()}
                     >
                       <Copy className="mr-2 h-4 w-4" />
-                      {shareLinkCopied ? 'Copied' : 'Copy URL'}
+                      {shareLinkCopied ? t('page.copied') : t('page.copyUrl')}
                     </Button>
                   </div>
                 </div>
 
                 <div className="space-y-3">
-                  <div className="text-sm font-medium text-foreground">QR Code</div>
+                  <div className="text-sm font-medium text-foreground">{t('dialogs.qrCode')}</div>
                   <div className="flex min-h-64 items-center justify-center rounded-lg border bg-muted/20 p-4">
                     {shareQRCodeLoading ? (
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Loader2 className="h-4 w-4 animate-spin" />
-                        Generating QR code...
+                        {t('dialogs.generatingQr')}
                       </div>
                     ) : shareQRCodeURL ? (
                       <img
                         src={shareQRCodeURL}
-                        alt={`QR code for ${shareTarget.title}`}
+                        alt={t('dialogs.qrCodeAlt', { title: shareTarget.title })}
                         className="h-60 w-60 rounded-md bg-white p-3"
                       />
                     ) : (
-                      <div className="text-sm text-muted-foreground">QR code unavailable.</div>
+                       <div className="text-sm text-muted-foreground">{t('dialogs.qrUnavailable')}</div>
                     )}
                   </div>
                 </div>
@@ -2761,7 +2788,7 @@ function FeedsPage() {
 
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setShareTarget(null)}>
-                  Close
+                   {t('dialogs.close')}
                 </Button>
               </DialogFooter>
             </>
@@ -2775,15 +2802,18 @@ function FeedsPage() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Feed Source</AlertDialogTitle>
+            <AlertDialogTitle>{t('dialogs.deleteFeedSource')}</AlertDialogTitle>
             <AlertDialogDescription>
               {deleteSourceTarget
-                ? `Delete ${deleteSourceTarget.name}? This will also delete ${sourceItemCounts[deleteSourceTarget.id] ?? 0} article${(sourceItemCounts[deleteSourceTarget.id] ?? 0) === 1 ? '' : 's'} already pulled from this source.`
-                : 'Delete this feed source?'}
+                ? t('dialogs.deleteFeedSourceDescription', {
+                    name: deleteSourceTarget.name,
+                    count: sourceItemCounts[deleteSourceTarget.id] ?? 0,
+                  })
+                : t('dialogs.deleteFeedSourceFallback')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deletingSource}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={deletingSource}>{t('common:cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={event => {
                 event.preventDefault()
@@ -2792,7 +2822,7 @@ function FeedsPage() {
               disabled={deletingSource}
             >
               {deletingSource ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Delete source and articles
+              {t('dialogs.deleteSourceAndArticles')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -2809,18 +2839,21 @@ function FeedsPage() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Feed Articles</AlertDialogTitle>
+            <AlertDialogTitle>{t('dialogs.deleteFeedArticles')}</AlertDialogTitle>
             <AlertDialogDescription>
               {clearSourceTarget
                 ? clearSourceMaxCount > 0
-                  ? `Delete up to ${clearSourceMaxCount} pulled article${clearSourceMaxCount === 1 ? '' : 's'} from ${clearSourceTarget.name}. If you choose fewer than the total, the oldest articles will be deleted first.`
-                  : `${clearSourceTarget.name} has no pulled articles to delete.`
-                : 'Delete pulled articles for this source? The source will remain.'}
+                  ? t('dialogs.deleteFeedArticlesDescription', {
+                      count: clearSourceMaxCount,
+                      name: clearSourceTarget.name,
+                    })
+                  : t('dialogs.deleteFeedArticlesEmpty', { name: clearSourceTarget.name })
+                : t('dialogs.deleteFeedArticlesFallback')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           {clearSourceTarget && clearSourceMaxCount > 0 ? (
             <div className="space-y-2">
-              <Label htmlFor="source-delete-count">Article count</Label>
+              <Label htmlFor="source-delete-count">{t('dialogs.articleCount')}</Label>
               <div className="flex items-center gap-2">
                 <Button
                   type="button"
@@ -2863,11 +2896,11 @@ function FeedsPage() {
                   <Plus className="h-4 w-4" />
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground">1 - {clearSourceMaxCount} articles</p>
+               <p className="text-xs text-muted-foreground">{t('dialogs.articleCountRange', { count: clearSourceMaxCount })}</p>
             </div>
           ) : null}
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={clearingSource}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={clearingSource}>{t('common:cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={event => {
                 event.preventDefault()
@@ -2876,7 +2909,7 @@ function FeedsPage() {
               disabled={clearingSource || clearSourceMaxCount === 0 || clearSourceCount <= 0}
             >
               {clearingSource ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Delete oldest articles
+              {t('dialogs.deleteOldestArticles')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

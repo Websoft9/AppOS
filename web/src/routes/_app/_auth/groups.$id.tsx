@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 import { ChevronLeft, ChevronDown, Loader2, Plus, X, Pencil, Search } from 'lucide-react'
 import { pb } from '@/lib/pb'
 import { OBJECT_TYPES, OBJECT_TYPE_MAP, getObjectTypeLabel } from '@/lib/object-types'
@@ -50,6 +51,7 @@ function GroupDetailPage() {
   const { id } = Route.useParams()
   const { addOpen: addOpenParam, newItem: newItemParam } = Route.useSearch()
   const navigate = useNavigate()
+  const { t } = useTranslation('groups')
 
   const [group, setGroup] = useState<GroupRecord | null>(null)
   const [items, setItems] = useState<GroupItemRecord[]>([])
@@ -119,7 +121,7 @@ function GroupDetailPage() {
       // Resolve object details
       await resolveItems(itemsList)
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Failed to load group'))
+      setError(getApiErrorMessage(err, t('errors.loadGroup')))
     } finally {
       setLoading(false)
     }
@@ -209,7 +211,7 @@ function GroupDetailPage() {
     e.preventDefault()
     const trimmedName = formName.trim()
     if (!trimmedName) {
-      setFormError('Name is required')
+      setFormError(t('errors.nameRequired'))
       return
     }
     setSaving(true)
@@ -222,7 +224,7 @@ function GroupDetailPage() {
       setEditOpen(false)
       await fetchGroup()
     } catch (err) {
-      setFormError(getApiErrorMessage(err, 'Save failed'))
+      setFormError(getApiErrorMessage(err, t('errors.save')))
     } finally {
       setSaving(false)
     }
@@ -235,7 +237,7 @@ function GroupDetailPage() {
       await pb.send(`/api/collections/group_items/records/${itemId}`, { method: 'DELETE' })
       await fetchGroup()
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Failed to remove item'))
+      setError(getApiErrorMessage(err, t('errors.removeItem')))
     }
   }
 
@@ -315,7 +317,7 @@ function GroupDetailPage() {
       setAddOpen(false)
       await fetchGroup()
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Failed to add items'))
+      setError(getApiErrorMessage(err, t('errors.addItems')))
     } finally {
       setAddSaving(false)
     }
@@ -374,7 +376,7 @@ function GroupDetailPage() {
       <div className="bg-destructive/10 text-destructive px-4 py-3 rounded-md text-sm">
         {error}
         <Button variant="ghost" size="sm" className="ml-2" onClick={fetchGroup}>
-          Retry
+            {t('common:retry')}
         </Button>
       </div>
     )
@@ -390,14 +392,14 @@ function GroupDetailPage() {
             className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-1 w-fit transition-colors"
           >
             <ChevronLeft className="h-3.5 w-3.5" />
-            Groups
+            {t('detail.back')}
           </Link>
           <h1 className="text-2xl font-bold tracking-tight">{group?.name}</h1>
           {group?.description && <p className="text-muted-foreground mt-1">{group.description}</p>}
         </div>
         <Button variant="outline" onClick={openEdit}>
           <Pencil className="h-4 w-4 mr-2" />
-          Edit Group
+          {t('detail.edit')}
         </Button>
       </div>
 
@@ -409,7 +411,7 @@ function GroupDetailPage() {
 
       {/* Summary badges */}
       <div className="flex flex-wrap gap-2">
-        <Badge variant="secondary">Total Items: {items.length}</Badge>
+        <Badge variant="secondary">{t('detail.totalItems', { count: items.length })}</Badge>
         {presentTypes.map(t => (
           <Badge key={t.type} variant="outline">
             {t.label}: {typeCounts[t.type]}
@@ -421,14 +423,14 @@ function GroupDetailPage() {
       <div className="flex flex-wrap items-center gap-3">
         <Button onClick={openAddDialog}>
           <Plus className="h-4 w-4 mr-2" />
-          Add Items
+          {t('detail.addItems')}
         </Button>
         <select
           value={typeFilter}
           onChange={e => setTypeFilter(e.target.value)}
           className="h-9 rounded-md border border-input bg-background px-3 text-sm"
         >
-          <option value="all">All Types</option>
+          <option value="all">{t('detail.allTypes')}</option>
           {presentTypes.map(t => (
             <option key={t.type} value={t.type}>
               {t.label}
@@ -440,13 +442,13 @@ function GroupDetailPage() {
       {/* Items table */}
       {filteredRows.length === 0 && items.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground border rounded-lg">
-          <p className="text-lg font-medium">This group has no items yet</p>
+          <p className="text-lg font-medium">{t('detail.empty.title')}</p>
           <p className="text-sm mt-1">
-            Add applications or reusable resources to start organizing this view.
+            {t('detail.empty.description')}
           </p>
           <Button className="mt-4" onClick={openAddDialog}>
             <Plus className="h-4 w-4 mr-2" />
-            Add Items
+            {t('detail.addItems')}
           </Button>
         </div>
       ) : (
@@ -454,11 +456,11 @@ function GroupDetailPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Type</TableHead>
-                <TableHead>Name</TableHead>
-                <TableHead>Summary</TableHead>
-                <TableHead>Updated</TableHead>
-                <TableHead className="w-[80px] text-right">Actions</TableHead>
+                <TableHead>{t('detail.table.type')}</TableHead>
+                <TableHead>{t('detail.table.name')}</TableHead>
+                <TableHead>{t('detail.table.summary')}</TableHead>
+                <TableHead>{t('detail.table.updated')}</TableHead>
+                <TableHead className="w-[80px] text-right">{t('detail.table.actions')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -515,12 +517,12 @@ function GroupDetailPage() {
         <DialogContent>
           <form onSubmit={handleEditSubmit}>
             <DialogHeader>
-              <DialogTitle>Edit Group</DialogTitle>
-              <DialogDescription>Update group details.</DialogDescription>
+              <DialogTitle>{t('detail.editDialog.title')}</DialogTitle>
+              <DialogDescription>{t('detail.editDialog.description')}</DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="edit-name">Name</Label>
+                <Label htmlFor="edit-name">{t('detail.editDialog.name')}</Label>
                 <Input
                   id="edit-name"
                   value={formName}
@@ -529,7 +531,7 @@ function GroupDetailPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="edit-desc">Description</Label>
+                <Label htmlFor="edit-desc">{t('detail.editDialog.descriptionLabel')}</Label>
                 <Textarea
                   id="edit-desc"
                   value={formDesc}
@@ -541,11 +543,11 @@ function GroupDetailPage() {
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setEditOpen(false)}>
-                Cancel
+                {t('common:cancel')}
               </Button>
               <Button type="submit" disabled={saving}>
                 {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                Save
+                {t('detail.editDialog.save')}
               </Button>
             </DialogFooter>
           </form>
@@ -562,15 +564,15 @@ function GroupDetailPage() {
       >
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Add Items</DialogTitle>
+            <DialogTitle>{t('detail.addDialog.title')}</DialogTitle>
             <DialogDescription>
-              Select an object type, then choose objects to add to this group.
+              {t('detail.addDialog.description')}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             {/* Object type tabs */}
             <div className="space-y-2">
-              <Label>Object Type</Label>
+               <Label>{t('detail.addDialog.objectType')}</Label>
               <select
                 value={addType}
                 onChange={e => handleAddTypeChange(e.target.value)}
@@ -586,7 +588,7 @@ function GroupDetailPage() {
 
             {/* Multi-select dropdown */}
             <div className="space-y-2">
-              <Label>Select Items</Label>
+               <Label>{t('detail.addDialog.selectItems')}</Label>
               <div ref={dropdownRef} className="relative">
                 {/* Trigger button */}
                 <button
@@ -596,8 +598,8 @@ function GroupDetailPage() {
                 >
                   <span className={addSelected.size === 0 ? 'text-muted-foreground' : ''}>
                     {addSelected.size === 0
-                      ? `Select ${OBJECT_TYPE_MAP[addType]?.label ?? addType}s...`
-                      : `${addSelected.size} item${addSelected.size > 1 ? 's' : ''} selected`}
+                      ? t('detail.addDialog.selectPlaceholder', { label: OBJECT_TYPE_MAP[addType]?.label ?? addType })
+                      : t('detail.addDialog.selectedCount', { count: addSelected.size })}
                   </span>
                   <ChevronDown
                     className={`h-4 w-4 text-muted-foreground transition-transform shrink-0 ${addDropdownOpen ? 'rotate-180' : ''}`}
@@ -613,7 +615,7 @@ function GroupDetailPage() {
                         <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
                         <input
                           className="w-full h-8 pl-7 pr-3 text-sm rounded-sm border border-input bg-background outline-none focus:ring-1 focus:ring-ring"
-                          placeholder={`Search ${OBJECT_TYPE_MAP[addType]?.label ?? addType}s...`}
+                          placeholder={t('detail.addDialog.searchPlaceholder', { label: OBJECT_TYPE_MAP[addType]?.label ?? addType })}
                           value={addSearch}
                           onChange={e => setAddSearch(e.target.value)}
                           autoFocus
@@ -630,8 +632,8 @@ function GroupDetailPage() {
                       ) : filteredCandidates.length === 0 ? (
                         <p className="py-5 text-center text-sm text-muted-foreground">
                           {addSearch
-                            ? 'No matches found.'
-                            : `No available ${OBJECT_TYPE_MAP[addType]?.label ?? addType}s.`}
+                            ? t('detail.addDialog.noMatches')
+                            : t('detail.addDialog.noAvailable', { label: OBJECT_TYPE_MAP[addType]?.label ?? addType })}
                         </p>
                       ) : (
                         filteredCandidates.map(c => {
@@ -674,7 +676,7 @@ function GroupDetailPage() {
                             }}
                           >
                             <Plus className="h-3.5 w-3.5 shrink-0" />
-                            Create a new {OBJECT_TYPE_MAP[addType]?.label}
+                            {t('detail.addDialog.createNew', { label: OBJECT_TYPE_MAP[addType]?.label ?? addType })}
                           </button>
                         </div>
                       </>
@@ -686,11 +688,11 @@ function GroupDetailPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setAddOpen(false)}>
-              Cancel
+              {t('common:cancel')}
             </Button>
             <Button onClick={handleAddItems} disabled={addSaving || addSelected.size === 0}>
               {addSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              Add {addSelected.size > 0 ? `(${addSelected.size})` : ''}
+              {t('detail.addDialog.add', { suffix: addSelected.size > 0 ? `(${addSelected.size})` : '' })}
             </Button>
           </DialogFooter>
         </DialogContent>

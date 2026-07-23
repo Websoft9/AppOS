@@ -130,3 +130,10 @@ onlyoffice 存放在哪里的问题
 
 assets memory
 
+## Tests
+
+1. tests/e2e/fixtures/appos.ts 的真实资源 helper
+2. 第一批 server / connector / smtp 的 acceptance 用例
+
+登录页增加一个背景图片
+

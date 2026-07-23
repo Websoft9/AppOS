@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef, type FormEvent } from 'react'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 import {
   Pencil,
   Trash2,
@@ -101,6 +102,7 @@ function TopicsListPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
   const { returnGroup, returnType } = Route.useSearch()
+  const { t } = useTranslation('topics')
 
   const [topics, setTopics] = useState<TopicRecord[]>([])
   const [commentCounts, setCommentCounts] = useState<Map<string, number>>(new Map())
@@ -498,21 +500,19 @@ function TopicsListPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Topics</h1>
-          <p className="text-muted-foreground mt-1">
-            Capture shared context, decisions, and discussion threads for your team.
-          </p>
+          <h1 className="text-2xl font-bold tracking-tight">{t('list.title')}</h1>
+          <p className="text-muted-foreground mt-1">{t('list.description')}</p>
         </div>
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
             size="icon"
             onClick={() => void handleRefresh()}
-            title="Refresh"
+            title={t('list.refresh')}
           >
             <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
           </Button>
-          <Button onClick={openCreate}>New Topic</Button>
+          <Button onClick={openCreate}>{t('list.new')}</Button>
         </div>
       </div>
 
@@ -520,7 +520,7 @@ function TopicsListPage() {
         <div className="bg-destructive/10 text-destructive px-4 py-3 rounded-md text-sm">
           {error}
           <Button variant="ghost" size="sm" className="ml-2" onClick={fetchData}>
-            Retry
+            {t('list.retry')}
           </Button>
         </div>
       )}
@@ -530,7 +530,7 @@ function TopicsListPage() {
         <div className="relative flex-1 min-w-[200px] max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search title..."
+            placeholder={t('list.searchPlaceholder')}
             value={search}
             onChange={e => setSearch(e.target.value)}
             className="pl-9"
@@ -538,14 +538,14 @@ function TopicsListPage() {
         </div>
         {filteredRows.length > 0 && (
           <div className="ml-auto flex items-center gap-3 text-sm text-muted-foreground">
-            <span className="whitespace-nowrap">Total {filteredRows.length} items</span>
+            <span className="whitespace-nowrap">{t('list.totalItems', { count: filteredRows.length })}</span>
             <div className="flex items-center gap-1">
               <button
                 type="button"
                 className="rounded p-0.5 transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
                 disabled={page <= 1}
                 onClick={() => setPage(p => p - 1)}
-                aria-label="Previous page"
+                aria-label={t('common:previous')}
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
@@ -557,7 +557,7 @@ function TopicsListPage() {
                 className="rounded p-0.5 transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
                 disabled={page >= totalPages}
                 onClick={() => setPage(p => p + 1)}
-                aria-label="Next page"
+                aria-label={t('common:next')}
               >
                 <ChevronRight className="h-4 w-4" />
               </button>
@@ -569,17 +569,17 @@ function TopicsListPage() {
       {/* Table / Empty state */}
       {filteredRows.length === 0 && !search && statusFilter === 'all' ? (
         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground border rounded-lg">
-          <p className="text-lg font-medium">No topics yet</p>
+          <p className="text-lg font-medium">{t('list.empty.title')}</p>
           <p className="text-sm mt-1">
-            Create the first Topic to start capturing shared context for your team.
+            {t('list.empty.description')}
           </p>
           <Button className="mt-4" onClick={openCreate}>
-            New Topic
+            {t('list.dialog.newTitle')}
           </Button>
         </div>
       ) : filteredRows.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12 text-muted-foreground border rounded-lg">
-          <p>No topics match your search</p>
+          <p>{t('list.empty.filtered')}</p>
         </div>
       ) : (
         <Table>
@@ -591,7 +591,7 @@ function TopicsListPage() {
                   className="flex items-center gap-1 hover:text-foreground"
                   onClick={() => toggleSort('title')}
                 >
-                  Title
+                  {t('list.table.title')}
                   {sortField === 'title' &&
                     (sortDir === 'asc' ? (
                       <ArrowUp className="h-3 w-3" />
@@ -607,7 +607,7 @@ function TopicsListPage() {
                     className="flex items-center gap-1 hover:text-foreground"
                     onClick={() => toggleSort('status')}
                   >
-                    Status
+                     {t('list.table.status')}
                     {sortField === 'status' &&
                       (sortDir === 'asc' ? (
                         <ArrowUp className="h-3 w-3" />
@@ -618,14 +618,14 @@ function TopicsListPage() {
                   {renderStatusFilterMenu()}
                 </div>
               </TableHead>
-              <TableHead>Author</TableHead>
+               <TableHead>{t('list.table.author')}</TableHead>
               <TableHead>
                 <button
                   type="button"
                   className="flex items-center gap-1 hover:text-foreground"
                   onClick={() => toggleSort('created')}
                 >
-                  Created
+                   {t('list.table.created')}
                   {sortField === 'created' &&
                     (sortDir === 'asc' ? (
                       <ArrowUp className="h-3 w-3" />
@@ -640,7 +640,7 @@ function TopicsListPage() {
                   className="flex items-center gap-1 hover:text-foreground"
                   onClick={() => toggleSort('updated')}
                 >
-                  Updated
+                   {t('list.table.updated')}
                   {sortField === 'updated' &&
                     (sortDir === 'asc' ? (
                       <ArrowUp className="h-3 w-3" />
@@ -649,8 +649,8 @@ function TopicsListPage() {
                     ))}
                 </button>
               </TableHead>
-              <TableHead>Comments</TableHead>
-              <TableHead className="w-[100px] text-right">Actions</TableHead>
+               <TableHead>{t('list.table.comments')}</TableHead>
+               <TableHead className="w-[100px] text-right">{t('list.table.actions')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -670,11 +670,11 @@ function TopicsListPage() {
                 <TableCell>
                   {row.closed ? (
                     <Badge variant="secondary" className="text-xs font-normal">
-                      <Lock className="h-3 w-3 mr-0.5" /> Closed
+                       <Lock className="h-3 w-3 mr-0.5" /> {t('list.closed')}
                     </Badge>
                   ) : (
                     <Badge variant="outline" className="text-xs font-normal">
-                      Open
+                       {t('list.open')}
                     </Badge>
                   )}
                 </TableCell>
@@ -690,7 +690,7 @@ function TopicsListPage() {
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8"
-                          title="More actions"
+                           title={t('list.moreActions')}
                         >
                           <MoreVertical className="h-4 w-4" />
                         </Button>
@@ -698,7 +698,7 @@ function TopicsListPage() {
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => openShare(row)}>
                           <Share2 className="h-4 w-4" />
-                          Share
+                          {t('list.share')}
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           disabled={togglingId === row.id}
@@ -717,12 +717,12 @@ function TopicsListPage() {
                           ) : (
                             <Lock className="h-4 w-4" />
                           )}
-                          {row.closed ? 'Reopen' : 'Close'}
+                          {row.closed ? t('list.reopen') : t('list.close')}
                         </DropdownMenuItem>
                         {!row.closed && (
                           <DropdownMenuItem onClick={() => openEdit(row)}>
                             <Pencil className="h-4 w-4" />
-                            Edit
+                            {t('list.edit')}
                           </DropdownMenuItem>
                         )}
                         <DropdownMenuItem
@@ -730,7 +730,7 @@ function TopicsListPage() {
                           onClick={() => setDeleteTarget(row)}
                         >
                           <Trash2 className="h-4 w-4" />
-                          Delete
+                          {t('list.delete')}
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -747,25 +747,25 @@ function TopicsListPage() {
         <DialogContent className="sm:max-w-4xl">
           <form onSubmit={handleSubmit}>
             <DialogHeader>
-              <DialogTitle>{editingTopic ? 'Edit Topic' : 'New Topic'}</DialogTitle>
+              <DialogTitle>{editingTopic ? t('list.dialog.editTitle') : t('list.dialog.newTitle')}</DialogTitle>
               <DialogDescription>
-                {editingTopic ? 'Update topic details.' : 'Create a new topic for discussion.'}
+                {editingTopic ? t('list.dialog.editDescription') : t('list.dialog.newDescription')}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="topic-title">Title</Label>
+                <Label htmlFor="topic-title">{t('list.dialog.title')}</Label>
                 <Input
                   id="topic-title"
                   value={formTitle}
                   onChange={e => setFormTitle(e.target.value)}
-                  placeholder="Topic title"
+                  placeholder={t('list.dialog.titlePlaceholder')}
                   required
                 />
               </div>
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label>Description</Label>
+                  <Label>{t('list.dialog.description')}</Label>
                   <label className="cursor-pointer">
                     <input
                       type="file"
@@ -774,25 +774,25 @@ function TopicsListPage() {
                       onChange={handleFileUpload}
                     />
                     <span className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
-                      <Upload className="h-3.5 w-3.5" /> Upload text file
+                      <Upload className="h-3.5 w-3.5" /> {t('list.dialog.uploadTextFile')}
                     </span>
                   </label>
                 </div>
                 <MarkdownEditor
                   value={formDesc}
                   onChange={setFormDesc}
-                  placeholder="Markdown supported"
+                   placeholder={t('list.dialog.markdownPlaceholder')}
                 />
               </div>
               {formError && <p className="text-sm text-destructive">{formError}</p>}
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
-                Cancel
+                {t('common:cancel')}
               </Button>
               <Button type="submit" disabled={saving}>
                 {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                {editingTopic ? 'Save' : 'Create'}
+                {editingTopic ? t('list.dialog.save') : t('list.dialog.create')}
               </Button>
             </DialogFooter>
           </form>
@@ -803,20 +803,19 @@ function TopicsListPage() {
       <AlertDialog open={!!closeTarget} onOpenChange={open => !open && setCloseTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Close Topic</AlertDialogTitle>
+            <AlertDialogTitle>{t('list.closeDialog.title')}</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to close &ldquo;{closeTarget?.title}&rdquo;? Closed topics
-              cannot receive new comments or be edited until reopened.
+              {t('list.closeDialog.description', { title: closeTarget?.title ?? '' })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t('common:cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => closeTarget && handleToggleClosed(closeTarget)}
               disabled={!!togglingId}
             >
               {togglingId ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              Close Topic
+              {t('list.closeDialog.confirm')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -826,21 +825,20 @@ function TopicsListPage() {
       <AlertDialog open={!!deleteTarget} onOpenChange={open => !open && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Topic</AlertDialogTitle>
+            <AlertDialogTitle>{t('list.deleteDialog.title')}</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete &ldquo;{deleteTarget?.title}&rdquo;? All comments will
-              also be deleted. This action cannot be undone.
+              {t('list.deleteDialog.description', { title: deleteTarget?.title ?? '' })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t('common:cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
               disabled={deleting}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {deleting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              Delete
+              {t('list.delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -858,15 +856,14 @@ function TopicsListPage() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Share Topic</DialogTitle>
+            <DialogTitle>{t('list.shareDialog.title')}</DialogTitle>
             <DialogDescription>
-              Generate a public link — anyone with the link can view this topic and post comments
-              without logging in.
+              {t('list.shareDialog.description')}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="share-mins">Validity (minutes)</Label>
+                <Label htmlFor="share-mins">{t('list.shareDialog.validity')}</Label>
               <Input
                 id="share-mins"
                 type="number"
@@ -878,7 +875,7 @@ function TopicsListPage() {
             </div>
             {shareUrl && (
               <div className="space-y-3">
-                <Label>Public link</Label>
+                <Label>{t('list.shareDialog.publicLink')}</Label>
                 <div className="flex gap-2">
                   <Input
                     ref={shareUrlInputRef}
@@ -891,7 +888,7 @@ function TopicsListPage() {
                     variant="outline"
                     size="icon"
                     onClick={handleCopyShareUrl}
-                    title="Copy"
+                    title={t('list.shareDialog.copy')}
                   >
                     {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                   </Button>
@@ -901,7 +898,7 @@ function TopicsListPage() {
                     size="icon"
                     onClick={handleGenerateQr}
                     disabled={qrGenerating}
-                    title="QR Code"
+                    title={t('list.shareDialog.qrCode')}
                   >
                     {qrGenerating ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -909,20 +906,20 @@ function TopicsListPage() {
                       <QrCode className="h-4 w-4" />
                     )}
                   </Button>
-                  <Button type="button" variant="outline" size="icon" asChild title="Open">
+                  <Button type="button" variant="outline" size="icon" asChild title={t('list.shareDialog.open')}>
                     <a href={shareUrl} target="_blank" rel="noopener noreferrer">
                       <ExternalLink className="h-4 w-4" />
                     </a>
                   </Button>
                 </div>
-                {copied && <p className="text-xs text-green-600">Copied to clipboard!</p>}
+                {copied && <p className="text-xs text-green-600">{t('list.shareDialog.copied')}</p>}
                 {qrDataUrl && (
                   <div className="space-y-2">
                     <div className="w-fit rounded-md border border-border p-2 bg-background">
-                      <img src={qrDataUrl} alt="Share QR code" className="h-40 w-40" />
+                      <img src={qrDataUrl} alt={t('list.shareDialog.shareQrCode')} className="h-40 w-40" />
                     </div>
                     <Button variant="outline" size="sm" onClick={handleDownloadQr}>
-                      <Download className="h-4 w-4 mr-1" /> Download QR
+                      <Download className="h-4 w-4 mr-1" /> {t('list.shareDialog.downloadQr')}
                     </Button>
                   </div>
                 )}
@@ -939,7 +936,7 @@ function TopicsListPage() {
                 className="text-destructive hover:text-destructive"
               >
                 {revoking ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                Revoke
+                {t('list.shareDialog.revoke')}
               </Button>
             ) : (
               <div />
@@ -950,7 +947,7 @@ function TopicsListPage() {
               disabled={sharing || shareMinutes < 1 || shareMinutes > 60}
             >
               {sharing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              {shareUrl ? 'Refresh Link' : 'Generate Link'}
+              {shareUrl ? t('list.shareDialog.refreshLink') : t('list.shareDialog.generateLink')}
             </Button>
           </DialogFooter>
         </DialogContent>

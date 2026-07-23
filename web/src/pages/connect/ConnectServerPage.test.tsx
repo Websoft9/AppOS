@@ -4,6 +4,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ConnectServerPage } from './ConnectServerPage'
 import { TooltipProvider } from '@/components/ui/tooltip'
 
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string) => key,
+  }),
+}))
+
 const navigateMock = vi.fn()
 const listServersMock = vi.fn()
 const listAssetsMock = vi.fn()

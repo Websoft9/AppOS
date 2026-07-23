@@ -1,4 +1,5 @@
 import { ImageIcon, Tags } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -45,25 +46,30 @@ export function AppDetailDisplaySection({
   onSave,
   onReset,
 }: AppDetailDisplaySectionProps) {
+  const { t } = useTranslation('apps')
   const previewLabel = labelValue.trim() || appName
 
   return (
     <Card>
       <CardHeader className="border-b pb-4">
         <div>
-          <CardTitle>Display</CardTitle>
+          <CardTitle>{t('detail.settings.displayTitle', { defaultValue: 'Display' })}</CardTitle>
           <CardDescription>
-            Lightweight app metadata for icon, label, and tags. Stored locally in this browser for
-            now.
+            {t('detail.settings.displayDescription', {
+              defaultValue:
+                'Lightweight app metadata for icon, label, and tags. Stored locally in this browser for now.',
+            })}
           </CardDescription>
         </div>
         <CardAction>
           <div className="flex flex-wrap gap-2">
             <Button size="sm" onClick={onSave} disabled={!hasChanges || saving}>
-              {saving ? 'Saving...' : 'Save Display'}
+              {saving
+                ? t('common:save', { defaultValue: 'Save' }) + '...'
+                : t('detail.settings.saveDisplay', { defaultValue: 'Save Display' })}
             </Button>
             <Button variant="outline" size="sm" onClick={onReset} disabled={saving}>
-              Reset
+              {t('detail.settings.reset', { defaultValue: 'Reset' })}
             </Button>
           </div>
         </CardAction>
@@ -91,7 +97,9 @@ export function AppDetailDisplaySection({
                   </Badge>
                 ))
               ) : (
-                <span className="text-xs text-muted-foreground">No tags</span>
+                <span className="text-xs text-muted-foreground">
+                  {t('empty.displayTags', { defaultValue: 'No tags' })}
+                </span>
               )}
             </div>
           </div>
@@ -99,19 +107,27 @@ export function AppDetailDisplaySection({
 
         <div className="grid gap-3 md:grid-cols-2">
           <div className="space-y-2">
-            <div className="text-sm text-muted-foreground">Icon</div>
+            <div className="text-sm text-muted-foreground">
+              {t('detail.settings.icon', { defaultValue: 'Icon' })}
+            </div>
             <Input
               value={iconValue}
               onChange={event => onIconChange(event.target.value)}
-              placeholder="Emoji or image URL"
+              placeholder={t('detail.settings.iconPlaceholder', {
+                defaultValue: 'Emoji or image URL',
+              })}
             />
           </div>
           <div className="space-y-2">
-            <div className="text-sm text-muted-foreground">Label</div>
+            <div className="text-sm text-muted-foreground">
+              {t('detail.settings.label', { defaultValue: 'Label' })}
+            </div>
             <Input
               value={labelValue}
               onChange={event => onLabelChange(event.target.value)}
-              placeholder="Short display label"
+              placeholder={t('detail.settings.labelPlaceholder', {
+                defaultValue: 'Short display label',
+              })}
             />
           </div>
         </div>
@@ -119,19 +135,23 @@ export function AppDetailDisplaySection({
         <div className="space-y-2">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Tags className="h-4 w-4" />
-            Tags
+            {t('detail.settings.tags', { defaultValue: 'Tags' })}
           </div>
           <Input
             value={tagsValue}
             onChange={event => onTagsChange(event.target.value)}
-            placeholder="Comma-separated tags"
+            placeholder={t('detail.settings.tagsPlaceholder', {
+              defaultValue: 'Comma-separated tags',
+            })}
           />
         </div>
 
         <Alert>
           <AlertDescription>
-            Until backend metadata fields exist, this display info is saved in the current browser
-            only.
+            {t('detail.settings.displaySavedNotice', {
+              defaultValue:
+                'Until backend metadata fields exist, this display info is saved in the current browser only.',
+            })}
           </AlertDescription>
         </Alert>
       </CardContent>

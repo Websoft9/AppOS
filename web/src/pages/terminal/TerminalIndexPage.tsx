@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 import {
   Server,
   ArrowRight,
@@ -43,8 +45,8 @@ type RestoreWorkspaceItem = RestoreWorkspaceSession & {
   lastActiveAt: number
 }
 
-function getSessionCountLabel(count: number) {
-  return count === 1 ? '1 session' : `${count} sessions`
+function getSessionCountLabel(t: TFunction, count: number) {
+  return t('hub.sessionCount', { count })
 }
 
 function isSessionIdle(updatedAt: number | null, idleTimeoutSeconds: number) {
@@ -79,6 +81,7 @@ interface ConnectingDialogProps {
 }
 
 function ConnectingDialog({ open, onOpenChange, target, phase, detail }: ConnectingDialogProps) {
+  const { t } = useTranslation('connect')
   return (
     <Dialog
       open={open}
@@ -89,16 +92,16 @@ function ConnectingDialog({ open, onOpenChange, target, phase, detail }: Connect
     >
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Connecting…</DialogTitle>
+          <DialogTitle>{t('hub.connecting')}</DialogTitle>
           <DialogDescription>
-            {target ? `Target: ${target}` : 'Preparing connection'}
+            {target ? t('hub.target', { target }) : t('hub.preparing')}
           </DialogDescription>
         </DialogHeader>
         <div className="py-2 text-sm">
           {phase === 'checking' ? (
             <div className="inline-flex items-center gap-2 text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
-              {detail || 'Establishing secure connection…'}
+              {detail || t('hub.establishing')}
             </div>
           ) : (
             <div className="text-destructive">{detail}</div>
@@ -110,7 +113,7 @@ function ConnectingDialog({ open, onOpenChange, target, phase, detail }: Connect
             onClick={() => onOpenChange(false)}
             disabled={phase === 'checking'}
           >
-            Close
+            {t('hub.close')}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -137,6 +140,7 @@ function ServerCard({
   sessionCount,
   onConnect,
 }: ServerCardProps) {
+  const { t } = useTranslation('connect')
   return (
     <div className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/30 transition-colors group">
       <div className="flex items-center gap-3 min-w-0">
@@ -156,11 +160,11 @@ function ServerCard({
                   )}
                 >
                   <CheckCircle2 className="h-2.5 w-2.5 mr-1 text-green-500" />
-                  {isIdle ? 'Idle' : 'Connected'}
+                  {isIdle ? t('hub.idle') : t('hub.connected')}
                 </Badge>
                 {sessionCount != null && sessionCount > 1 && (
                   <Badge variant="outline" className="text-xs h-4 px-1.5 shrink-0">
-                    {getSessionCountLabel(sessionCount)}
+                    {getSessionCountLabel(t, sessionCount)}
                   </Badge>
                 )}
               </>
@@ -171,12 +175,12 @@ function ServerCard({
               <span className="text-xs text-muted-foreground truncate">{server.host}</span>
             )}
             {isConnected && sessionCount != null && sessionCount === 1 && (
-              <span className="text-xs text-muted-foreground truncate">1 active session</span>
+               <span className="text-xs text-muted-foreground truncate">{t('hub.activeSession')}</span>
             )}
             {lastSessionMin != null && (
               <span className="text-xs text-muted-foreground flex items-center gap-1">
                 <Clock className="h-2.5 w-2.5" />
-                Last active {lastSessionMin} min ago
+                {t('hub.lastActive', { count: lastSessionMin })}
               </span>
             )}
           </div>
@@ -188,7 +192,7 @@ function ServerCard({
         className="shrink-0 ml-2 opacity-0 group-hover:opacity-100 transition-opacity"
         onClick={() => onConnect(server)}
       >
-        Open Terminal
+        {t('hub.openTerminal')}
         <ArrowRight className="h-3.5 w-3.5 ml-1" />
       </Button>
     </div>
@@ -216,6 +220,7 @@ function ActiveSessionCard({
   onResume,
   onExit,
 }: ActiveSessionCardProps) {
+  const { t } = useTranslation('connect')
   const updatedAt = getSessionUpdatedAt(session)
   const idle = isSessionIdle(updatedAt, idleTimeoutSeconds)
   const sessionMinAgo =
@@ -238,14 +243,14 @@ function ActiveSessionCard({
               )}
             >
               <CheckCircle2 className="h-2.5 w-2.5 mr-1 text-green-500" />
-              {idle ? 'Idle' : 'Connected'}
+              {idle ? t('hub.idle') : t('hub.connected')}
             </Badge>
             <Badge variant="outline" className="text-xs h-4 px-1.5 shrink-0">
-              {session.state === 'attached' ? 'Live' : 'Detached'}
+              {session.state === 'attached' ? t('hub.state.live') : t('hub.state.detached')}
             </Badge>
             {sessionCount > 1 && (
               <Badge variant="outline" className="text-xs h-4 px-1.5 shrink-0">
-                {getSessionCountLabel(sessionCount)}
+                {getSessionCountLabel(t, sessionCount)}
               </Badge>
             )}
           </div>
@@ -259,7 +264,7 @@ function ActiveSessionCard({
             {sessionMinAgo != null && (
               <span className="text-xs text-muted-foreground flex items-center gap-1">
                 <Clock className="h-2.5 w-2.5" />
-                Last active {sessionMinAgo} min ago
+                {t('hub.lastActive', { count: sessionMinAgo })}
               </span>
             )}
           </div>
@@ -272,10 +277,10 @@ function ActiveSessionCard({
           ) : (
             <LogOut className="h-3.5 w-3.5 mr-1" />
           )}
-          Exit
+          {t('hub.exit')}
         </Button>
         <Button size="sm" variant="default" onClick={() => onResume(session, server)}>
-          Resume
+          {t('hub.resume')}
           <ArrowRight className="h-3.5 w-3.5 ml-1" />
         </Button>
       </div>
@@ -318,6 +323,7 @@ function ServersPanel({
   onExitSession,
   closingSessionId,
 }: ServersPanelProps) {
+  const { t } = useTranslation('connect')
   const onlineServers = servers.filter(s => s.is_enabled !== false).filter(isServerOnline)
   const serverById = new Map(servers.map(server => [server.id, server]))
   const latestSessionByServer = sessionItems.reduce((sessions, session) => {
@@ -354,7 +360,7 @@ function ServersPanel({
         </div>
         <Button variant="outline" size="sm" onClick={onRetry}>
           <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
-          Retry
+          {t('hub.retry')}
         </Button>
       </div>
     )
@@ -366,7 +372,7 @@ function ServersPanel({
         <section className="space-y-2 min-w-0 xl:flex xl:min-h-0 xl:flex-col">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold">
-              Available Servers
+              {t('hub.availableServers')}
               {onlineServers.length > 0 && (
                 <span className="ml-1.5 text-xs font-normal text-muted-foreground">
                   ({onlineServers.length})
@@ -379,18 +385,18 @@ function ServersPanel({
             {servers.length === 0 ? (
               <div className="rounded-lg border border-dashed p-8 text-center space-y-2">
                 <Server className="h-8 w-8 mx-auto text-muted-foreground" />
-                <p className="text-sm font-medium">No servers configured</p>
-                <p className="text-xs text-muted-foreground">
-                  Add a server in Resources to get started
-                </p>
+                 <p className="text-sm font-medium">{t('hub.empty.noServersTitle')}</p>
+                 <p className="text-xs text-muted-foreground">
+                   {t('hub.empty.noServersDescription')}
+                 </p>
               </div>
             ) : onlineServers.length === 0 ? (
               <div className="rounded-lg border border-dashed p-8 text-center space-y-2">
                 <Server className="h-8 w-8 mx-auto text-muted-foreground" />
-                <p className="text-sm font-medium">No online servers</p>
-                <p className="text-xs text-muted-foreground">
-                  Only servers that are currently online are shown here.
-                </p>
+                 <p className="text-sm font-medium">{t('hub.empty.noOnlineTitle')}</p>
+                 <p className="text-xs text-muted-foreground">
+                   {t('hub.empty.noOnlineDescription')}
+                 </p>
               </div>
             ) : (
               <div className="space-y-2">
@@ -427,22 +433,22 @@ function ServersPanel({
 
         <section className="space-y-2 min-w-0 xl:flex xl:min-h-0 xl:flex-col">
           <div className="flex items-center justify-between gap-3">
-            <h3 className="text-sm font-semibold">Active Sessions</h3>
+            <h3 className="text-sm font-semibold">{t('hub.activeSessions')}</h3>
             <div className="flex items-center gap-2">
               {activeSessions.length > 0 && (
                 <Button size="sm" variant="outline" onClick={onRestoreWorkspace}>
-                  Restore Workspace
+                  {t('hub.restoreWorkspace')}
                 </Button>
               )}
               {idle && (
                 <Badge variant="outline" className="text-[10px] border-amber-200 text-amber-700">
-                  Idle session
+                  {t('hub.idleSession')}
                 </Badge>
               )}
               {sessionMinAgo != null && (
                 <span className="text-xs text-muted-foreground flex items-center gap-1 whitespace-nowrap">
                   <Clock className="h-3 w-3" />
-                  Last active {sessionMinAgo} min ago
+                  {t('hub.lastActive', { count: sessionMinAgo })}
                 </span>
               )}
             </div>
@@ -468,10 +474,10 @@ function ServersPanel({
             ) : (
               <div className="rounded-lg border border-dashed p-8 text-center space-y-2">
                 <Clock className="h-8 w-8 mx-auto text-muted-foreground" />
-                <p className="text-sm font-medium">No active sessions</p>
-                <p className="text-xs text-muted-foreground">
-                  Open a server terminal to keep a resumable session here.
-                </p>
+                 <p className="text-sm font-medium">{t('hub.empty.noActiveTitle')}</p>
+                 <p className="text-xs text-muted-foreground">
+                   {t('hub.empty.noActiveDescription')}
+                 </p>
               </div>
             )}
           </div>
@@ -486,6 +492,7 @@ function ServersPanel({
 const CONNECT_MIN_FEEDBACK_MS = 2000
 
 export function TerminalIndexPage() {
+  const { t } = useTranslation('connect')
   const [servers, setServers] = useState<ServerType[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -535,7 +542,7 @@ export function TerminalIndexPage() {
       const result = await listServers()
       setServers(result)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load servers')
+      setError(err instanceof Error ? err.message : t('hub.errors.loadServers'))
     } finally {
       setLoading(false)
     }
@@ -696,7 +703,7 @@ export function TerminalIndexPage() {
       const label = server.name || server.host || server.id
       setConnectingTarget(label)
       setConnectingPhase('checking')
-      setConnectingDetail('Establishing secure connection…')
+      setConnectingDetail(t('hub.establishing'))
       setConnectingOpen(true)
       try {
         const minDelay = new Promise<void>(resolve =>
@@ -705,14 +712,14 @@ export function TerminalIndexPage() {
         const [status] = await Promise.all([checkServerStatus(server), minDelay])
         if (status?.status === 'offline') {
           setConnectingPhase('offline')
-          setConnectingDetail(status.reason || 'Server is offline.')
+          setConnectingDetail(status.reason || t('server.serverOffline'))
           return
         }
         setConnectingOpen(false)
         navigate({ to: '/terminal/server/$serverId', params: { serverId: server.id }, search: {} })
       } catch (err) {
         setConnectingPhase('offline')
-        setConnectingDetail(err instanceof Error ? err.message : 'Connection check failed.')
+        setConnectingDetail(err instanceof Error ? err.message : t('common:error'))
       }
     },
     [navigate]
@@ -732,9 +739,9 @@ export function TerminalIndexPage() {
       <div className="shrink-0 pb-4">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Server Terminal</h1>
+            <h1 className="text-2xl font-bold tracking-tight">{t('server.title')}</h1>
             <p className="text-muted-foreground mt-1">
-              Open, resume, and manage server terminals with shell and files.
+              {t('hub.description')}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -742,13 +749,13 @@ export function TerminalIndexPage() {
               size="icon"
               variant="outline"
               onClick={() => void handleRefresh()}
-              aria-label="Refresh"
+              aria-label={t('common:refresh')}
             >
               <RefreshCw className={cn('h-4 w-4', loading ? 'animate-spin' : undefined)} />
             </Button>
             <Button size="sm" variant="outline" onClick={handleAddServer}>
               <Plus className="h-3.5 w-3.5 mr-1" />
-              Add Server
+              {t('hub.actions.addServer')}
             </Button>
           </div>
         </div>

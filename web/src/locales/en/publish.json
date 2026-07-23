@@ -1,0 +1,58 @@
+{
+  "page": {
+    "title": "Publish",
+    "description": "Manage Public Access records and create shareable publish items from one list.",
+    "new": "New Publish Item"
+  },
+  "stats": {
+    "activeEndpoints": "Active endpoints",
+    "draftItems": "Draft items",
+    "expiredAccess": "Expired access"
+  },
+  "list": {
+    "title": "Public Access Records",
+    "description": "This demo list shows all published entry points and manual publish items in one place.",
+    "searchPlaceholder": "Search publish records",
+    "empty": "No publish records match the current search.",
+    "table": {
+      "name": "Name",
+      "app": "App",
+      "target": "Target",
+      "accessPath": "Access Path",
+      "status": "Status",
+      "expires": "Expires",
+      "updated": "Updated"
+    }
+  },
+  "status": {
+    "active": "Active",
+    "draft": "Draft",
+    "expired": "Expired"
+  },
+  "dialog": {
+    "title": "New Publish Item",
+    "description": "Create a manual Public Access record for a gateway, console, or app preview.",
+    "name": "Name",
+    "app": "App",
+    "target": "Target",
+    "accessPath": "Access Path",
+    "accessPathPlaceholder": "/publish/example",
+    "create": "Create Draft"
+  },
+  "seed": {
+    "traefikDashboard": "Traefik Dashboard",
+    "gatewayAdmin": "Gateway Admin",
+    "noExpiry": "No expiry",
+    "fiveMinutesAgo": "5 minutes ago",
+    "wordpressPreview": "WordPress Preview",
+    "appConsole": "App Console",
+    "inTwoHours": "In 2 hours",
+    "twelveMinutesAgo": "12 minutes ago",
+    "netdataPublicView": "Netdata Public View",
+    "monitoringSurface": "Monitoring Surface",
+    "expiredYesterday": "Expired yesterday",
+    "oneDayAgo": "1 day ago",
+    "notScheduled": "Not scheduled",
+    "justNow": "Just now"
+  }
+}

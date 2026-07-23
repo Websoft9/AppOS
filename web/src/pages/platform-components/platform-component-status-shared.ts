@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import i18n from '@/lib/i18n'
 import { pb } from '@/lib/pb'
 
 const noAutoCancel = { requestKey: null }
@@ -76,6 +77,46 @@ export type PlatformRuntimePayload = {
   runtime_limits: PlatformRuntimeLimits
 }
 
+export function formatRuntimeKindLabel(value: string): string {
+  const fallback = !value
+    ? i18n.t('system:platformComponents.runtimeKinds.unknownRuntime', {
+        defaultValue: 'Unknown runtime',
+      })
+    : value
+        .split('_')
+        .filter(Boolean)
+        .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(' ')
+
+  return i18n.t(`system:platformComponents.runtimeKinds.${value || 'unknown'}`, {
+    defaultValue: fallback,
+  })
+}
+
+export function formatVisibilityLabel(value: string): string {
+  return i18n.t(`system:platformComponents.visibility.${value || 'unknown'}`, {
+    defaultValue: value || 'Unknown',
+  })
+}
+
+export function formatLifecycleLabel(value: string): string {
+  return i18n.t(`system:platformComponents.lifecycle.${value || 'unknown'}`, {
+    defaultValue: value || 'Unknown',
+  })
+}
+
+export function formatServiceStateLabel(value: string): string {
+  return i18n.t(`system:platformComponents.serviceStates.${value || 'unknown'}`, {
+    defaultValue: value || 'Unknown',
+  })
+}
+
+export function formatComponentCriticalityLabel(value: string): string {
+  return i18n.t(`system:platformComponents.criticality.${value || 'unknown'}`, {
+    defaultValue: value || 'unknown',
+  })
+}
+
 export async function fetchInstalledComponents(force = false): Promise<ComponentItem[]> {
   const url = force ? '/api/software/local?force=1' : '/api/software/local'
   const data: unknown = await pb.send(url, { method: 'GET', ...noAutoCancel })
@@ -140,7 +181,13 @@ export function useInstalledComponentsController(): InstalledComponentsControlle
         if (requestIdRef.current !== requestId) {
           return
         }
-        setError(err instanceof Error ? err.message : 'Failed to load components')
+        setError(
+          err instanceof Error
+            ? err.message
+            : i18n.t('system:platformComponents.errors.loadComponents', {
+                defaultValue: 'Failed to load components',
+              })
+        )
       } finally {
         fetchInFlightRef.current = false
         if (requestIdRef.current === requestId && !background) {
@@ -303,14 +350,14 @@ export async function fetchServiceLogs(
 }
 
 export function formatComponentStatusTime(value?: string): string {
-  if (!value) return '-'
+  if (!value) return i18n.t('system:shared.emptyShort', { defaultValue: '-' })
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
   return date.toLocaleString()
 }
 
 export function formatServiceUptime(seconds: number): string {
-  if (seconds <= 0) return '-'
+  if (seconds <= 0) return i18n.t('system:shared.emptyShort', { defaultValue: '-' })
   const days = Math.floor(seconds / 86400)
   const hours = Math.floor((seconds % 86400) / 3600)
   const minutes = Math.floor((seconds % 3600) / 60)
@@ -322,7 +369,7 @@ export function formatServiceUptime(seconds: number): string {
 }
 
 export function formatServiceMemory(bytes: number): string {
-  if (bytes <= 0) return '-'
+  if (bytes <= 0) return i18n.t('system:shared.emptyShort', { defaultValue: '-' })
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }

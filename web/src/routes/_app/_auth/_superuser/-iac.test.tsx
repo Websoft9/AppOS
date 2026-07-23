@@ -25,6 +25,23 @@ vi.mock('@/lib/pb', () => ({
   },
 }))
 
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string, values?: Record<string, unknown>) => {
+      const translations: Record<string, string> = {
+        'iac.title': 'Orchestration Files',
+        'iac.description':
+          'Browse and edit AppOS orchestration files for apps, workflows, and templates.',
+        'iac.refreshAriaLabel': 'Refresh orchestration files',
+        'iac.files': 'Files',
+        'common:save': 'Save',
+      }
+      const template = translations[key] ?? key
+      return template.replace(/\{\{(\w+)\}\}/g, (_, token: string) => String(values?.[token] ?? ''))
+    },
+  }),
+}))
+
 describe('FilesPage', () => {
   beforeEach(() => {
     sendMock.mockReset()

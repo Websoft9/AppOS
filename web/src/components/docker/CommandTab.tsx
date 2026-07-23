@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { pb } from '@/lib/pb'
 import { Button } from '@/components/ui/button'
 import { Play, Loader2 } from 'lucide-react'
@@ -13,6 +14,7 @@ interface HistoryEntry {
 }
 
 export function CommandTab({ serverId = 'local' }: { serverId?: string }) {
+  const { t } = useTranslation('docker')
   const [command, setCommand] = useState('')
   const [running, setRunning] = useState(false)
   const [history, setHistory] = useState<HistoryEntry[]>([])
@@ -71,7 +73,7 @@ export function CommandTab({ serverId = 'local' }: { serverId?: string }) {
         <span className="text-sm font-mono text-muted-foreground select-none">docker</span>
         <input
           type="text"
-          placeholder="ps -a --format json"
+          placeholder={t('command.placeholder', { defaultValue: 'ps -a --format json' })}
           className="flex-1 border rounded-md px-3 py-1.5 text-sm font-mono bg-background"
           value={command}
           onChange={e => setCommand(e.target.value)}
@@ -80,16 +82,19 @@ export function CommandTab({ serverId = 'local' }: { serverId?: string }) {
         />
         <Button size="sm" onClick={runCommand} disabled={running || !command.trim()}>
           {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-          <span className="ml-1">Run</span>
+          <span className="ml-1">{t('command.run', { defaultValue: 'Run' })}</span>
         </Button>
       </div>
 
       <div className="bg-muted rounded-md p-4 min-h-[300px] max-h-[65vh] overflow-auto font-mono text-xs">
         {history.length === 0 && (
           <p className="text-muted-foreground">
-            Enter a docker subcommand above and press Enter or click Run.
+            {t('command.emptyPrompt', {
+              defaultValue: 'Enter a docker subcommand above and press Enter or click Run.',
+            })}
             <br />
-            Example: <code>ps -a</code>, <code>images</code>, <code>compose ls</code>,{' '}
+            {t('command.exampleLabel', { defaultValue: 'Example:' })} <code>ps -a</code>,{' '}
+            <code>images</code>, <code>compose ls</code>,{' '}
             <code>network ls</code>
           </p>
         )}

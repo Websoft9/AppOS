@@ -1,11 +1,13 @@
 import { createFileRoute, Link, useSearch } from '@tanstack/react-router'
 import { useState } from 'react'
 import type { FormEvent } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { pb } from '@/lib/pb'
 import { ClientResponseError } from 'pocketbase'
 
 function ResetPasswordPage() {
+  const { t } = useTranslation('auth')
   const { token } = useSearch({ strict: false }) as { token?: string }
   const [password, setPassword] = useState('')
   const [passwordConfirm, setPasswordConfirm] = useState('')
@@ -17,12 +19,14 @@ function ResetPasswordPage() {
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">
         <div className="w-full max-w-md p-8 bg-card rounded-lg shadow-md border border-border text-center">
-          <h2 className="text-2xl font-bold mb-4 text-card-foreground">Invalid Link</h2>
+          <h2 className="text-2xl font-bold mb-4 text-card-foreground">
+            {t('resetPassword.invalidLinkTitle')}
+          </h2>
           <p className="text-muted-foreground mb-6">
-            This password reset link is invalid or has expired.
+            {t('resetPassword.invalidLinkDescription')}
           </p>
           <Link to="/forgot-password" className="text-primary hover:underline">
-            Request a new link
+            {t('resetPassword.requestNewLink')}
           </Link>
         </div>
       </div>
@@ -34,11 +38,11 @@ function ResetPasswordPage() {
     setError('')
 
     if (password !== passwordConfirm) {
-      setError('Passwords do not match')
+      setError(t('resetPassword.errors.passwordsDoNotMatch'))
       return
     }
     if (password.length < 8) {
-      setError('Password must be at least 8 characters')
+      setError(t('resetPassword.errors.passwordTooShort'))
       return
     }
 
@@ -54,7 +58,7 @@ function ResetPasswordPage() {
       }
       setSuccess(true)
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to reset password'
+      const message = err instanceof Error ? err.message : t('resetPassword.errors.fallback')
       setError(message)
     } finally {
       setLoading(false)
@@ -65,10 +69,12 @@ function ResetPasswordPage() {
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">
         <div className="w-full max-w-md p-8 bg-card rounded-lg shadow-md border border-border text-center">
-          <h2 className="text-2xl font-bold mb-4 text-card-foreground">Password Reset</h2>
-          <p className="text-muted-foreground mb-6">Your password has been reset successfully.</p>
+          <h2 className="text-2xl font-bold mb-4 text-card-foreground">
+            {t('resetPassword.successTitle')}
+          </h2>
+          <p className="text-muted-foreground mb-6">{t('resetPassword.successDescription')}</p>
           <Link to="/login" className="text-primary hover:underline">
-            Go to Login
+            {t('resetPassword.goToLogin')}
           </Link>
         </div>
       </div>
@@ -78,8 +84,12 @@ function ResetPasswordPage() {
   return (
     <div className="flex items-center justify-center min-h-screen bg-background">
       <div className="w-full max-w-md p-8 bg-card rounded-lg shadow-md border border-border">
-        <h2 className="text-2xl font-bold text-center mb-2 text-card-foreground">Reset Password</h2>
-        <p className="text-center text-sm text-muted-foreground mb-6">Enter your new password</p>
+        <h2 className="text-2xl font-bold text-center mb-2 text-card-foreground">
+          {t('resetPassword.title')}
+        </h2>
+        <p className="text-center text-sm text-muted-foreground mb-6">
+          {t('resetPassword.description')}
+        </p>
 
         {error && (
           <div className="mb-4 p-3 bg-destructive/10 border border-destructive/50 text-destructive rounded">
@@ -89,9 +99,9 @@ function ResetPasswordPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="password" className="block text-sm font-medium mb-1 text-foreground">
-              New Password
-            </label>
+              <label htmlFor="password" className="block text-sm font-medium mb-1 text-foreground">
+                {t('resetPassword.newPassword')}
+              </label>
             <input
               type="password"
               id="password"
@@ -108,7 +118,7 @@ function ResetPasswordPage() {
               htmlFor="passwordConfirm"
               className="block text-sm font-medium mb-1 text-foreground"
             >
-              Confirm New Password
+              {t('resetPassword.confirmNewPassword')}
             </label>
             <input
               type="password"
@@ -122,7 +132,7 @@ function ResetPasswordPage() {
             />
           </div>
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? 'Resetting...' : 'Reset Password'}
+            {loading ? t('resetPassword.submitting') : t('resetPassword.submit')}
           </Button>
         </form>
       </div>

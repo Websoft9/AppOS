@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef, type FormEvent } from 'react'
 import { createFileRoute, Link } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 import {
   Pencil,
   Trash2,
@@ -94,6 +95,7 @@ function TopicDetailPage() {
   const { id } = Route.useParams()
   const navigate = Route.useNavigate()
   const { user } = useAuth()
+  const { t } = useTranslation('topics')
 
   const [topic, setTopic] = useState<TopicRecord | null>(null)
   const [comments, setComments] = useState<CommentRecord[]>([])
@@ -417,7 +419,7 @@ function TopicDetailPage() {
       })
       setQrDataUrl(dataUrl)
     } catch {
-      setError('Failed to generate QR code')
+        setError(t('detail.errors.generateQr'))
     } finally {
       setQrGenerating(false)
     }
@@ -439,7 +441,7 @@ function TopicDetailPage() {
     e.target.value = ''
     if (file.size > importPolicy.maxDescriptionImportBytes) {
       setFormError(
-        `File too large (max ${Math.floor(importPolicy.maxDescriptionImportBytes / 1024)} KB)`
+        t('detail.errors.fileTooLarge', { size: Math.floor(importPolicy.maxDescriptionImportBytes / 1024) })
       )
       return
     }
@@ -447,12 +449,12 @@ function TopicDetailPage() {
     reader.onload = () => {
       if (typeof reader.result !== 'string') return
       if (importPolicy.textOnly && reader.result.includes('\0')) {
-        setFormError('Binary file detected, please upload a text file')
+        setFormError(t('detail.errors.binaryFile'))
         return
       }
       setFormDesc(prev => (prev ? prev + '\n\n' + reader.result : (reader.result as string)))
     }
-    reader.onerror = () => setFormError('Failed to read file')
+    reader.onerror = () => setFormError(t('detail.errors.readFile'))
     reader.readAsText(file)
   }
 
@@ -474,9 +476,9 @@ function TopicDetailPage() {
           search={{ returnGroup: undefined, returnType: undefined }}
           className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
         >
-          <ArrowLeft className="h-4 w-4" /> Feed
+          <ArrowLeft className="h-4 w-4" /> {t('detail.feed')}
         </Link>
-        <p className="text-destructive">{error || 'Topic not found'}</p>
+        <p className="text-destructive">{error || t('detail.notFound')}</p>
       </div>
     )
   }
@@ -487,7 +489,7 @@ function TopicDetailPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Link to={'/feeds' as never} className="hover:text-foreground">
-            Feed
+            {t('detail.feed')}
           </Link>
           <span>/</span>
           <Link
@@ -495,7 +497,7 @@ function TopicDetailPage() {
             search={{ returnGroup: undefined, returnType: undefined }}
             className="hover:text-foreground"
           >
-            Topics
+            {t('detail.topics')}
           </Link>
           <span>/</span>
           <span className="text-foreground">{topic.title}</span>
@@ -503,7 +505,7 @@ function TopicDetailPage() {
         {isTopicOwner && (
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={openShareDialog}>
-              <Share2 className="h-4 w-4 mr-1" /> Share
+              <Share2 className="h-4 w-4 mr-1" /> {t('detail.share')}
             </Button>
             <Button
               variant="outline"
@@ -518,11 +520,11 @@ function TopicDetailPage() {
               ) : (
                 <Lock className="h-4 w-4 mr-1" />
               )}
-              {topic.closed ? 'Reopen' : 'Close'}
+              {topic.closed ? t('detail.reopen') : t('detail.close')}
             </Button>
             {!topic.closed && (
               <Button variant="outline" size="sm" onClick={openEdit}>
-                <Pencil className="h-4 w-4 mr-1" /> Edit
+                <Pencil className="h-4 w-4 mr-1" /> {t('detail.edit')}
               </Button>
             )}
             <Button
@@ -531,7 +533,7 @@ function TopicDetailPage() {
               className="text-destructive hover:text-destructive"
               onClick={() => setDeleteTopicOpen(true)}
             >
-              <Trash2 className="h-4 w-4 mr-1" /> Delete
+              <Trash2 className="h-4 w-4 mr-1" /> {t('detail.delete')}
             </Button>
           </div>
         )}
@@ -547,15 +549,15 @@ function TopicDetailPage() {
       <div className="space-y-2">
         <h1 className="text-2xl font-bold tracking-tight">{topic.title}</h1>
         <p className="text-sm text-muted-foreground">
-          {authorName(topic)} &middot; Created {formatDate(topic.created)} &middot; Updated{' '}
-          {formatDate(topic.updated)}
+          {authorName(topic)} &middot; {t('detail.created', { time: formatDate(topic.created) })} &middot;{' '}
+          {t('detail.updated', { time: formatDate(topic.updated) })}
         </p>
       </div>
 
       {topic.closed && (
         <div className="bg-muted border rounded-lg px-4 py-3 flex items-center gap-2 text-sm text-muted-foreground">
           <Lock className="h-4 w-4" />
-          This topic is closed.
+          {t('detail.closedBanner')}
         </div>
       )}
 
@@ -567,10 +569,10 @@ function TopicDetailPage() {
 
       {/* Comments section */}
       <div className="space-y-4">
-        <h2 className="text-lg font-semibold">Comments ({comments.length})</h2>
+        <h2 className="text-lg font-semibold">{t('detail.commentsTitle', { count: comments.length })}</h2>
 
         {comments.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No comments yet.</p>
+          <p className="text-sm text-muted-foreground">{t('detail.noComments')}</p>
         ) : (
           <div className="space-y-3">
             {comments.map(c => (
@@ -578,7 +580,7 @@ function TopicDetailPage() {
                 <div className="flex items-center justify-between">
                   <p className="text-sm text-muted-foreground">
                     {authorName(c)} &middot; {formatDate(c.created)}
-                    {c.updated !== c.created && <span> &middot; edited</span>}
+                    {c.updated !== c.created && <span> &middot; {t('shared.edited')}</span>}
                   </p>
                   {user?.id === c.created_by && (
                     <div className="flex items-center gap-1">
@@ -610,7 +612,7 @@ function TopicDetailPage() {
                     />
                     <div className="flex justify-end gap-2">
                       <Button variant="outline" size="sm" onClick={cancelEditComment}>
-                        Cancel
+                         {t('common:cancel')}
                       </Button>
                       <Button
                         size="sm"
@@ -618,7 +620,7 @@ function TopicDetailPage() {
                         onClick={handleSaveComment}
                       >
                         {savingComment ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
-                        Save
+                        {t('common:save')}
                       </Button>
                     </div>
                   </div>
@@ -633,22 +635,22 @@ function TopicDetailPage() {
         {/* Add comment form */}
         {!topic.closed ? (
           <form onSubmit={handlePostComment} className="space-y-3 border rounded-lg p-4">
-            <Label htmlFor="new-comment">Add a comment</Label>
+            <Label htmlFor="new-comment">{t('detail.addComment')}</Label>
             <MarkdownEditor
               value={commentBody}
               onChange={setCommentBody}
-              placeholder="Write a comment… (Markdown supported)"
+               placeholder={t('detail.commentPlaceholder')}
             />
             <div className="flex justify-end">
               <Button type="submit" disabled={postingComment || !commentBody.trim()}>
                 {postingComment ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                Post Comment
+                {t('detail.postComment')}
               </Button>
             </div>
           </form>
         ) : (
           <p className="text-sm text-muted-foreground">
-            This topic is closed. No new comments can be added.
+            {t('detail.closedNoComments')}
           </p>
         )}
 
@@ -661,12 +663,12 @@ function TopicDetailPage() {
         <DialogContent>
           <form onSubmit={handleEditSubmit}>
             <DialogHeader>
-              <DialogTitle>Edit Topic</DialogTitle>
-              <DialogDescription>Update topic details.</DialogDescription>
+              <DialogTitle>{t('detail.dialogs.editTitle')}</DialogTitle>
+              <DialogDescription>{t('detail.dialogs.editDescription')}</DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="edit-title">Title</Label>
+                <Label htmlFor="edit-title">{t('list.dialog.title')}</Label>
                 <Input
                   id="edit-title"
                   value={formTitle}
@@ -676,7 +678,7 @@ function TopicDetailPage() {
               </div>
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label>Description</Label>
+                  <Label>{t('list.dialog.description')}</Label>
                   <label className="cursor-pointer">
                     <input
                       type="file"
@@ -690,25 +692,25 @@ function TopicDetailPage() {
                     />
                     <span className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
                       <Upload className="h-3.5 w-3.5" />{' '}
-                      {importPolicy.textOnly ? 'Upload text file' : 'Upload file'}
+                       {importPolicy.textOnly ? t('detail.uploadTextFile') : t('detail.uploadFile')}
                     </span>
                   </label>
                 </div>
                 <MarkdownEditor
                   value={formDesc}
                   onChange={setFormDesc}
-                  placeholder="Markdown supported"
+                   placeholder={t('detail.markdownPlaceholder')}
                 />
               </div>
               {formError && <p className="text-sm text-destructive">{formError}</p>}
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setEditOpen(false)}>
-                Cancel
+                {t('common:cancel')}
               </Button>
               <Button type="submit" disabled={saving}>
                 {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                Save
+                {t('common:save')}
               </Button>
             </DialogFooter>
           </form>
@@ -719,17 +721,16 @@ function TopicDetailPage() {
       <AlertDialog open={closeConfirmOpen} onOpenChange={setCloseConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Close Topic</AlertDialogTitle>
+            <AlertDialogTitle>{t('detail.dialogs.closeTitle')}</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to close &ldquo;{topic.title}&rdquo;? Closed topics cannot
-              receive new comments or be edited until reopened.
+              {t('detail.dialogs.closeDescription', { title: topic.title })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t('common:cancel')}</AlertDialogCancel>
             <AlertDialogAction onClick={handleToggleClosed} disabled={togglingClosed}>
               {togglingClosed ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              Close Topic
+              {t('detail.dialogs.closeConfirm')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -739,15 +740,14 @@ function TopicDetailPage() {
       <Dialog open={shareOpen} onOpenChange={setShareOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Share Topic</DialogTitle>
+            <DialogTitle>{t('detail.dialogs.shareTitle')}</DialogTitle>
             <DialogDescription>
-              Generate a public link — anyone with the link can view this topic and post comments
-              without logging in. The link expires after the specified time.
+              {t('detail.dialogs.shareDescription')}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="share-minutes">Validity (minutes)</Label>
+              <Label htmlFor="share-minutes">{t('detail.dialogs.validity')}</Label>
               <Input
                 id="share-minutes"
                 type="number"
@@ -759,7 +759,7 @@ function TopicDetailPage() {
             </div>
             {shareUrl && (
               <div className="space-y-2">
-                <Label>Public link</Label>
+                <Label>{t('detail.dialogs.publicLink')}</Label>
                 <div className="flex gap-2">
                   <Input
                     ref={shareUrlInputRef}
@@ -772,7 +772,7 @@ function TopicDetailPage() {
                     variant="outline"
                     size="icon"
                     onClick={handleCopyShareUrl}
-                    title="Copy"
+                     title={t('detail.dialogs.copy')}
                   >
                     {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                   </Button>
@@ -782,7 +782,7 @@ function TopicDetailPage() {
                     size="icon"
                     onClick={handleGenerateQr}
                     disabled={qrGenerating}
-                    title="QR Code"
+                     title={t('detail.dialogs.qrCode')}
                   >
                     {qrGenerating ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -790,20 +790,20 @@ function TopicDetailPage() {
                       <QrCode className="h-4 w-4" />
                     )}
                   </Button>
-                  <Button type="button" variant="outline" size="icon" asChild title="Open">
+                  <Button type="button" variant="outline" size="icon" asChild title={t('detail.dialogs.open')}>
                     <a href={shareUrl} target="_blank" rel="noopener noreferrer">
                       <ExternalLink className="h-4 w-4" />
                     </a>
                   </Button>
                 </div>
-                {copied && <p className="text-xs text-green-600">Copied to clipboard!</p>}
+                {copied && <p className="text-xs text-green-600">{t('detail.dialogs.copied')}</p>}
                 {qrDataUrl && (
                   <div className="space-y-2">
                     <div className="w-fit rounded-md border border-border p-2 bg-background">
-                      <img src={qrDataUrl} alt="Share QR code" className="h-40 w-40" />
+                      <img src={qrDataUrl} alt={t('detail.dialogs.shareQrCode')} className="h-40 w-40" />
                     </div>
                     <Button variant="outline" size="sm" onClick={handleDownloadQr}>
-                      <Download className="h-4 w-4 mr-1" /> Download QR
+                      <Download className="h-4 w-4 mr-1" /> {t('detail.dialogs.downloadQr')}
                     </Button>
                   </div>
                 )}
@@ -820,7 +820,7 @@ function TopicDetailPage() {
                 className="text-destructive hover:text-destructive"
               >
                 {revoking ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                Revoke
+                {t('detail.dialogs.revoke')}
               </Button>
             ) : (
               <div />
@@ -831,7 +831,7 @@ function TopicDetailPage() {
               disabled={sharing || shareMinutes < 1 || shareMinutes > sharePolicy.shareMaxMinutes}
             >
               {sharing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              {shareUrl ? 'Refresh Link' : 'Generate Link'}
+              {shareUrl ? t('detail.dialogs.refreshLink') : t('detail.dialogs.generateLink')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -841,21 +841,20 @@ function TopicDetailPage() {
       <AlertDialog open={deleteTopicOpen} onOpenChange={setDeleteTopicOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Topic</AlertDialogTitle>
+            <AlertDialogTitle>{t('detail.dialogs.deleteTopicTitle')}</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete &ldquo;{topic.title}&rdquo;? All comments will also be
-              deleted. This action cannot be undone.
+              {t('detail.dialogs.deleteTopicDescription', { title: topic.title })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t('common:cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteTopic}
               disabled={deletingTopic}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {deletingTopic ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              Delete
+              {t('detail.delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -868,20 +867,20 @@ function TopicDetailPage() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Comment</AlertDialogTitle>
+            <AlertDialogTitle>{t('detail.dialogs.deleteCommentTitle')}</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete this comment? This action cannot be undone.
+              {t('detail.dialogs.deleteCommentDescription')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t('common:cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteComment}
               disabled={deletingComment}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {deletingComment ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              Delete
+              {t('detail.delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

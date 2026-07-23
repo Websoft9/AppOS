@@ -1,0 +1,503 @@
+{
+  "shared": {
+    "emptyDash": "—",
+    "emptyShort": "-",
+    "boolean": {
+      "yes": "Yes",
+      "no": "No"
+    },
+    "statusLabels": {
+      "healthy": "Healthy",
+      "degraded": "Degraded",
+      "offline": "Offline",
+      "unreachable": "Unreachable",
+      "credential_invalid": "Credential Invalid",
+      "unknown": "Unknown",
+      "platform": "Platform",
+      "server": "Server",
+      "uptime_seconds": "Uptime Seconds",
+      "scheduler_running": "Scheduler Running",
+      "memory_bytes": "Memory Bytes",
+      "cpu_percent": "CPU Percent",
+      "memory_available_bytes": "Memory Available Bytes",
+      "disk_usage": "Disk Usage"
+    }
+  },
+  "crons": {
+    "logs": {
+      "title": "Cron Logs",
+      "refresh": "Refresh",
+      "close": "Close",
+      "lastStatus": "Last Status",
+      "lastRun": "Last Run",
+      "duration": "Duration",
+      "loading": "Loading logs...",
+      "loadError": "Failed to load logs: {{error}}",
+      "empty": "No execution logs found for this job.",
+      "emptyHint": "Logs are only available for cron handlers registered with cronutil.Wrap() in the backend. Native PocketBase cron jobs do not produce structured logs.",
+      "table": {
+        "time": "Time",
+        "level": "Level",
+        "phase": "Phase",
+        "trigger": "Trigger",
+        "message": "Message",
+        "runId": "run_id:",
+        "error": "error: "
+      }
+    },
+    "title": "Platform Crons",
+    "description": "Review platform scheduled jobs across PocketBase core tasks and AppOS platform tasks.",
+    "refreshAria": "Refresh platform crons",
+    "success": "Success",
+    "dismissSuccess": "Dismiss success message",
+    "loading": "Loading tasks...",
+    "empty": "No cron jobs registered.",
+    "table": {
+      "jobId": "Job ID",
+      "schedule": "Schedule",
+      "type": "Type",
+      "effectiveInterval": "Effective Interval",
+      "lastStatus": "Last Status",
+      "lastRun": "Last Run",
+      "action": "Action"
+    },
+    "type": {
+      "core": "Core",
+      "platform": "Platform"
+    },
+    "status": {
+      "success": "Success",
+      "error": "Error",
+      "none": "—",
+      "phaseSuccess": "success",
+      "phaseError": "error",
+      "phaseStart": "start",
+      "info": "INFO",
+      "warn": "WARN",
+      "errorLevel": "ERROR"
+    },
+    "triggered": "Job {{jobId}} triggered."
+  },
+  "networkPlaceholder": {
+    "empty": "No content is available yet."
+  },
+  "networkPage": {
+    "title": "Network",
+    "description": "Manage network-facing services, tunnels, and traffic visibility from one place.",
+    "emptyTitle": "Network dashboard",
+    "emptyDescription": "This landing page is reserved for future network summaries and traffic monitors."
+  },
+  "gatewayPage": {
+    "title": "Gateway",
+    "description": "Administer ingress, published endpoints, and gateway-facing controls here.",
+    "emptyTitle": "Gateway console",
+    "emptyDescription": "Gateway administration surfaces will be added here in a future slice."
+  },
+  "trafficPage": {
+    "title": "Traffic",
+    "description": "Monitor HTTP proxy and gateway traffic from a dedicated network operations surface.",
+    "emptyTitle": "Traffic monitor",
+    "emptyDescription": "Traffic dashboards and flow summaries will be added here in a future slice."
+  },
+  "logsPage": {
+    "title": "Logs",
+    "description": "Browse runtime and request logs.",
+    "actions": {
+      "refresh": "Refresh logs",
+      "refreshAria": "Refresh logs"
+    },
+    "filters": {
+      "allLevels": "All levels",
+      "allStatus": "All status",
+      "noStatus": "No status",
+      "searchPlaceholder": "Search logs"
+    },
+    "pagination": {
+      "perPage": "{{count}} / page",
+      "previous": "Previous page",
+      "next": "Next page"
+    },
+    "table": {
+      "time": "Time",
+      "level": "Level",
+      "messageUrl": "Message / URL",
+      "status": "Status",
+      "exec": "Exec",
+      "loading": "Loading...",
+      "empty": "No log entries found."
+    },
+    "row": {
+      "messageLabel": "message:"
+    }
+  },
+  "monitorOverview": {
+    "title": "Monitor Overview",
+    "description": "Live platform and unhealthy target status from the monitoring read model.",
+    "actions": {
+      "refresh": "Refresh"
+    },
+    "errors": {
+      "load": "Failed to load monitoring overview"
+    },
+    "shared": {
+      "noActiveIssue": "No active issue reported."
+    },
+    "unhealthy": {
+      "title": "Unhealthy Targets",
+      "description": "Cross-domain issues surfaced by the current latest-status projection.",
+      "loading": "Loading unhealthy targets...",
+      "empty": "No unhealthy targets right now."
+    },
+    "platformTargets": {
+      "title": "Platform Targets",
+      "description": "AppOS self-observation for core process, worker, and scheduler.",
+      "loading": "Loading platform status...",
+      "empty": "Platform self-observation has not reported yet."
+    },
+    "platformDetail": {
+      "title": "Platform Detail",
+      "description": "Drill into one self-observed AppOS component with the same normalized status and short-window trend surface used elsewhere.",
+      "empty": "Platform self-observation has not produced detail for this target yet."
+    }
+  },
+  "platformComponents": {
+    "title": "Platform Components",
+    "description": "Inspect built-in platform components and active internal services.",
+    "actions": {
+      "refresh": "Refresh",
+      "forceRefresh": "Force refresh",
+      "viewLogs": "View Logs",
+      "close": "Close"
+    },
+    "tabs": {
+      "services": "Active Services",
+      "components": "Built-in Components"
+    },
+    "runtimeKinds": {
+      "unknownRuntime": "Unknown runtime",
+      "unknown": "Unknown runtime",
+      "service": "Service",
+      "tool": "Tool",
+      "os": "Os"
+    },
+    "visibility": {
+      "default": "Default",
+      "diagnostic": "Diagnostic",
+      "hidden": "Hidden",
+      "unknown": "Unknown"
+    },
+    "lifecycle": {
+      "always_on": "Always on",
+      "on_demand": "On demand",
+      "ephemeral": "Ephemeral",
+      "unknown": "Unknown"
+    },
+    "serviceStates": {
+      "running": "running",
+      "starting": "starting",
+      "backoff": "backoff",
+      "restarting": "restarting",
+      "fatal": "fatal",
+      "exited": "exited",
+      "unknown": "unknown",
+      "missing": "missing",
+      "stopped": "stopped"
+    },
+    "criticality": {
+      "core": "core",
+      "important": "important",
+      "unknown": "unknown"
+    },
+    "errors": {
+      "loadComponents": "Failed to load components"
+    },
+    "services": {
+      "groupDescription": "Services are grouped by operator visibility so the default surface stays focused while diagnostic dependencies remain accessible.",
+      "activeTitle": "Active Services",
+      "activeDescription": "Default operator-visible services for the current AppOS instance.",
+      "diagnosticTitle": "Diagnostic Services",
+      "diagnosticDescription": "Background or diagnostic services that stay out of the default operator list.",
+      "updatedAt": "Updated at {{time}}",
+      "awaitingSample": "Awaiting runtime sample",
+      "loading": "Loading active services...",
+      "empty": "No active services are configured.",
+      "emptyDefault": "No default-visibility services are configured.",
+      "emptyDiagnostic": "No diagnostic-only services are configured."
+    },
+    "components": {
+      "readOnlyDescription": "Read-only runtime inventory for quick awareness. No actions are required here.",
+      "loading": "Loading built-in components...",
+      "empty": "No built-in components were detected.",
+      "noRole": "No role declared",
+      "version": "Version {{version}}",
+      "capability": "Capability: {{capability}}",
+      "updated": "Updated {{time}}",
+      "notDeclared": "Not declared"
+    },
+    "installed": {
+      "loading": "Loading installed components...",
+      "empty": "No installed components were detected."
+    },
+    "table": {
+      "name": "Name",
+      "state": "State",
+      "pid": "PID",
+      "cpu": "CPU",
+      "memory": "Memory",
+      "uptime": "Uptime",
+      "action": "Action"
+    },
+    "logs": {
+      "title": "Service Logs: {{name}}",
+      "lastDetected": "Last detected {{time}}",
+      "description": "Diagnostic logs for the selected service",
+      "stdout": "stdout",
+      "stderr": "stderr",
+      "loading": "Loading service logs...",
+      "empty": "No log content",
+      "truncated": "Showing a truncated log tail."
+    }
+  },
+  "platformRuntime": {
+    "title": "Platform Runtime",
+    "description": "Inspect active services and built-in tools that currently make up the AppOS runtime.",
+    "actions": {
+      "refresh": "Refresh runtime"
+    },
+    "summary": {
+      "title": "Runtime Summary",
+      "builtInComponents": "Built-in Components",
+      "available": "Available",
+      "unavailable": "Unavailable",
+      "checking": "Checking",
+      "activeServices": "Active Services"
+    },
+    "hostFacts": {
+      "title": "Host/Kernel Facts",
+      "description": "Runtime-visible system facts and limits exposed from inside the current AppOS runtime.",
+      "kernelRelease": "Kernel Release",
+      "architecture": "Architecture",
+      "visibleCpuTopology": "Visible CPU Topology",
+      "effectiveCpuSet": "Effective CPU Set",
+      "cpuQuota": "CPU Quota",
+      "memoryLimit": "Memory Limit"
+    },
+    "services": {
+      "title": "Active Services",
+      "description": "Runtime services currently detected for this AppOS instance, including diagnostic services.",
+      "empty": "No active services are configured."
+    },
+    "components": {
+      "title": "Built-in Components",
+      "description": "Built-in tools and embedded dependencies currently exposed inside the AppOS runtime.",
+      "loading": "Loading built-in components...",
+      "empty": "No built-in components were detected."
+    },
+    "table": {
+      "name": "Name",
+      "version": "Version",
+      "availability": "Availability",
+      "service": "Service",
+      "updatedAt": "Updated at",
+      "checking": "Checking...",
+      "available": "Available",
+      "unavailable": "Unavailable",
+      "yes": "Yes",
+      "no": "No"
+    }
+  },
+  "platformStatus": {
+    "title": "Status",
+    "description": "Unified status for the AppOS control plane and monitoring surfaces.",
+    "actions": {
+      "refresh": "Refresh status"
+    },
+    "availability": {
+      "title": "Platform Availability",
+      "available": "Available",
+      "unavailable": "Unavailable",
+      "limited": "Limited",
+      "degraded": "Degraded",
+      "primaryReason": "Primary reason",
+      "lastChecked": "Last checked"
+    },
+    "availabilityDescriptions": {
+      "available": "The platform is available for normal operations.",
+      "unavailable": "Core management is unavailable. Immediate operator attention is required.",
+      "degraded": "Core management remains available, but some capabilities are operating with reduced confidence."
+    },
+    "capabilities": {
+      "consoleAccess": "Console Access",
+      "applicationManagement": "Application Management",
+      "backgroundJobs": "Background Jobs",
+      "monitoring": "Monitoring"
+    },
+    "capabilityReasons": {
+      "consoleAccessOk": "Core runtime signals are responding normally.",
+      "applicationManagementOk": "Core management services are available.",
+      "backgroundJobsOk": "Worker and scheduler signals are healthy.",
+      "monitoringOk": "Monitoring storage and the AppOS self-collector are available.",
+      "signalNotReporting": "{{target}} signal is not reporting normally.",
+      "serviceState": "{{name}} is {{state}}.",
+      "serviceMissing": "{{name}} is not detected in active services.",
+      "allHealthy": "All core platform capabilities are reporting healthy signals."
+    },
+    "performance": {
+      "title": "Platform performance",
+      "description": "Control-plane self metrics for the AppOS runtime container, including memory usage versus container limit.",
+      "latestStat": "Latest Stat",
+      "latestStatDescription": "Latest observed values sampled at monitor cadence.",
+      "trend": "Trend",
+      "trendDescription": "Historical self-metrics across the selected time range.",
+      "timeRangeAria": "Platform performance time range",
+      "empty": "Platform self metrics are not available yet.",
+      "customRange": {
+        "start": "Start",
+        "end": "End",
+        "openStartPicker": "Open start date picker",
+        "openEndPicker": "Open end date picker",
+        "cancel": "Cancel",
+        "apply": "Apply",
+        "invalid": "Choose a valid custom range."
+      }
+    },
+    "targets": {
+      "title": "Platform Targets",
+      "description": "Control-plane runtime health as secondary evidence for availability.",
+      "empty": "Platform self-observation has not reported yet."
+    },
+    "shared": {
+      "used": "used",
+      "limit": "limit",
+      "free": "free",
+      "read": "Read",
+      "write": "Write",
+      "in": "In",
+      "out": "Out",
+      "updatedAtEmpty": "Updated at —",
+      "updatedAt": "Updated at {{time}}",
+      "updatedAtRange": "Updated at {{start}} - {{end}}",
+      "noActiveIssue": "No active issue reported."
+    }
+  },
+  "tunnels": {
+    "title": "Tunnels",
+    "description": "Inspect active tunnel connectivity, review connection logs, and operate recovery actions.",
+    "loading": "Loading tunnels...",
+    "status": {
+      "online": "Online",
+      "offline": "Offline",
+      "paused": "Paused",
+      "waiting": "Waiting",
+      "restarting": "Restarting",
+      "reconnecting": "Reconnecting"
+    },
+    "errors": {
+      "loadOverview": "Failed to load tunnel overview",
+      "loadDesiredForwards": "Failed to load desired forwards",
+      "loadConnectionLogs": "Failed to load connection logs",
+      "checkStatus": "Failed to check tunnel status",
+      "actionFailed": "Tunnel action failed",
+      "pauseMinutesPositive": "Pause minutes must be a positive number.",
+      "pauseFailed": "Failed to pause tunnel connect",
+      "saveDesiredForwards": "Failed to save desired forwards"
+    },
+    "notices": {
+      "restartRequested": "Tunnel connection restart requested.",
+      "resumeSent": "Resume sent. Waiting for reconnect.",
+      "tokenRotated": "Tunnel token rotated.",
+      "paused": "Tunnel connect paused.",
+      "forwardsSaved": "Saved. Applies on next reconnect or regenerated setup."
+    },
+    "actions": {
+      "refresh": "Refresh",
+      "refreshAria": "Refresh tunnels",
+      "showStats": "Show stats",
+      "hideStats": "Hide stats",
+      "previousPage": "Previous page",
+      "nextPage": "Next page",
+      "clearFilters": "Clear filters",
+      "menu": "Actions",
+      "portForward": "Port Forward",
+      "connectionLogs": "Connection Logs",
+      "setup": "Setup",
+      "checking": "Checking...",
+      "check": "Check",
+      "resumeConnect": "Resume Connect",
+      "pauseConnect": "Pause Connect",
+      "restartConnection": "Restart Connection",
+      "rotateToken": "Rotate token",
+      "cancel": "Cancel",
+      "confirm": "Confirm",
+      "add": "Add",
+      "removeForward": "Remove forward",
+      "close": "Close",
+      "saveDesiredForwards": "Save Desired Forwards"
+    },
+    "filters": {
+      "searchPlaceholder": "Search tunnels",
+      "statusAria": "Filter tunnels by status",
+      "allStatus": "All status"
+    },
+    "summary": {
+      "total": "Total {{count}}",
+      "online": "Online {{count}}",
+      "offline": "Offline {{count}}",
+      "paused": "Paused {{count}}",
+      "waiting": "Waiting {{count}}"
+    },
+    "empty": {
+      "filtered": "No tunnels match the current view."
+    },
+    "table": {
+      "tunnelId": "Tunnel ID",
+      "server": "Server",
+      "status": "Status",
+      "lastConnected": "Last Connected",
+      "created": "Created",
+      "sessionDuration": "Session Duration",
+      "remoteAddress": "Remote Address",
+      "action": "Action"
+    },
+    "details": {
+      "title": "Tunnel Details",
+      "serverName": "Server Name",
+      "remote": "Remote",
+      "reconnects24h": "Reconnects 24h",
+      "pauseUntil": "Pause Until",
+      "lastDisconnect": "Last Disconnect",
+      "lastDisconnectPrefix": "Last disconnect:",
+      "waitingFirstConnect": "Waiting First Connect",
+      "effectiveMappings": "Effective Mappings",
+      "none": "None"
+    },
+    "dialogs": {
+      "rotateTitle": "Rotate Tunnel Token",
+      "resumeTitle": "Resume Tunnel Connect",
+      "restartDescription": "Drop the current tunnel. Local autossh may reconnect immediately.",
+      "rotateDescription": "Rotating the token immediately disconnects the active tunnel. The local server must be updated with the new setup command.",
+      "resumeDescription": "Resume connect clears pause_until and allows the local tunnel service to reconnect immediately.",
+      "pauseTitle": "Pause Tunnel Connect",
+      "pauseDescription": "Set a pause window in minutes. Decimal values are supported, for example 0.1 minutes.",
+      "minutes": "Minutes",
+      "pauseMinutesAria": "Pause minutes"
+    },
+    "forwards": {
+      "description": "Saved intent on the left, current live mappings on the right.",
+      "desiredTitle": "Desired Forwards",
+      "desiredDescription": "Saved mapping intent. Applies on reconnect.",
+      "loading": "Loading desired forwards...",
+      "serviceNamePlaceholder": "service name",
+      "localPortPlaceholder": "local port",
+      "emptyDesired": "No desired forwards yet.",
+      "effectiveDescription": "Live mappings from the latest connected tunnel session.",
+      "emptyEffective": "No effective mappings."
+    },
+    "logs": {
+      "loading": "Loading connection logs...",
+      "reason": "Reason",
+      "event": "Event",
+      "empty": "No connection logs yet."
+    }
+  }
+}

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
 
@@ -90,33 +91,62 @@ export function SecretVisibilityField({
   defaultOpen?: boolean
   collapsedHint?: string
 }) {
+  const { t } = useTranslation('secrets')
   const [open, setOpen] = useState(defaultOpen)
+  const options = [
+    {
+      ...RESOURCE_SECRET_VISIBLE_TO_OPTIONS[0],
+      label: t('visibility.servers'),
+      description: t('visibility.serversDescription'),
+    },
+    {
+      ...RESOURCE_SECRET_VISIBLE_TO_OPTIONS[1],
+      label: t('visibility.applications'),
+      description: t('visibility.applicationsDescription'),
+    },
+    {
+      ...RESOURCE_SECRET_VISIBLE_TO_OPTIONS[2],
+      label: t('visibility.runtimeInstances'),
+      description: t('visibility.runtimeInstancesDescription'),
+    },
+    {
+      ...RESOURCE_SECRET_VISIBLE_TO_OPTIONS[3],
+      label: t('visibility.externalServices'),
+      description: t('visibility.externalServicesDescription'),
+    },
+    {
+      ...RESOURCE_SECRET_VISIBLE_TO_OPTIONS[4],
+      label: t('visibility.providerAccounts'),
+      description: t('visibility.providerAccountsDescription'),
+    },
+    {
+      ...RESOURCE_SECRET_VISIBLE_TO_OPTIONS[5],
+      label: t('visibility.aiProviders'),
+      description: t('visibility.aiProvidersDescription'),
+    },
+  ]
   const selectedSummary = useMemo(() => {
-    const selected = RESOURCE_SECRET_VISIBLE_TO_OPTIONS.filter(option =>
-      value.includes(option.value)
-    )
-    if (selected.length === RESOURCE_SECRET_VISIBLE_TO_OPTIONS.length) {
-      return 'All supported dialogs'
+    const selected = options.filter(option => value.includes(option.value))
+    if (selected.length === options.length) {
+      return t('visibility.all')
     }
     if (selected.length === 0) {
-      return 'No dialogs selected'
+      return t('visibility.none')
     }
     if (selected.length <= 2) {
       return selected.map(option => option.label).join(', ')
     }
-    return `${selected.length} targets selected`
-  }, [value])
+    return t('visibility.selectedCount', { count: selected.length })
+  }, [options, t, value])
 
   const content = (
     <div className="space-y-2">
       <div>
-        <div className="text-sm font-medium text-foreground">Visible In</div>
-        <p className="text-xs text-muted-foreground">
-          Choose which resource dialogs can discover this secret.
-        </p>
+        <div className="text-sm font-medium text-foreground">{t('visibility.title')}</div>
+        <p className="text-xs text-muted-foreground">{t('visibility.description')}</p>
       </div>
       <div className="grid gap-2 sm:grid-cols-2">
-        {RESOURCE_SECRET_VISIBLE_TO_OPTIONS.map(option => {
+        {options.map(option => {
           const checked = value.includes(option.value)
           return (
             <label
@@ -161,11 +191,11 @@ export function SecretVisibilityField({
         onClick={() => setOpen(current => !current)}
         aria-expanded={open}
       >
-        <span className="space-y-0.5">
-          <span className="block text-sm font-medium text-foreground">Visible In</span>
-          <span className="block text-xs text-muted-foreground">
-            {open ? 'Choose which resource dialogs can discover this secret.' : selectedSummary}
-          </span>
+          <span className="space-y-0.5">
+            <span className="block text-sm font-medium text-foreground">{t('visibility.title')}</span>
+            <span className="block text-xs text-muted-foreground">
+              {open ? t('visibility.description') : selectedSummary}
+            </span>
           {!open && collapsedHint ? (
             <span className="block text-[11px] text-muted-foreground/90">{collapsedHint}</span>
           ) : null}

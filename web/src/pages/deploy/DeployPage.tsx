@@ -11,6 +11,7 @@ import {
   Wrench,
   X,
 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { getLocale } from '@/lib/i18n'
 import { ActionControlDialog } from '@/pages/deploy/actions/ActionControlDialog'
 import { DeleteActionDialog } from '@/pages/deploy/actions/DeleteActionDialog'
@@ -56,6 +57,7 @@ export function DeployPage({
   listSearch,
   view = 'home',
 }: DeployPageProps) {
+  const { t } = useTranslation('deploy')
   const locale = getLocale()
   const {
     storeShortcuts,
@@ -142,42 +144,50 @@ export function DeployPage({
     () => [
       {
         key: 'compose',
-        title: 'Compose File',
-        description:
-          'Paste or review docker-compose YAML. This is the recommended path for standard app stacks.',
+        title: t('customEntries.compose.title', { defaultValue: 'Compose File' }),
+        description: t('customEntries.compose.description', {
+          defaultValue:
+            'Paste or review docker-compose YAML. This is the recommended path for standard app stacks.',
+        }),
         icon: <FileCode2 className="h-4 w-4" />,
         action: () => openManualDialog('compose'),
         variant: 'outline',
       },
       {
         key: 'git-compose',
-        title: 'Git Repository',
-        description:
-          'Pull a compose file from a repository branch or tag, then create the deployment task.',
+        title: t('customEntries.gitCompose.title', { defaultValue: 'Git Repository' }),
+        description: t('customEntries.gitCompose.description', {
+          defaultValue:
+            'Pull a compose file from a repository branch or tag, then create the deployment task.',
+        }),
         icon: <GitBranch className="h-4 w-4" />,
         action: () => openManualDialog('git-compose'),
         variant: 'outline',
       },
       {
         key: 'docker-command',
-        title: 'Docker Command',
-        description:
-          'Convert a docker run command into compose-compatible content before submitting the deployment.',
+        title: t('customEntries.dockerCommand.title', { defaultValue: 'Docker Command' }),
+        description: t('customEntries.dockerCommand.description', {
+          defaultValue:
+            'Convert a docker run command into compose-compatible content before submitting the deployment.',
+        }),
         icon: <TerminalSquare className="h-4 w-4" />,
         action: () => openManualDialog('docker-command'),
         variant: 'outline',
       },
       {
         key: 'install-script',
-        title: 'Source Packages',
-        description:
-          'Use user-provided compressed source packages such as zip or tar.gz as the deployment input source.',
+        title: t('customEntries.installScript.title', { defaultValue: 'Source Packages' }),
+        description: t('customEntries.installScript.description', {
+          defaultValue:
+            'Use user-provided compressed source packages such as zip or tar.gz as the deployment input source.',
+        }),
         icon: <Wrench className="h-4 w-4" />,
         action: () => openManualDialog('install-script'),
         variant: 'outline',
       },
     ],
-    [openManualDialog]
+    [openManualDialog, t]
   )
   function renderActionMenu(item: ActionRecord) {
     return (
@@ -186,16 +196,21 @@ export function DeployPage({
           <Button
             variant="ghost"
             size="icon"
-            aria-label={`More actions for ${item.compose_project_name || item.id}`}
+            aria-label={t('actions.moreActionsFor', {
+              defaultValue: 'More actions for {{name}}',
+              name: item.compose_project_name || item.id,
+            })}
           >
             <MoreVertical className="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={() => openOperationDetail(item.id)}>View</DropdownMenuItem>
+          <DropdownMenuItem onClick={() => openOperationDetail(item.id)}>
+            {t('actions.view', { defaultValue: 'View' })}
+          </DropdownMenuItem>
           {canCancelAction(item) ? (
             <DropdownMenuItem onClick={() => openActionControl(item, 'cancel')}>
-              Cancel
+              {t('actions.cancel', { defaultValue: 'Cancel' })}
             </DropdownMenuItem>
           ) : null}
           {canForceFailAction(item) ? (
@@ -203,12 +218,12 @@ export function DeployPage({
               variant="destructive"
               onClick={() => openActionControl(item, 'force-fail')}
             >
-              Force Fail
+              {t('actions.forceFail', { defaultValue: 'Force Fail' })}
             </DropdownMenuItem>
           ) : null}
           {canResumeAction(item) ? (
             <DropdownMenuItem onClick={() => openActionControl(item, 'resume')}>
-              Resume
+              {t('actions.resume', { defaultValue: 'Resume' })}
             </DropdownMenuItem>
           ) : null}
           <DropdownMenuItem
@@ -216,7 +231,7 @@ export function DeployPage({
             disabled={isActiveStatus(item.status)}
             onClick={() => setPendingDelete([item])}
           >
-            Delete
+            {t('actions.delete', { defaultValue: 'Delete' })}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -228,32 +243,38 @@ export function DeployPage({
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
           <h1 className="text-2xl font-bold">
-            {view === 'list' ? 'Activity' : 'Deploy Application'}
+            {view === 'list'
+              ? t('pages.activity', { defaultValue: 'Activity' })
+              : t('pages.deployApplication', { defaultValue: 'Deploy Application' })}
           </h1>
           <p className="text-sm text-muted-foreground">
             {view === 'list'
-              ? 'Browse deployment activity and open execution details.'
-              : 'Choose an application source and start deployment.'}
+              ? t('page.listDescription', {
+                  defaultValue: 'Browse deployment activity and open execution details.',
+                })
+              : t('page.homeDescription', {
+                  defaultValue: 'Choose an application source and start deployment.',
+                })}
           </p>
         </div>
         <div className="flex items-center gap-2">
           {view === 'home' ? (
             <>
-              <Button
-                size="icon"
-                title="Deploy"
-                aria-label="Deploy"
-                onClick={() => openManualDialog('compose')}
-              >
+                <Button
+                  size="icon"
+                  title={t('page.deploy', { defaultValue: 'Deploy' })}
+                  aria-label={t('page.deploy', { defaultValue: 'Deploy' })}
+                  onClick={() => openManualDialog('compose')}
+                >
                 <Plus className="h-4 w-4" />
               </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                title="View activity"
-                aria-label="View activity"
-                asChild
-              >
+                <Button
+                  variant="outline"
+                  size="icon"
+                  title={t('page.viewActivity', { defaultValue: 'View activity' })}
+                  aria-label={t('page.viewActivity', { defaultValue: 'View activity' })}
+                  asChild
+                >
                 <Link to="/activity" params={{} as never} search={{} as never}>
                   <List className="h-4 w-4" />
                 </Link>
@@ -261,18 +282,23 @@ export function DeployPage({
             </>
           ) : (
             <>
-              <Button size="icon" title="Deploy" aria-label="Deploy" asChild>
+              <Button
+                size="icon"
+                title={t('page.deploy', { defaultValue: 'Deploy' })}
+                aria-label={t('page.deploy', { defaultValue: 'Deploy' })}
+                asChild
+              >
                 <Link to="/deploy" search={{} as never}>
                   <Plus className="h-4 w-4" />
                 </Link>
               </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                title="Refresh"
-                aria-label="Refresh"
-                onClick={() => void fetchOperations()}
-              >
+                <Button
+                  variant="outline"
+                  size="icon"
+                  title={t('page.refresh', { defaultValue: 'Refresh' })}
+                  aria-label={t('page.refresh', { defaultValue: 'Refresh' })}
+                  onClick={() => void fetchOperations()}
+                >
                 <RefreshCw className="h-4 w-4" />
               </Button>
             </>
@@ -287,7 +313,7 @@ export function DeployPage({
             variant="ghost"
             size="icon"
             className="h-7 w-7 shrink-0"
-            aria-label="Close notification"
+            aria-label={t('page.closeNotification', { defaultValue: 'Close notification' })}
             onClick={() => setNotice(null)}
           >
             <X className="h-4 w-4" />
@@ -299,12 +325,15 @@ export function DeployPage({
         <Alert>
           <AlertDescription className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <span>
-              Showing activity scoped to app {listSearch.appId}. Search, sorting, and filters apply
-              within this app only.
+              {t('page.scopedActivity', {
+                defaultValue:
+                  'Showing activity scoped to app {{appId}}. Search, sorting, and filters apply within this app only.',
+                appId: listSearch.appId,
+              })}
             </span>
             <Button variant="outline" size="sm" asChild>
               <Link to="/activity" params={{} as never} search={{} as never}>
-                Clear App Scope
+                {t('page.clearAppScope', { defaultValue: 'Clear App Scope' })}
               </Link>
             </Button>
           </AlertDescription>

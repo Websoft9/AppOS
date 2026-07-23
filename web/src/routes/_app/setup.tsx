@@ -1,10 +1,12 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import type { FormEvent } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { pb } from '@/lib/pb'
 
 function SetupPage() {
+  const { t } = useTranslation('auth')
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -57,11 +59,11 @@ function SetupPage() {
       setError('')
 
       if (password !== passwordConfirm) {
-        setError('Passwords do not match')
+        setError(t('setup.errors.passwordsDoNotMatch'))
         return
       }
       if (password.length < 8) {
-        setError('Password must be at least 8 characters')
+        setError(t('setup.errors.passwordTooShort'))
         return
       }
 
@@ -74,7 +76,7 @@ function SetupPage() {
         credentialsRef.current = { email, password }
         setSuccess(true)
       } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : 'Setup failed'
+        const message = err instanceof Error ? err.message : t('setup.errors.fallback')
         setError(message)
       } finally {
         setLoading(false)
@@ -89,14 +91,14 @@ function SetupPage() {
         <div className="w-full max-w-md p-8 bg-card rounded-lg shadow-md border border-border text-center">
           <div className="mb-4 text-4xl">✅</div>
           <h2 className="text-2xl font-bold mb-2 text-card-foreground">
-            Account Created Successfully!
+            {t('setup.successTitle')}
           </h2>
-          <p className="text-muted-foreground mb-2">Please save your credentials:</p>
+          <p className="text-muted-foreground mb-2">{t('setup.successDescription')}</p>
           <p className="font-mono text-sm bg-muted p-2 rounded mb-4 text-foreground">
             {credentialsRef.current.email}
           </p>
           <p className="text-muted-foreground">
-            Auto-login in <span className="font-bold text-foreground">{countdown}</span>s...
+            {t('setup.autoLogin', { count: countdown })}
           </p>
         </div>
       </div>
@@ -107,10 +109,10 @@ function SetupPage() {
     <div className="flex items-center justify-center min-h-screen bg-background">
       <div className="w-full max-w-md p-8 bg-card rounded-lg shadow-md border border-border">
         <h2 className="text-2xl font-bold text-center mb-2 text-card-foreground">
-          Welcome to Websoft9
+          {t('setup.title')}
         </h2>
         <p className="text-center text-sm text-muted-foreground mb-6">
-          Create your admin account to get started
+          {t('setup.description')}
         </p>
 
         {error && (
@@ -121,9 +123,9 @@ function SetupPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="email" className="block text-sm font-medium mb-1 text-foreground">
-              Admin Email
-            </label>
+              <label htmlFor="email" className="block text-sm font-medium mb-1 text-foreground">
+                {t('setup.adminEmail')}
+              </label>
             <input
               type="email"
               id="email"
@@ -135,9 +137,9 @@ function SetupPage() {
             />
           </div>
           <div>
-            <label htmlFor="password" className="block text-sm font-medium mb-1 text-foreground">
-              Password
-            </label>
+              <label htmlFor="password" className="block text-sm font-medium mb-1 text-foreground">
+                {t('setup.password')}
+              </label>
             <input
               type="password"
               id="password"
@@ -154,7 +156,7 @@ function SetupPage() {
               htmlFor="passwordConfirm"
               className="block text-sm font-medium mb-1 text-foreground"
             >
-              Confirm Password
+              {t('setup.passwordConfirm')}
             </label>
             <input
               type="password"
@@ -168,7 +170,7 @@ function SetupPage() {
             />
           </div>
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? 'Creating...' : 'Create Admin Account'}
+            {loading ? t('setup.submitting') : t('setup.submit')}
           </Button>
         </form>
       </div>

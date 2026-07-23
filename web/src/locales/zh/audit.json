@@ -1,0 +1,39 @@
+{
+  "title": "Audit",
+  "description": "Records sensitive and critical user operations for accountability.",
+  "openLogs": "Open logs",
+  "logs": "Logs",
+  "refreshAria": "Refresh audit",
+  "summary": {
+    "total": "Total",
+    "success": "Success",
+    "failed": "Failed",
+    "pending": "Pending"
+  },
+  "filters": {
+    "allActions": "All actions",
+    "allStatuses": "All statuses"
+  },
+  "table": {
+    "time": "Time",
+    "action": "Action",
+    "resource": "Resource",
+    "status": "Status",
+    "ip": "IP",
+    "user": "User",
+    "userAgent": "User-Agent:"
+  },
+  "status": {
+    "pending": "pending",
+    "success": "success",
+    "failed": "failed"
+  },
+  "loading": "Loading...",
+  "empty": "No records found.",
+  "pagination": {
+    "pageOf": "Page {{page}} of {{totalPages}}",
+    "perPage": "{{count}} / page",
+    "previous": "Previous",
+    "next": "Next"
+  }
+}

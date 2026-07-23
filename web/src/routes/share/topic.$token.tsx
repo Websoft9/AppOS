@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback, type FormEvent } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { Loader2, Lock } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { pb } from '@/lib/pb'
 import { getApiErrorMessage } from '@/lib/api-error'
+import { getLocale } from '@/lib/i18n'
 import { TOPIC_GUEST_AUTHOR_PREFIX } from '../_app/_auth/-topics-shared'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -33,9 +35,9 @@ interface SharedComment {
 
 // ─── Helpers ─────────────────────────────────────────────
 
-function formatDate(iso: string) {
+function formatDate(iso: string, locale: string) {
   if (!iso) return ''
-  return new Date(iso).toLocaleDateString(undefined, {
+  return new Date(iso).toLocaleDateString(locale, {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
@@ -51,21 +53,23 @@ function formatAuthor(createdBy: string) {
   return createdBy.slice(0, 8) + '…'
 }
 
-function timeRemaining(expiresAt: string) {
+function timeRemaining(expiresAt: string, t: (key: string, values?: Record<string, unknown>) => string) {
   const diff = new Date(expiresAt).getTime() - Date.now()
-  if (diff <= 0) return 'Expired'
+  if (diff <= 0) return t('shared.expires.expired')
   const mins = Math.ceil(diff / 60000)
   if (mins >= 60) {
     const h = Math.floor(mins / 60)
-    return `${h}h ${mins % 60}m remaining`
+    return t('shared.expires.hoursMinutes', { hours: h, minutes: mins % 60 })
   }
-  return `${mins}m remaining`
+  return t('shared.expires.minutes', { minutes: mins })
 }
 
 // ─── Page Component ──────────────────────────────────────
 
 function SharedTopicPage() {
+  const { t } = useTranslation('topics')
   const { token } = Route.useParams()
+  const locale = getLocale()
 
   const [topic, setTopic] = useState<SharedTopic | null>(null)
   const [loading, setLoading] = useState(true)
@@ -86,7 +90,7 @@ function SharedTopicPage() {
       const msg =
         err?.response?.data?.message ||
         err?.data?.message ||
-        'This share link is invalid or has expired.'
+        t('shared.invalidLink')
       setError(msg)
     } finally {
       setLoading(false)
@@ -106,12 +110,12 @@ function SharedTopicPage() {
     try {
       await pb.send(`/api/topics/share/${encodeURIComponent(token)}/comments`, {
         method: 'POST',
-        body: { body: trimmed, guest_name: guestName.trim() || 'Guest' },
+        body: { body: trimmed, guest_name: guestName.trim() || t('shared.guestNameDefault') },
       })
       setCommentBody('')
       await fetchTopic()
     } catch (err) {
-      setPostError(getApiErrorMessage(err, 'Failed to post comment'))
+      setPostError(getApiErrorMessage(err, t('shared.postCommentFallback')))
     } finally {
       setPosting(false)
     }
@@ -123,7 +127,7 @@ function SharedTopicPage() {
     <div className="min-h-screen bg-background">
       {/* Top bar */}
       <header className="border-b px-6 py-3 flex items-center justify-between">
-        <span className="text-sm font-medium text-muted-foreground">Shared Topic</span>
+        <span className="text-sm font-medium text-muted-foreground">{t('shared.pageLabel')}</span>
         <ModeToggle />
       </header>
 
@@ -145,22 +149,23 @@ function SharedTopicPage() {
           <>
             {/* Expiry banner */}
             <div className="bg-muted border rounded-lg px-4 py-2 text-sm text-muted-foreground flex items-center justify-between">
-              <span>This is a shared topic — anyone with this link can view and comment.</span>
-              <span className="font-medium">{timeRemaining(topic.expires_at)}</span>
+              <span>{t('shared.banner')}</span>
+              <span className="font-medium">{timeRemaining(topic.expires_at, t)}</span>
             </div>
 
             {/* Topic header */}
             <div className="space-y-2">
               <h1 className="text-2xl font-bold tracking-tight">{topic.title}</h1>
               <p className="text-sm text-muted-foreground">
-                Created {formatDate(topic.created)} · Updated {formatDate(topic.updated)}
+                {t('shared.created', { time: formatDate(topic.created, locale) })} ·{' '}
+                {t('shared.updated', { time: formatDate(topic.updated, locale) })}
               </p>
             </div>
 
             {topic.closed && (
               <div className="bg-muted border rounded-lg px-4 py-3 flex items-center gap-2 text-sm text-muted-foreground">
                 <Lock className="h-4 w-4" />
-                This topic is closed.
+                {t('shared.closed')}
               </div>
             )}
 
@@ -173,17 +178,19 @@ function SharedTopicPage() {
 
             {/* Comments */}
             <div className="space-y-4">
-              <h2 className="text-lg font-semibold">Comments ({topic.comments.length})</h2>
+              <h2 className="text-lg font-semibold">
+                {t('shared.commentsTitle', { count: topic.comments.length })}
+              </h2>
 
               {topic.comments.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No comments yet.</p>
+                <p className="text-sm text-muted-foreground">{t('shared.noComments')}</p>
               ) : (
                 <div className="space-y-3">
                   {topic.comments.map(c => (
                     <div key={c.id} className="border rounded-lg p-4 space-y-2">
                       <p className="text-sm text-muted-foreground">
-                        {formatAuthor(c.created_by)} · {formatDate(c.created)}
-                        {c.updated !== c.created && <span> · edited</span>}
+                        {formatAuthor(c.created_by)} · {formatDate(c.created, locale)}
+                        {c.updated !== c.created && <span> · {t('shared.edited')}</span>}
                       </p>
                       <MarkdownView>{c.body}</MarkdownView>
                     </div>
@@ -194,17 +201,17 @@ function SharedTopicPage() {
               {/* Post comment form */}
               {!topic.closed ? (
                 <form onSubmit={handlePostComment} className="space-y-3 border rounded-lg p-4">
-                  <Label>Add a comment</Label>
+                  <Label>{t('shared.addComment')}</Label>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div className="sm:col-span-1 space-y-1">
                       <Label htmlFor="guest-name" className="text-xs text-muted-foreground">
-                        Your name (optional)
+                        {t('shared.guestName')}
                       </Label>
                       <Input
                         id="guest-name"
                         value={guestName}
                         onChange={e => setGuestName(e.target.value)}
-                        placeholder="Guest"
+                        placeholder={t('shared.guestNameDefault')}
                         maxLength={100}
                       />
                     </div>
@@ -213,7 +220,7 @@ function SharedTopicPage() {
                   <textarea
                     value={commentBody}
                     onChange={e => setCommentBody(e.target.value)}
-                    placeholder="Write a comment… (Markdown supported)"
+                    placeholder={t('shared.commentPlaceholder')}
                     rows={4}
                     className="w-full min-h-[80px] rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     maxLength={10000}
@@ -222,13 +229,13 @@ function SharedTopicPage() {
                   <div className="flex justify-end">
                     <Button type="submit" disabled={posting || !commentBody.trim()}>
                       {posting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                      Post Comment
+                      {t('shared.postComment')}
                     </Button>
                   </div>
                 </form>
               ) : (
                 <p className="text-sm text-muted-foreground">
-                  This topic is closed. No new comments can be added.
+                  {t('shared.closedNoComments')}
                 </p>
               )}
             </div>

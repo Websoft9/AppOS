@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Activity, CalendarDays, Loader2, RefreshCw } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { SharedTimeRangeSelector } from '@/components/monitor/SharedTimeRangeSelector'
 import { TimeSeriesChart } from '@/components/monitor/TimeSeriesChart'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -22,6 +23,7 @@ import {
   type MonitorOverviewResponse,
 } from '@/pages/system/monitor-overview-shared'
 import { getRejectedSections, warnDegradedSections } from '@/lib/degraded-sections'
+import i18n from '@/lib/i18n'
 import { pb } from '@/lib/pb'
 
 type MonitorSeries = {
@@ -149,7 +151,9 @@ function formatCustomRangeDescription(range: CustomRangeState): string {
   const start = parseLocalDateTime(range.startLocal)
   const end = parseLocalDateTime(range.endLocal)
   if (!start || !end || end.getTime() <= start.getTime()) {
-    return 'Choose a valid custom range.'
+    return i18n.t('system:platformStatus.performance.customRange.invalid', {
+      defaultValue: 'Choose a valid custom range.',
+    })
   }
   return `${start.toLocaleString()} - ${end.toLocaleString()}`
 }
@@ -306,21 +310,21 @@ function formatSeriesLatestLabel(item: MonitorSeries): string {
   if (item.name === 'memory' && latestUsed !== null) {
     if (latestAvailable !== null) {
       const limit = latestUsed + latestAvailable
-      return `${formatBytes(latestUsed)} used / ${formatBytes(limit)} limit`
+      return `${formatBytes(latestUsed)} ${i18n.t('system:platformStatus.shared.used', { defaultValue: 'used' })} / ${formatBytes(limit)} ${i18n.t('system:platformStatus.shared.limit', { defaultValue: 'limit' })}`
     }
-    return `${formatBytes(latestUsed)} used`
+    return `${formatBytes(latestUsed)} ${i18n.t('system:platformStatus.shared.used', { defaultValue: 'used' })}`
   }
   if (item.name === 'disk_usage' && (latestUsed !== null || latestFree !== null)) {
-    return `${latestUsed === null ? '—' : formatBytes(latestUsed)} used${latestFree === null ? '' : ` / ${formatBytes(latestFree)} free`}`
+    return `${latestUsed === null ? '—' : formatBytes(latestUsed)} ${i18n.t('system:platformStatus.shared.used', { defaultValue: 'used' })}${latestFree === null ? '' : ` / ${formatBytes(latestFree)} ${i18n.t('system:platformStatus.shared.free', { defaultValue: 'free' })}`}`
   }
   if (item.name === 'disk' && (latestRead !== null || latestWrite !== null)) {
-    return `${latestRead === null ? '—' : `${formatBytes(latestRead)}/s`} read${latestWrite === null ? '' : ` / ${formatBytes(latestWrite)}/s write`}`
+    return `${latestRead === null ? '—' : `${formatBytes(latestRead)}/s`} ${i18n.t('system:platformStatus.shared.read', { defaultValue: 'read' })}${latestWrite === null ? '' : ` / ${formatBytes(latestWrite)}/s ${i18n.t('system:platformStatus.shared.write', { defaultValue: 'write' })}`}`
   }
   if (item.name === 'network' && (latestInbound !== null || latestOutbound !== null)) {
-    return `${latestInbound === null ? '—' : `${formatBytes(latestInbound)}/s`} in${latestOutbound === null ? '' : ` / ${formatBytes(latestOutbound)}/s out`}`
+    return `${latestInbound === null ? '—' : `${formatBytes(latestInbound)}/s`} ${i18n.t('system:platformStatus.shared.in', { defaultValue: 'in' })}${latestOutbound === null ? '' : ` / ${formatBytes(latestOutbound)}/s ${i18n.t('system:platformStatus.shared.out', { defaultValue: 'out' })}`}`
   }
   if (item.name === 'network_traffic' && (latestInbound !== null || latestOutbound !== null)) {
-    return `${latestInbound === null ? '—' : formatBytes(latestInbound)} in${latestOutbound === null ? '' : ` / ${formatBytes(latestOutbound)} out`}`
+    return `${latestInbound === null ? '—' : formatBytes(latestInbound)} ${i18n.t('system:platformStatus.shared.in', { defaultValue: 'in' })}${latestOutbound === null ? '' : ` / ${formatBytes(latestOutbound)} ${i18n.t('system:platformStatus.shared.out', { defaultValue: 'out' })}`}`
   }
   return '—'
 }
@@ -329,12 +333,28 @@ function comparisonBars(item: MonitorSeries) {
   const pairs =
     item.name === 'disk'
       ? [
-          { key: 'read', label: 'Read', value: latestSegmentValue(item, 'read') },
-          { key: 'write', label: 'Write', value: latestSegmentValue(item, 'write') },
+          {
+            key: 'read',
+            label: i18n.t('system:platformStatus.shared.read', { defaultValue: 'Read' }),
+            value: latestSegmentValue(item, 'read'),
+          },
+          {
+            key: 'write',
+            label: i18n.t('system:platformStatus.shared.write', { defaultValue: 'Write' }),
+            value: latestSegmentValue(item, 'write'),
+          },
         ]
       : [
-          { key: 'in', label: 'In', value: latestSegmentValue(item, 'in') },
-          { key: 'out', label: 'Out', value: latestSegmentValue(item, 'out') },
+          {
+            key: 'in',
+            label: i18n.t('system:platformStatus.shared.in', { defaultValue: 'In' }),
+            value: latestSegmentValue(item, 'in'),
+          },
+          {
+            key: 'out',
+            label: i18n.t('system:platformStatus.shared.out', { defaultValue: 'Out' }),
+            value: latestSegmentValue(item, 'out'),
+          },
         ]
   const maxValue = Math.max(...pairs.map(pair => Math.abs(pair.value ?? 0)), 0)
 
@@ -419,16 +439,25 @@ function formatUpdatedAtValue(timestamp: number, includeDate: boolean): string {
 }
 
 function formatUpdatedAtText(timestamps: { oldest: number | null; newest: number | null }): string {
-  if (timestamps.newest === null) return 'Updated at —'
+  if (timestamps.newest === null) {
+    return i18n.t('system:platformStatus.shared.updatedAtEmpty', { defaultValue: 'Updated at —' })
+  }
   const newestDate = new Date(timestamps.newest)
   const oldestDate = timestamps.oldest === null ? null : new Date(timestamps.oldest)
   const includeDate =
     newestDate.toDateString() !== new Date().toDateString() ||
     (oldestDate !== null && oldestDate.toDateString() !== newestDate.toDateString())
   if (timestamps.oldest !== null && timestamps.oldest !== timestamps.newest) {
-    return `Updated at ${formatUpdatedAtValue(timestamps.oldest, includeDate)} - ${formatUpdatedAtValue(timestamps.newest, includeDate)}`
+    return i18n.t('system:platformStatus.shared.updatedAtRange', {
+      start: formatUpdatedAtValue(timestamps.oldest, includeDate),
+      end: formatUpdatedAtValue(timestamps.newest, includeDate),
+      defaultValue: `Updated at ${formatUpdatedAtValue(timestamps.oldest, includeDate)} - ${formatUpdatedAtValue(timestamps.newest, includeDate)}`,
+    })
   }
-  return `Updated at ${formatUpdatedAtValue(timestamps.newest, includeDate)}`
+  return i18n.t('system:platformStatus.shared.updatedAt', {
+    time: formatUpdatedAtValue(timestamps.newest, includeDate),
+    defaultValue: `Updated at ${formatUpdatedAtValue(timestamps.newest, includeDate)}`,
+  })
 }
 
 function latestSeriesSummary(series: MonitorSeries): string {
@@ -454,7 +483,7 @@ function latestSeriesSummary(series: MonitorSeries): string {
         const percent = limit > 0 ? (latestUsed / limit) * 100 : null
         return `${formatBytes(latestUsed)} / ${formatBytes(limit)}${percent === null ? '' : ` (${formatTrendValue('percent', 'memory_percent', percent)})`}`
       }
-      return `${formatBytes(latestUsed)} used`
+      return `${formatBytes(latestUsed)} ${i18n.t('system:platformStatus.shared.used', { defaultValue: 'used' })}`
     }
   }
 
@@ -462,7 +491,7 @@ function latestSeriesSummary(series: MonitorSeries): string {
     const latestUsed = latestValue(used?.points ?? [])
     const latestFree = latestValue(free?.points ?? [])
     if (latestUsed !== null || latestFree !== null) {
-      return `${latestUsed === null ? '—' : formatBytes(latestUsed)} used${latestFree === null ? '' : ` / ${formatBytes(latestFree)} free`}`
+        return `${latestUsed === null ? '—' : formatBytes(latestUsed)} ${i18n.t('system:platformStatus.shared.used', { defaultValue: 'used' })}${latestFree === null ? '' : ` / ${formatBytes(latestFree)} ${i18n.t('system:platformStatus.shared.free', { defaultValue: 'free' })}`}`
     }
   }
 
@@ -470,7 +499,7 @@ function latestSeriesSummary(series: MonitorSeries): string {
     const latestInbound = latestValue(inbound?.points ?? [])
     const latestOutbound = latestValue(outbound?.points ?? [])
     if (latestInbound !== null || latestOutbound !== null) {
-      return `${latestInbound === null ? '—' : `${formatBytes(latestInbound)}/s`} in${latestOutbound === null ? '' : ` / ${formatBytes(latestOutbound)}/s out`}`
+        return `${latestInbound === null ? '—' : `${formatBytes(latestInbound)}/s`} ${i18n.t('system:platformStatus.shared.in', { defaultValue: 'in' })}${latestOutbound === null ? '' : ` / ${formatBytes(latestOutbound)}/s ${i18n.t('system:platformStatus.shared.out', { defaultValue: 'out' })}`}`
     }
   }
 
@@ -478,7 +507,7 @@ function latestSeriesSummary(series: MonitorSeries): string {
     const latestInbound = latestValue(inbound?.points ?? [])
     const latestOutbound = latestValue(outbound?.points ?? [])
     if (latestInbound !== null || latestOutbound !== null) {
-      return `${latestInbound === null ? '—' : formatBytes(latestInbound)} in${latestOutbound === null ? '' : ` / ${formatBytes(latestOutbound)} out`}`
+        return `${latestInbound === null ? '—' : formatBytes(latestInbound)} ${i18n.t('system:platformStatus.shared.in', { defaultValue: 'in' })}${latestOutbound === null ? '' : ` / ${formatBytes(latestOutbound)} ${i18n.t('system:platformStatus.shared.out', { defaultValue: 'out' })}`}`
     }
   }
 
@@ -486,7 +515,7 @@ function latestSeriesSummary(series: MonitorSeries): string {
     const latestRead = latestValue(read?.points ?? [])
     const latestWrite = latestValue(write?.points ?? [])
     if (latestRead !== null || latestWrite !== null) {
-      return `${latestRead === null ? '—' : `${formatBytes(latestRead)}/s`} read${latestWrite === null ? '' : ` / ${formatBytes(latestWrite)}/s write`}`
+        return `${latestRead === null ? '—' : `${formatBytes(latestRead)}/s`} ${i18n.t('system:platformStatus.shared.read', { defaultValue: 'read' })}${latestWrite === null ? '' : ` / ${formatBytes(latestWrite)}/s ${i18n.t('system:platformStatus.shared.write', { defaultValue: 'write' })}`}`
     }
   }
 
@@ -510,7 +539,11 @@ function orderedPlatformPerformanceSeries(input: MonitorSeries[] | undefined): M
 function summarizePlatformTarget(item: MonitorOverviewItem): string {
   if (item.reason) return item.reason
   const firstSummaryEntry = Object.entries(item.summary ?? {}).find(([key]) => !key.endsWith('_at'))
-  if (!firstSummaryEntry) return 'No active issue reported.'
+  if (!firstSummaryEntry) {
+    return i18n.t('system:platformStatus.shared.noActiveIssue', {
+      defaultValue: 'No active issue reported.',
+    })
+  }
   return `${formatStatusLabel(firstSummaryEntry[0])}: ${formatSummaryValue(firstSummaryEntry[0], firstSummaryEntry[1])}`
 }
 
@@ -607,7 +640,7 @@ function latestObservedAt(platformItems: MonitorOverviewItem[], services: Servic
     .map(value => new Date(value).getTime())
     .filter(value => Number.isFinite(value))
 
-  if (timestamps.length === 0) return '—'
+  if (timestamps.length === 0) return i18n.t('system:shared.emptyDash', { defaultValue: '—' })
   return new Date(Math.max(...timestamps)).toLocaleString()
 }
 
@@ -620,28 +653,28 @@ function derivePlatformAvailability(
 
   const capabilityDefinitions = [
     {
-      label: 'Console Access',
+      label: i18n.t('system:platformStatus.capabilities.consoleAccess', { defaultValue: 'Console Access' }),
       targetIds: ['appos-core'],
       serviceNames: [],
-      fallbackReason: 'Core runtime signals are responding normally.',
+      fallbackReason: i18n.t('system:platformStatus.capabilityReasons.consoleAccessOk', { defaultValue: 'Core runtime signals are responding normally.' }),
     },
     {
-      label: 'Application Management',
+      label: i18n.t('system:platformStatus.capabilities.applicationManagement', { defaultValue: 'Application Management' }),
       targetIds: ['appos-core'],
       serviceNames: ['redis'],
-      fallbackReason: 'Core management services are available.',
+      fallbackReason: i18n.t('system:platformStatus.capabilityReasons.applicationManagementOk', { defaultValue: 'Core management services are available.' }),
     },
     {
-      label: 'Background Jobs',
+      label: i18n.t('system:platformStatus.capabilities.backgroundJobs', { defaultValue: 'Background Jobs' }),
       targetIds: ['worker', 'scheduler'],
       serviceNames: [],
-      fallbackReason: 'Worker and scheduler signals are healthy.',
+      fallbackReason: i18n.t('system:platformStatus.capabilityReasons.backgroundJobsOk', { defaultValue: 'Worker and scheduler signals are healthy.' }),
     },
     {
-      label: 'Monitoring',
+      label: i18n.t('system:platformStatus.capabilities.monitoring', { defaultValue: 'Monitoring' }),
       targetIds: ['appos-core'],
       serviceNames: ['victoria-metrics'],
-      fallbackReason: 'Monitoring storage and the AppOS self-collector are available.',
+      fallbackReason: i18n.t('system:platformStatus.capabilityReasons.monitoringOk', { defaultValue: 'Monitoring storage and the AppOS self-collector are available.' }),
     },
   ]
 
@@ -650,7 +683,12 @@ function derivePlatformAvailability(
       const item = platformMap.get(targetId)
       return {
         level: toSignalLevelFromTarget(item?.status),
-        reason: item?.reason || `${formatStatusLabel(targetId)} signal is not reporting normally.`,
+        reason:
+          item?.reason ||
+          i18n.t('system:platformStatus.capabilityReasons.signalNotReporting', {
+            target: formatStatusLabel(targetId),
+            defaultValue: `${formatStatusLabel(targetId)} signal is not reporting normally.`,
+          }),
       }
     })
     const serviceSignals = definition.serviceNames.map(serviceName => {
@@ -658,8 +696,15 @@ function derivePlatformAvailability(
       return {
         level: toSignalLevelFromService(service?.state),
         reason: service
-          ? `${service.name} is ${service.state}.`
-          : `${serviceName} is not detected in active services.`,
+          ? i18n.t('system:platformStatus.capabilityReasons.serviceState', {
+              name: service.name,
+              state: service.state,
+              defaultValue: `${service.name} is ${service.state}.`,
+            })
+          : i18n.t('system:platformStatus.capabilityReasons.serviceMissing', {
+              name: serviceName,
+              defaultValue: `${serviceName} is not detected in active services.`,
+            }),
       }
     })
 
@@ -691,23 +736,34 @@ function derivePlatformAvailability(
   const primaryReason =
     capabilities.find(item => item.level === 'unavailable')?.reason ??
     capabilities.find(item => item.level === 'limited')?.reason ??
-    'All core platform capabilities are reporting healthy signals.'
+    i18n.t('system:platformStatus.capabilityReasons.allHealthy', {
+      defaultValue: 'All core platform capabilities are reporting healthy signals.',
+    })
 
   const description =
     overallLevel === 'healthy'
-      ? 'The platform is available for normal operations.'
+      ? i18n.t('system:platformStatus.availabilityDescriptions.available', {
+          defaultValue: 'The platform is available for normal operations.',
+        })
       : overallLevel === 'unavailable'
-        ? 'Core management is unavailable. Immediate operator attention is required.'
-        : 'Core management remains available, but some capabilities are operating with reduced confidence.'
+        ? i18n.t('system:platformStatus.availabilityDescriptions.unavailable', {
+            defaultValue: 'Core management is unavailable. Immediate operator attention is required.',
+          })
+        : i18n.t('system:platformStatus.availabilityDescriptions.degraded', {
+            defaultValue:
+              'Core management remains available, but some capabilities are operating with reduced confidence.',
+          })
 
   return {
     level: overallLevel,
     title:
       overallLevel === 'healthy'
-        ? 'Available'
+        ? i18n.t('system:platformStatus.availability.available', { defaultValue: 'Available' })
         : overallLevel === 'unavailable'
-          ? 'Unavailable'
-          : 'Degraded',
+          ? i18n.t('system:platformStatus.availability.unavailable', {
+              defaultValue: 'Unavailable',
+            })
+          : i18n.t('system:platformStatus.availability.degraded', { defaultValue: 'Degraded' }),
     description,
     primaryReason,
     lastChecked: latestObservedAt(platformItems, services),
@@ -716,6 +772,7 @@ function derivePlatformAvailability(
 }
 
 export function PlatformStatusPage() {
+  const { t } = useTranslation('system')
   const [documentVisible, setDocumentVisible] = useState(isDocumentVisible)
   const previousDocumentVisible = useRef(documentVisible)
   const [overview, setOverview] = useState<MonitorOverviewResponse>(() =>
@@ -968,15 +1025,20 @@ export function PlatformStatusPage() {
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Status</h1>
+          <h1 className="text-2xl font-bold tracking-tight">
+            {t('platformStatus.title', 'Status')}
+          </h1>
           <p className="mt-1 text-muted-foreground">
-            Unified status for the AppOS control plane and monitoring surfaces.
+            {t(
+              'platformStatus.description',
+              'Unified status for the AppOS control plane and monitoring surfaces.'
+            )}
           </p>
         </div>
         <Button
           variant="outline"
           size="icon"
-          aria-label="Refresh status"
+          aria-label={t('platformStatus.actions.refresh', 'Refresh status')}
           onClick={() => void loadStatus(true)}
           disabled={loading || refreshing}
         >
@@ -998,7 +1060,7 @@ export function PlatformStatusPage() {
         <CardHeader>
           <div className="flex items-start justify-between gap-3">
             <div>
-              <CardTitle>Platform Availability</CardTitle>
+              <CardTitle>{t('platformStatus.availability.title', 'Platform Availability')}</CardTitle>
               <CardDescription>{availability.description}</CardDescription>
             </div>
             <Badge variant={availabilityBadgeVariant(availability.level)}>
@@ -1022,10 +1084,10 @@ export function PlatformStatusPage() {
                     }
                   >
                     {item.level === 'available'
-                      ? 'Available'
+                      ? t('platformStatus.availability.available', 'Available')
                       : item.level === 'unavailable'
-                        ? 'Unavailable'
-                        : 'Limited'}
+                        ? t('platformStatus.availability.unavailable', 'Unavailable')
+                        : t('platformStatus.availability.limited', 'Limited')}
                   </Badge>
                 </div>
                 <p className="mt-2 text-sm text-muted-foreground">{item.reason}</p>
@@ -1034,11 +1096,15 @@ export function PlatformStatusPage() {
           </div>
           <div className="space-y-4 rounded-lg border bg-muted/10 p-4">
             <div>
-              <div className="text-sm font-medium text-foreground">Primary reason</div>
+               <div className="text-sm font-medium text-foreground">
+                 {t('platformStatus.availability.primaryReason', 'Primary reason')}
+               </div>
               <p className="mt-2 text-sm text-muted-foreground">{availability.primaryReason}</p>
             </div>
             <div>
-              <div className="text-sm font-medium text-foreground">Last checked</div>
+               <div className="text-sm font-medium text-foreground">
+                 {t('platformStatus.availability.lastChecked', 'Last checked')}
+               </div>
               <p className="mt-2 text-sm text-muted-foreground">{availability.lastChecked}</p>
             </div>
           </div>
@@ -1047,10 +1113,12 @@ export function PlatformStatusPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Platform performance</CardTitle>
+          <CardTitle>{t('platformStatus.performance.title', 'Platform performance')}</CardTitle>
           <CardDescription>
-            Control-plane self metrics for the AppOS runtime container, including memory usage
-            versus container limit.
+            {t(
+              'platformStatus.performance.description',
+              'Control-plane self metrics for the AppOS runtime container, including memory usage versus container limit.'
+            )}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -1058,9 +1126,14 @@ export function PlatformStatusPage() {
             <section className="rounded-lg border bg-muted/10 p-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                  <div className="text-sm font-medium text-foreground">Latest Stat</div>
+                  <div className="text-sm font-medium text-foreground">
+                    {t('platformStatus.performance.latestStat', 'Latest Stat')}
+                  </div>
                   <div className="mt-1 text-xs text-muted-foreground">
-                    Latest observed values sampled at monitor cadence.
+                    {t(
+                      'platformStatus.performance.latestStatDescription',
+                      'Latest observed values sampled at monitor cadence.'
+                    )}
                   </div>
                 </div>
                 {latestStatItems.length > 0 && (
@@ -1089,9 +1162,14 @@ export function PlatformStatusPage() {
             <section className="space-y-3">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <div className="text-sm font-medium text-foreground">Trend</div>
+                  <div className="text-sm font-medium text-foreground">
+                    {t('platformStatus.performance.trend', 'Trend')}
+                  </div>
                   <div className="mt-1 text-xs text-muted-foreground">
-                    Historical self-metrics across the selected time range.
+                    {t(
+                      'platformStatus.performance.trendDescription',
+                      'Historical self-metrics across the selected time range.'
+                    )}
                   </div>
                 </div>
                 <div ref={customRangeRef} className="relative flex flex-col items-end gap-2">
@@ -1103,7 +1181,10 @@ export function PlatformStatusPage() {
                       if (option === 'custom') return customRangeOpen || current === 'custom'
                       return !customRangeOpen && current === option
                     }}
-                    ariaLabel="Platform performance time range"
+                    ariaLabel={t(
+                      'platformStatus.performance.timeRangeAria',
+                      'Platform performance time range'
+                    )}
                     className="justify-end gap-1.5"
                     buttonSize="xs"
                     buttonClassName="text-[11px]"
@@ -1116,7 +1197,7 @@ export function PlatformStatusPage() {
                             className="text-sm font-medium text-foreground"
                             htmlFor="platformPerfStart"
                           >
-                            Start
+                            {t('platformStatus.performance.customRange.start', 'Start')}
                           </label>
                           <div className="relative">
                             <Input
@@ -1135,7 +1216,10 @@ export function PlatformStatusPage() {
                             />
                             <button
                               type="button"
-                              aria-label="Open start date picker"
+                               aria-label={t(
+                                 'platformStatus.performance.customRange.openStartPicker',
+                                 'Open start date picker'
+                               )}
                               className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
                               onClick={() => openNativePicker(startInputRef.current)}
                             >
@@ -1148,7 +1232,7 @@ export function PlatformStatusPage() {
                             className="text-sm font-medium text-foreground"
                             htmlFor="platformPerfEnd"
                           >
-                            End
+                            {t('platformStatus.performance.customRange.end', 'End')}
                           </label>
                           <div className="relative">
                             <Input
@@ -1167,7 +1251,10 @@ export function PlatformStatusPage() {
                             />
                             <button
                               type="button"
-                              aria-label="Open end date picker"
+                               aria-label={t(
+                                 'platformStatus.performance.customRange.openEndPicker',
+                                 'Open end date picker'
+                               )}
                               className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
                               onClick={() => openNativePicker(endInputRef.current)}
                             >
@@ -1180,13 +1267,13 @@ export function PlatformStatusPage() {
                         </div>
                         <div className="flex justify-end gap-2">
                           <Button variant="outline" onClick={cancelCustomRange}>
-                            Cancel
+                            {t('platformStatus.performance.customRange.cancel', 'Cancel')}
                           </Button>
                           <Button
                             onClick={applyCustomRange}
                             disabled={!isValidCustomRange(draftCustomRange)}
                           >
-                            Apply
+                            {t('platformStatus.performance.customRange.apply', 'Apply')}
                           </Button>
                         </div>
                       </div>
@@ -1205,7 +1292,10 @@ export function PlatformStatusPage() {
                 </div>
               ) : platformPerformanceSeries.length === 0 ? (
                 <div className="rounded-lg border border-dashed px-4 py-6 text-sm text-muted-foreground">
-                  Platform self metrics are not available yet.
+                  {t(
+                    'platformStatus.performance.empty',
+                    'Platform self metrics are not available yet.'
+                  )}
                 </div>
               ) : (
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -1249,9 +1339,12 @@ export function PlatformStatusPage() {
         <CardHeader>
           <div className="flex items-start justify-between gap-3">
             <div>
-              <CardTitle>Platform Targets</CardTitle>
+              <CardTitle>{t('platformStatus.targets.title', 'Platform Targets')}</CardTitle>
               <CardDescription>
-                Control-plane runtime health as secondary evidence for availability.
+                {t(
+                  'platformStatus.targets.description',
+                  'Control-plane runtime health as secondary evidence for availability.'
+                )}
               </CardDescription>
             </div>
           </div>
@@ -1270,8 +1363,8 @@ export function PlatformStatusPage() {
             </div>
           ) : overview.platformItems.length === 0 ? (
             <div className="rounded-lg border border-dashed px-4 py-6 text-sm text-muted-foreground">
-              Platform self-observation has not reported yet.
-            </div>
+              {t('platformStatus.targets.empty', 'Platform self-observation has not reported yet.')}
+              </div>
           ) : (
             <div className="grid gap-4 xl:grid-cols-3">
               {overview.platformItems.map(item => {

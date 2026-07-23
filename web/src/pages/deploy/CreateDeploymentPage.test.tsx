@@ -18,6 +18,10 @@ const navigateMock = vi.fn()
 const iacUploadFileMock = vi.fn()
 const iacMkdirMock = vi.fn()
 
+function interpolate(defaultValue: string, values?: Record<string, unknown>) {
+  return defaultValue.replace(/\{\{(\w+)\}\}/g, (_, key) => String(values?.[key] ?? ''))
+}
+
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => navigateMock,
   Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
@@ -27,6 +31,21 @@ vi.mock('@tanstack/react-router', () => ({
 
 vi.mock('@/lib/i18n', () => ({
   getLocale: () => 'en',
+  default: {
+    t: (key: string, fallback?: string, values?: Record<string, unknown>) =>
+      fallback ? interpolate(fallback, values) : key,
+  },
+}))
+
+vi.mock('react-i18next', () => ({
+  initReactI18next: {
+    type: '3rdParty',
+    init: () => undefined,
+  },
+  useTranslation: () => ({
+    t: (key: string, options?: Record<string, unknown>) =>
+      options?.defaultValue ? interpolate(String(options.defaultValue), options) : key,
+  }),
 }))
 
 vi.mock('@/lib/store-user-api', () => ({

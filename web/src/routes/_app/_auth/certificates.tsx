@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 import {
   ArrowDown,
   ArrowUp,
@@ -319,6 +320,7 @@ function CertDetailRow({ item, colSpan }: { item: CertRecord; colSpan: number })
 const PAGE_SIZE = 20
 
 function CertificatesPage() {
+  const { t } = useTranslation('certificates')
   const [allItems, setAllItems] = useState<CertRecord[]>([])
   const [templates, setTemplates] = useState<CertTemplate[]>([])
   const [secrets, setSecrets] = useState<Array<{ id: string; name: string }>>([])
@@ -381,7 +383,7 @@ function CertificatesPage() {
       setAllItems(certs)
       setTemplates(tpls)
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to load certificates')
+      setError(err instanceof Error ? err.message : t('errors.load'))
     } finally {
       setLoading(false)
     }
@@ -437,7 +439,7 @@ function CertificatesPage() {
       setQuickSecretOpen(false)
     } catch (err: unknown) {
       setQuickSecretError(
-        err instanceof Error ? err.message : 'Failed to create private key secret'
+        err instanceof Error ? err.message : t('errors.createPrivateKeySecret')
       )
     } finally {
       setQuickSecretSaving(false)
@@ -531,7 +533,9 @@ function CertificatesPage() {
           })
         } catch (genErr: unknown) {
           setCreateError(
-            `Certificate created but generation failed: ${genErr instanceof Error ? genErr.message : 'unknown error'}. You can retry via Renew action.`
+            t('errors.generationFailed', {
+              message: genErr instanceof Error ? genErr.message : 'unknown error',
+            })
           )
           await fetchAll()
           return
@@ -541,7 +545,7 @@ function CertificatesPage() {
       setCreateOpen(false)
       await fetchAll()
     } catch (err: unknown) {
-      setCreateError(err instanceof Error ? err.message : 'Failed to create certificate')
+      setCreateError(err instanceof Error ? err.message : t('errors.create'))
     } finally {
       setCreateSaving(false)
     }
@@ -580,7 +584,7 @@ function CertificatesPage() {
       setEditOpen(false)
       await fetchAll()
     } catch (err: unknown) {
-      setEditError(err instanceof Error ? err.message : 'Failed to update certificate')
+      setEditError(err instanceof Error ? err.message : t('errors.update'))
     } finally {
       setEditSaving(false)
     }
@@ -605,7 +609,7 @@ function CertificatesPage() {
       setRenewTarget(null)
       await fetchAll()
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Renew failed')
+      setError(err instanceof Error ? err.message : t('errors.renew'))
       setRenewTarget(null)
       await fetchAll()
     } finally {
@@ -622,7 +626,7 @@ function CertificatesPage() {
       setDeleteAction(null)
       await fetchAll()
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Delete failed')
+      setError(err instanceof Error ? err.message : t('errors.delete'))
     }
   }
 
@@ -636,13 +640,11 @@ function CertificatesPage() {
     setUploadError('')
     const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
     if (BINARY_CERT_EXTENSIONS.has(ext)) {
-      setUploadError(
-        'Binary certificate formats are not supported. Export the certificate as PEM first.'
-      )
+      setUploadError(t('errors.binaryFormats'))
       return
     }
     if (!CERT_EXTENSIONS.has(ext)) {
-      setUploadError(`Unsupported file extension ".${ext}". Accepted: .pem, .crt, .cer, .txt`)
+      setUploadError(t('errors.unsupportedExtension', { ext }))
       return
     }
     const slice = file.slice(0, 8192)
@@ -650,7 +652,7 @@ function CertificatesPage() {
     probeReader.onload = () => {
       const text = probeReader.result as string
       if (text.includes('\0')) {
-        setUploadError(`"${file.name}" appears to be a binary file.`)
+        setUploadError(t('errors.binaryFile', { name: file.name }))
         return
       }
       const fullReader = new FileReader()
@@ -669,16 +671,14 @@ function CertificatesPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Certificates</h1>
-          <p className="text-muted-foreground mt-1">
-            Manage TLS certificates — generate self-signed or import CA-issued.
-          </p>
+          <h1 className="text-2xl font-bold tracking-tight">{t('page.title')}</h1>
+          <p className="text-muted-foreground mt-1">{t('page.description')}</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" title="Refresh" onClick={fetchAll}>
+          <Button variant="outline" size="icon" title={t('common:refresh')} onClick={fetchAll}>
             <RefreshCw className="h-4 w-4" />
           </Button>
-          <Button onClick={openCreate}>New Certificate</Button>
+          <Button onClick={openCreate}>{t('page.new')}</Button>
         </div>
       </div>
 
@@ -689,7 +689,7 @@ function CertificatesPage() {
         <div className="relative max-w-sm">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search certificates..."
+            placeholder={t('page.searchPlaceholder')}
             className="pl-9"
             value={search}
             onChange={e => setSearch(e.target.value)}
@@ -697,14 +697,14 @@ function CertificatesPage() {
         </div>
         {filteredItems.length > 0 && (
           <div className="ml-auto flex items-center gap-3 text-sm text-muted-foreground">
-            <span className="whitespace-nowrap">Total {filteredItems.length} items</span>
+            <span className="whitespace-nowrap">{t('page.totalItems', { count: filteredItems.length })}</span>
             <div className="flex items-center gap-1">
               <button
                 type="button"
                 className="rounded p-0.5 transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
                 disabled={page <= 1}
                 onClick={() => setPage(p => p - 1)}
-                aria-label="Previous page"
+                aria-label={t('common:previous')}
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
@@ -716,7 +716,7 @@ function CertificatesPage() {
                 className="rounded p-0.5 transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
                 disabled={page >= totalPages}
                 onClick={() => setPage(p => p + 1)}
-                aria-label="Next page"
+                aria-label={t('common:next')}
               >
                 <ChevronRight className="h-4 w-4" />
               </button>
@@ -728,13 +728,13 @@ function CertificatesPage() {
       {/* Table */}
       {loading ? null : filteredItems.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-md border py-12 text-center">
-          <p className="text-muted-foreground">No certificates found.</p>
+          <p className="text-muted-foreground">{t('page.empty')}</p>
           <button
             type="button"
             className="mt-2 text-sm text-primary hover:underline"
             onClick={openCreate}
           >
-            Create your first one
+            {t('page.createFirst')}
           </button>
         </div>
       ) : (
@@ -743,7 +743,7 @@ function CertificatesPage() {
             <TableRow>
               <TableHead>
                 <SortableHeader
-                  label="Name"
+                   label={t('table.name')}
                   field="name"
                   current={sortField}
                   dir={sortDir}
@@ -752,7 +752,7 @@ function CertificatesPage() {
               </TableHead>
               <TableHead>
                 <SortableHeader
-                  label="Domain"
+                   label={t('table.domain')}
                   field="domain"
                   current={sortField}
                   dir={sortDir}
@@ -760,7 +760,7 @@ function CertificatesPage() {
                 />
               </TableHead>
               <TableHead>
-                <FilterHeader label="Kind" active={kindFilter !== 'all'}>
+                 <FilterHeader label={t('table.kind')} active={kindFilter !== 'all'}>
                   <DropdownMenuCheckboxItem
                     checked={kindFilter === 'all'}
                     className="px-2"
@@ -769,7 +769,7 @@ function CertificatesPage() {
                       if (checked) setKindFilter('all')
                     }}
                   >
-                    All
+                    {t('table.all')}
                   </DropdownMenuCheckboxItem>
                   <DropdownMenuCheckboxItem
                     checked={kindFilter === 'self_signed'}
@@ -777,7 +777,7 @@ function CertificatesPage() {
                     onSelect={event => event.preventDefault()}
                     onCheckedChange={checked => setKindFilter(checked ? 'self_signed' : 'all')}
                   >
-                    Self-Signed
+                    {t('table.selfSigned')}
                   </DropdownMenuCheckboxItem>
                   <DropdownMenuCheckboxItem
                     checked={kindFilter === 'ca_issued'}
@@ -785,13 +785,13 @@ function CertificatesPage() {
                     onSelect={event => event.preventDefault()}
                     onCheckedChange={checked => setKindFilter(checked ? 'ca_issued' : 'all')}
                   >
-                    CA-Issued
+                    {t('table.caIssued')}
                   </DropdownMenuCheckboxItem>
                 </FilterHeader>
               </TableHead>
               <TableHead>
                 <SortableHeader
-                  label="Issued"
+                   label={t('table.issued')}
                   field="issued_at"
                   current={sortField}
                   dir={sortDir}
@@ -800,7 +800,7 @@ function CertificatesPage() {
               </TableHead>
               <TableHead>
                 <SortableHeader
-                  label="Expires"
+                   label={t('table.expires')}
                   field="expires_at"
                   current={sortField}
                   dir={sortDir}
@@ -808,7 +808,7 @@ function CertificatesPage() {
                 />
               </TableHead>
               <TableHead>
-                <FilterHeader label="Status" active={statusFilter !== 'all'}>
+                 <FilterHeader label={t('table.status')} active={statusFilter !== 'all'}>
                   <DropdownMenuCheckboxItem
                     checked={statusFilter === 'all'}
                     className="px-2"
@@ -817,7 +817,7 @@ function CertificatesPage() {
                       if (checked) setStatusFilter('all')
                     }}
                   >
-                    All
+                    {t('table.all')}
                   </DropdownMenuCheckboxItem>
                   <DropdownMenuCheckboxItem
                     checked={statusFilter === 'active'}
@@ -825,7 +825,7 @@ function CertificatesPage() {
                     onSelect={event => event.preventDefault()}
                     onCheckedChange={checked => setStatusFilter(checked ? 'active' : 'all')}
                   >
-                    Active
+                    {t('table.active')}
                   </DropdownMenuCheckboxItem>
                   <DropdownMenuCheckboxItem
                     checked={statusFilter === 'expired'}
@@ -833,7 +833,7 @@ function CertificatesPage() {
                     onSelect={event => event.preventDefault()}
                     onCheckedChange={checked => setStatusFilter(checked ? 'expired' : 'all')}
                   >
-                    Expired
+                    {t('table.expired')}
                   </DropdownMenuCheckboxItem>
                   <DropdownMenuCheckboxItem
                     checked={statusFilter === 'revoked'}
@@ -841,7 +841,7 @@ function CertificatesPage() {
                     onSelect={event => event.preventDefault()}
                     onCheckedChange={checked => setStatusFilter(checked ? 'revoked' : 'all')}
                   >
-                    Revoked
+                    {t('table.revoked')}
                   </DropdownMenuCheckboxItem>
                 </FilterHeader>
               </TableHead>
@@ -877,27 +877,27 @@ function CertificatesPage() {
                     <TableCell className="text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" title="More actions">
+                          <Button variant="ghost" size="icon" title={t('table.moreActions')}>
                             <MoreVertical className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem onClick={() => openEdit(item)}>
                             <Pencil className="h-4 w-4" />
-                            Edit
+                            {t('common:edit')}
                           </DropdownMenuItem>
                           {item.cert_pem && (
                             <DropdownMenuItem
                               onClick={() => downloadFile(`${item.name}.crt`, item.cert_pem!)}
                             >
                               <Download className="h-4 w-4" />
-                              Download
+                              {t('table.download')}
                             </DropdownMenuItem>
                           )}
                           {item.kind === 'self_signed' && (
                             <DropdownMenuItem onClick={() => openRenew(item)}>
                               <RefreshCw className="h-4 w-4" />
-                              Renew
+                              {t('table.renew')}
                             </DropdownMenuItem>
                           )}
                           <DropdownMenuSeparator />
@@ -906,7 +906,7 @@ function CertificatesPage() {
                             onClick={() => setDeleteAction({ id: item.id, name: item.name })}
                           >
                             <Trash2 className="h-4 w-4" />
-                            Delete
+                            {t('common:delete')}
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -927,13 +927,13 @@ function CertificatesPage() {
           onOpenAutoFocus={e => e.preventDefault()}
         >
           <DialogHeader>
-            <DialogTitle>New Certificate</DialogTitle>
-            <DialogDescription>Create a new certificate record.</DialogDescription>
+            <DialogTitle>{t('dialogs.createTitle')}</DialogTitle>
+            <DialogDescription>{t('dialogs.createDescription')}</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <Label>Template</Label>
+              <Label>{t('dialogs.template')}</Label>
               <select
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 value={createTemplateId}
@@ -943,7 +943,7 @@ function CertificatesPage() {
                   setCreateValidityDays(DEFAULT_VALIDITY_DAYS)
                 }}
               >
-                <option value="">Select template</option>
+                <option value="">{t('dialogs.selectTemplate')}</option>
                 {templates.map(t => (
                   <option key={t.id} value={t.id}>
                     {t.label}
@@ -975,7 +975,7 @@ function CertificatesPage() {
                         }}
                         rows={6}
                         className="font-mono text-xs w-full min-w-0 break-all"
-                        placeholder={field.upload ? 'Paste PEM content or upload a file...' : ''}
+                        placeholder={field.upload ? t('form.pasteOrUpload', { ns: 'secrets' }) : ''}
                       />
                       {field.upload && (
                         <div className="space-y-1">
@@ -1001,7 +1001,7 @@ function CertificatesPage() {
                               document.getElementById(`create-upload-${field.key}`)?.click()
                             }
                           >
-                            Upload File
+                            {t('dialogs.uploadFile')}
                           </Button>
                         </div>
                       )}
@@ -1020,14 +1020,14 @@ function CertificatesPage() {
                           setCreateFields(prev => ({ ...prev, [field.key]: val }))
                         }}
                       >
-                        <option value="">None</option>
+                        <option value="">{t('dialogs.none')}</option>
                         {secrets.map(s => (
                           <option key={s.id} value={s.id}>
                             {s.name}
                           </option>
                         ))}
                         <option value={CREATE_SECRET_OPTION_VALUE}>
-                          + Create TLS Private Key Secret
+                          {t('dialogs.createTlsPrivateKeySecret')}
                         </option>
                       </select>
                       <p className="text-xs text-muted-foreground">
@@ -1052,7 +1052,7 @@ function CertificatesPage() {
             {selectedCreateTemplate?.kind === 'self_signed' && (
               <>
                 <div className="space-y-2">
-                  <Label>Validity (days)</Label>
+                  <Label>{t('dialogs.validityDays')}</Label>
                   <Input
                     type="number"
                     min={1}
@@ -1063,12 +1063,11 @@ function CertificatesPage() {
                     }
                   />
                   <p className="text-xs text-muted-foreground">
-                    How long the certificate stays valid (1–3650 days).
+                    {t('dialogs.validityDescription')}
                   </p>
                 </div>
                 <p className="text-xs text-muted-foreground bg-muted p-2 rounded">
-                  ℹ The server will generate the certificate chain and create or update a referenced
-                  TLS private key secret after saving.
+                  {t('dialogs.serverGenerates')}
                 </p>
               </>
             )}
@@ -1079,10 +1078,10 @@ function CertificatesPage() {
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setCreateOpen(false)}>
-              Cancel
+              {t('common:cancel')}
             </Button>
             <Button onClick={handleCreate} disabled={createSaving || !createTemplateId}>
-              {createSaving ? 'Saving…' : 'Save'}
+              {createSaving ? t('dialogs.saving') : t('common:save')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1095,21 +1094,21 @@ function CertificatesPage() {
           onOpenAutoFocus={e => e.preventDefault()}
         >
           <DialogHeader>
-            <DialogTitle>Edit Certificate</DialogTitle>
+            <DialogTitle>{t('dialogs.editTitle')}</DialogTitle>
             <DialogDescription>{editRecord?.name}</DialogDescription>
           </DialogHeader>
 
           {editRecord && (
             <div className="space-y-4 py-2 min-w-0 overflow-hidden">
               <div className="space-y-2">
-                <Label>Name</Label>
+                <Label>{t('dialogs.name')}</Label>
                 <Input
                   value={editFields.name ?? ''}
                   onChange={e => setEditFields(prev => ({ ...prev, name: e.target.value }))}
                 />
               </div>
               <div className="space-y-2">
-                <Label>Description</Label>
+                <Label>{t('dialogs.description')}</Label>
                 <Textarea
                   value={editFields.description ?? ''}
                   onChange={e => setEditFields(prev => ({ ...prev, description: e.target.value }))}
@@ -1121,24 +1120,24 @@ function CertificatesPage() {
               <div className="grid grid-cols-2 gap-x-6 gap-y-3 rounded-md border p-4">
                 {editRecord.issuer && (
                   <div className="space-y-0.5">
-                    <span className="text-muted-foreground text-xs font-medium">Issuer</span>
+                      <span className="text-muted-foreground text-xs font-medium">{t('dialogs.issuer')}</span>
                     <p className="text-sm">{editRecord.issuer}</p>
                   </div>
                 )}
                 {editRecord.subject && (
                   <div className="space-y-0.5">
-                    <span className="text-muted-foreground text-xs font-medium">Subject</span>
+                      <span className="text-muted-foreground text-xs font-medium">{t('dialogs.subject')}</span>
                     <p className="text-sm">{editRecord.subject}</p>
                   </div>
                 )}
                 {editRecord.expires_at && (
                   <div className="space-y-0.5">
-                    <span className="text-muted-foreground text-xs font-medium">Expires At</span>
+                      <span className="text-muted-foreground text-xs font-medium">{t('detail.expiresAt')}</span>
                     <p className="text-sm">{formatDate(editRecord.expires_at)}</p>
                   </div>
                 )}
                 <div className="space-y-0.5">
-                  <span className="text-muted-foreground text-xs font-medium">Status</span>
+                    <span className="text-muted-foreground text-xs font-medium">{t('detail.status')}</span>
                   <div>
                     <StatusBadge status={editRecord.status} expiresAt={editRecord.expires_at} />
                   </div>
@@ -1149,7 +1148,7 @@ function CertificatesPage() {
               {editRecord.kind === 'ca_issued' && (
                 <>
                   <div className="space-y-2 min-w-0 overflow-hidden">
-                    <Label>Certificate Chain (PEM)</Label>
+                    <Label>{t('dialogs.certificateChain')}</Label>
                     <Textarea
                       value={editFields.cert_pem ?? ''}
                       onChange={e => setEditFields(prev => ({ ...prev, cert_pem: e.target.value }))}
@@ -1177,12 +1176,12 @@ function CertificatesPage() {
                         size="sm"
                         onClick={() => document.getElementById('edit-upload-cert')?.click()}
                       >
-                        Upload File
+                         {t('dialogs.uploadFile')}
                       </Button>
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Label>TLS Private Key Secret</Label>
+                    <Label>{t('dialogs.tlsPrivateKeySecret')}</Label>
                     <select
                       className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                       value={editFields.private_key_secret ?? ''}
@@ -1195,19 +1194,18 @@ function CertificatesPage() {
                         setEditFields(prev => ({ ...prev, private_key_secret: val }))
                       }}
                     >
-                      <option value="">None</option>
+                      <option value="">{t('dialogs.none')}</option>
                       {secrets.map(s => (
                         <option key={s.id} value={s.id}>
                           {s.name}
                         </option>
                       ))}
                       <option value={CREATE_SECRET_OPTION_VALUE}>
-                        + Create TLS Private Key Secret
+                        {t('dialogs.createTlsPrivateKeySecret')}
                       </option>
                     </select>
                     <p className="text-xs text-muted-foreground">
-                      This certificate keeps the certificate chain on the certificate record and
-                      references its private key through a secret.
+                      {t('dialogs.tlsPrivateKeyDescription')}
                     </p>
                   </div>
                 </>
@@ -1221,7 +1219,7 @@ function CertificatesPage() {
                     onClick={() => downloadFile(`${editRecord.name}.crt`, editRecord.cert_pem!)}
                   >
                     <Download className="h-4 w-4 mr-2" />
-                    Download Certificate
+                    {t('dialogs.downloadCertificate')}
                   </Button>
                 )}
                 {editRecord.kind === 'self_signed' && editRecord.cert_pem && (
@@ -1233,7 +1231,7 @@ function CertificatesPage() {
                     }}
                   >
                     <RefreshCw className="h-4 w-4 mr-2" />
-                    Renew Certificate
+                    {t('dialogs.renewCertificate')}
                   </Button>
                 )}
               </div>
@@ -1245,10 +1243,10 @@ function CertificatesPage() {
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditOpen(false)}>
-              Cancel
+              {t('common:cancel')}
             </Button>
             <Button onClick={handleEditSave} disabled={editSaving}>
-              {editSaving ? 'Saving…' : 'Save'}
+              {editSaving ? t('dialogs.saving') : t('common:save')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1258,30 +1256,27 @@ function CertificatesPage() {
       <Dialog open={quickSecretOpen} onOpenChange={setQuickSecretOpen}>
         <DialogContent className="max-w-lg" onOpenAutoFocus={e => e.preventDefault()}>
           <DialogHeader>
-            <DialogTitle>Create TLS Private Key Secret</DialogTitle>
-            <DialogDescription>
-              Create a TLS private key secret without leaving the certificate form, then attach it
-              by reference.
-            </DialogDescription>
+            <DialogTitle>{t('dialogs.quickSecretTitle')}</DialogTitle>
+            <DialogDescription>{t('dialogs.quickSecretDescription')}</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <Label>Name</Label>
+              <Label>{t('dialogs.name')}</Label>
               <Input
                 value={quickSecretName}
                 onChange={e => setQuickSecretName(e.target.value)}
-                placeholder="e.g. my-cert-key"
+                placeholder={t('dialogs.quickSecretNamePlaceholder')}
               />
             </div>
             <div className="space-y-2">
-              <Label>Private Key (PEM)</Label>
+              <Label>{t('dialogs.privateKeyPem')}</Label>
               <Textarea
                 rows={8}
                 className="font-mono text-xs"
                 value={quickSecretPrivateKey}
                 onChange={e => setQuickSecretPrivateKey(e.target.value)}
-                placeholder="-----BEGIN PRIVATE KEY-----"
+                placeholder={t('dialogs.quickSecretKeyPlaceholder')}
               />
             </div>
             {quickSecretError && <p className="text-sm text-destructive">{quickSecretError}</p>}
@@ -1289,7 +1284,7 @@ function CertificatesPage() {
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setQuickSecretOpen(false)}>
-              Cancel
+              {t('common:cancel')}
             </Button>
             <Button
               onClick={handleQuickSecretCreate}
@@ -1299,7 +1294,7 @@ function CertificatesPage() {
                 quickSecretPrivateKey.trim() === ''
               }
             >
-              {quickSecretSaving ? 'Creating…' : 'Create'}
+              {quickSecretSaving ? t('dialogs.creating') : t('dialogs.create')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1314,14 +1309,12 @@ function CertificatesPage() {
       >
         <DialogContent className="max-w-sm" onOpenAutoFocus={e => e.preventDefault()}>
           <DialogHeader>
-            <DialogTitle>Renew Certificate</DialogTitle>
-            <DialogDescription>
-              Generate a new self-signed certificate for <strong>{renewTarget?.name}</strong>.
-            </DialogDescription>
+            <DialogTitle>{t('dialogs.renewTitle')}</DialogTitle>
+            <DialogDescription>{t('dialogs.renewDescription', { name: renewTarget?.name ?? '' })}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <Label>Validity (days)</Label>
+              <Label>{t('dialogs.validityDays')}</Label>
               <Input
                 type="number"
                 min={1}
@@ -1330,16 +1323,16 @@ function CertificatesPage() {
                 onChange={e => setRenewDays(parseInt(e.target.value) || DEFAULT_VALIDITY_DAYS)}
               />
               <p className="text-xs text-muted-foreground">
-                How long the renewed certificate stays valid (1–3650 days).
+                {t('dialogs.validityDescription')}
               </p>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setRenewTarget(null)}>
-              Cancel
+              {t('common:cancel')}
             </Button>
             <Button onClick={handleRenew} disabled={renewing}>
-              {renewing ? 'Renewing…' : 'Renew'}
+              {renewing ? t('dialogs.renewing') : t('table.renew')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1354,19 +1347,18 @@ function CertificatesPage() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Certificate</AlertDialogTitle>
+            <AlertDialogTitle>{t('dialogs.deleteTitle')}</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete <strong>{deleteAction?.name}</strong>? This action
-              cannot be undone.
+              {t('dialogs.deleteDescription', { name: deleteAction?.name ?? '' })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t('common:cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Delete
+              {t('common:delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

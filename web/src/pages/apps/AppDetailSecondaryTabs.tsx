@@ -1,4 +1,5 @@
 import { Link } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 import {
   Boxes,
   ExternalLink,
@@ -85,21 +86,22 @@ export function AppDetailRuntimeTab({
   projectNameCandidates,
   setTab,
 }: RuntimeTabProps) {
+  const { t } = useTranslation('apps')
   const serverConnectionBlocked = hasBlockingServerConnectionIssue(app)
   const serverConnectionReason = getServerConnectionReason(app)
   return (
     <TabsContent value="runtime" className="space-y-2.5">
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle>Runtime Summary</CardTitle>
-          <CardDescription>Container state and quick runtime actions.</CardDescription>
+          <CardTitle>{t('detail.runtime.summaryTitle')}</CardTitle>
+          <CardDescription>{t('detail.runtime.summaryDescription')}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <ServerRuntimeUnavailableAlert app={app} />
           <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
             <div className="rounded-2xl bg-muted/20 p-3">
               <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-                Matched Containers
+                {t('detail.runtime.matchedContainers')}
               </div>
               <div className="mt-1 text-xl font-semibold">
                 {serverConnectionBlocked ? '-' : runtimeSummary.total}
@@ -107,7 +109,7 @@ export function AppDetailRuntimeTab({
             </div>
             <div className="rounded-2xl bg-muted/20 p-3">
               <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-                Running
+                {t('detail.runtime.running')}
               </div>
               <div className="mt-1 text-xl font-semibold">
                 {serverConnectionBlocked ? '-' : runtimeSummary.running}
@@ -115,7 +117,7 @@ export function AppDetailRuntimeTab({
             </div>
             <div className="rounded-2xl bg-muted/20 p-3">
               <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-                Total CPU
+                {t('detail.runtime.totalCpu')}
               </div>
               <div className="mt-1 text-xl font-semibold">
                 {serverConnectionBlocked
@@ -125,7 +127,7 @@ export function AppDetailRuntimeTab({
             </div>
             <div className="rounded-2xl bg-muted/20 p-3">
               <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-                Memory Used
+                {t('detail.runtime.memoryUsed')}
               </div>
               <div className="mt-1 text-xl font-semibold">
                 {serverConnectionBlocked ? '-' : formatBytesCompact(runtimeSummary.memory)}
@@ -133,27 +135,33 @@ export function AppDetailRuntimeTab({
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-            <span>Server {app.server_name?.trim() || app.server_id || 'local'}</span>
-            <span>Project directory {app.project_dir}</span>
+            <span>
+              {t('detail.runtime.serverProject', {
+                server: app.server_name?.trim() || app.server_id || t('labels.serverLocal'),
+              })}
+            </span>
+            <span>{t('detail.runtime.projectDirectory', { path: app.project_dir })}</span>
             {projectNameCandidates.length > 0 ? (
-              <span>Matched by {projectNameCandidates.join(', ')}</span>
+              <span>
+                {t('detail.runtime.matchedBy', { value: projectNameCandidates.join(', ') })}
+              </span>
             ) : null}
           </div>
           {runtimeLoading && !runtimeLoaded ? (
             <div className="rounded-2xl border p-4 text-sm text-muted-foreground">
-              Loading runtime inventory...
+              {t('loading.runtime')}
             </div>
           ) : !serverConnectionBlocked && relatedRuntimeContainers.length > 0 ? (
             <Table containerClassName="rounded-xl border">
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>State</TableHead>
-                  <TableHead>Image</TableHead>
-                  <TableHead>CPU</TableHead>
-                  <TableHead>Memory</TableHead>
-                  <TableHead>Ports</TableHead>
-                  <TableHead className="text-right">Action</TableHead>
+                  <TableHead>{t('labels.name')}</TableHead>
+                  <TableHead>{t('detail.runtime.containerState')}</TableHead>
+                  <TableHead>{t('detail.runtime.image')}</TableHead>
+                  <TableHead>{t('detail.runtime.cpu')}</TableHead>
+                  <TableHead>{t('detail.runtime.memory')}</TableHead>
+                  <TableHead>{t('detail.runtime.ports')}</TableHead>
+                  <TableHead className="text-right">{t('detail.data.action')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -185,7 +193,7 @@ export function AppDetailRuntimeTab({
                           size="sm"
                           onClick={() => openRuntimeContainerLogs(container)}
                         >
-                          Logs
+                          {t('detail.runtime.logs')}
                         </Button>
                         <Button
                           variant="outline"
@@ -193,7 +201,7 @@ export function AppDetailRuntimeTab({
                           onClick={() => openServerWorkspace()}
                           disabled={!canOpenServerWorkspace}
                         >
-                          Exec
+                          {t('detail.runtime.exec')}
                         </Button>
                         <Button
                           variant="outline"
@@ -207,7 +215,7 @@ export function AppDetailRuntimeTab({
                           }
                           disabled={!canOpenServerWorkspace || !app.project_dir}
                         >
-                          Files
+                          {t('detail.runtime.files')}
                         </Button>
                       </div>
                     </TableCell>
@@ -218,9 +226,8 @@ export function AppDetailRuntimeTab({
           ) : (
             <div className="rounded-2xl border border-dashed p-4 text-sm text-muted-foreground">
               {serverConnectionBlocked
-                ? serverConnectionReason ||
-                  'Current Docker runtime inventory is unavailable because the server is unreachable.'
-                : 'No matching containers were found for this app in the current Docker inventory.'}
+                ? serverConnectionReason || t('detail.runtime.unavailableInventory')
+                : t('detail.runtime.noContainers')}
             </div>
           )}
         </CardContent>
@@ -228,21 +235,21 @@ export function AppDetailRuntimeTab({
 
       <Card>
         <CardHeader className="pb-2.5">
-          <CardTitle>Next Step</CardTitle>
+          <CardTitle>{t('detail.runtime.nextStepTitle')}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-1.5 text-sm text-muted-foreground">
-          <p>Use server or Docker workspaces only when the summary above is not enough.</p>
+          <p>{t('detail.runtime.nextStepDescription')}</p>
           <div className="flex flex-wrap gap-2 pt-1">
             <Button variant="outline" size="sm" onClick={() => setTab('observability')}>
-              Open Observability
+              {t('detail.secondary.openObservability')}
             </Button>
             <Button variant="outline" size="sm" onClick={() => setTab('compose')}>
-              Open Compose
+              {t('detail.secondary.openCompose')}
             </Button>
             {canOpenServerWorkspace ? (
               <Button variant="outline" size="sm" onClick={() => openServerWorkspace()}>
                 <TerminalSquare className="mr-2 h-4 w-4" />
-                Open Server Workspace
+                {t('detail.secondary.openServerWorkspace')}
               </Button>
             ) : null}
             <Button variant="outline" size="sm" asChild>
@@ -253,7 +260,7 @@ export function AppDetailRuntimeTab({
                 }}
               >
                 <Boxes className="mr-2 h-4 w-4" />
-                Open Docker Workspace
+                {t('detail.secondary.openDockerWorkspace')}
               </Link>
             </Button>
           </div>
@@ -291,11 +298,12 @@ export function AppDetailComposeTab({
   setEnvFileText,
   diffText,
 }: ComposeTabProps) {
+  const { t } = useTranslation('apps')
   return (
     <TabsContent value="compose" className="space-y-2.5">
       <Card>
         <CardHeader className="pb-2.5">
-          <CardTitle>Compose</CardTitle>
+          <CardTitle>{t('detail.compose.title')}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <ServerRuntimeUnavailableAlert app={app} />
@@ -306,7 +314,7 @@ export function AppDetailComposeTab({
               ) : (
                 <RefreshCw className="mr-2 h-4 w-4" />
               )}
-              Reload
+              {t('detail.compose.reload')}
             </Button>
             <Button
               variant="outline"
@@ -318,7 +326,7 @@ export function AppDetailComposeTab({
               ) : (
                 <ShieldCheck className="mr-2 h-4 w-4" />
               )}
-              Validate Draft
+              {t('detail.compose.validateDraft')}
             </Button>
             <Button
               variant="outline"
@@ -330,12 +338,12 @@ export function AppDetailComposeTab({
               ) : (
                 <RotateCcw className="mr-2 h-4 w-4" />
               )}
-              Rollback
+              {t('detail.compose.rollback')}
             </Button>
             {app.iac_path ? (
               <Button variant="outline" onClick={openIacWindow}>
                 <ExternalLink className="mr-2 h-4 w-4" />
-                Open in IaC
+                {t('detail.compose.openInIac')}
               </Button>
             ) : null}
             <Button onClick={saveConfig} disabled={saveDisabled}>
@@ -344,24 +352,29 @@ export function AppDetailComposeTab({
               ) : (
                 <Save className="mr-2 h-4 w-4" />
               )}
-              Save
+              {t('common:save')}
             </Button>
           </div>
           <div className="grid gap-2 text-sm md:grid-cols-2">
             <div>
-              <span className="text-muted-foreground">IaC Path:</span>{' '}
+              <span className="text-muted-foreground">{t('detail.compose.iacPath')}</span>{' '}
               <span className="font-mono text-xs">{app.iac_path || '-'}</span>
             </div>
             <div>
-              <span className="text-muted-foreground">Project Dir:</span>{' '}
+              <span className="text-muted-foreground">{t('detail.compose.projectDir')}</span>{' '}
               <span className="break-all">{app.project_dir}</span>
             </div>
           </div>
           {rollbackMeta.available ? (
             <p className="text-xs text-muted-foreground">
-              Rollback point available
-              {rollbackMeta.savedAt ? ` from ${formatTime(rollbackMeta.savedAt)}` : ''}
-              {rollbackMeta.sourceAction ? ` via ${rollbackMeta.sourceAction}` : ''}.
+              {t('detail.compose.rollbackPointAvailable', {
+                savedAt: rollbackMeta.savedAt
+                  ? t('detail.compose.savedAt', { time: formatTime(rollbackMeta.savedAt) })
+                  : '',
+                sourceAction: rollbackMeta.sourceAction
+                  ? t('detail.compose.sourceAction', { value: rollbackMeta.sourceAction })
+                  : '',
+              })}
             </p>
           ) : null}
           {validation ? (
@@ -370,10 +383,7 @@ export function AppDetailComposeTab({
             </Alert>
           ) : (
             <Alert>
-              <AlertDescription>
-                Validate the current draft before saving. Save remains disabled until the current
-                content passes validation.
-              </AlertDescription>
+              <AlertDescription>{t('detail.compose.validateBeforeSave')}</AlertDescription>
             </Alert>
           )}
           <Textarea
@@ -386,10 +396,8 @@ export function AppDetailComposeTab({
 
       <Card>
         <CardHeader className="pb-2.5">
-          <CardTitle>Environment File</CardTitle>
-          <CardDescription>
-            Edit the app-local .env file beside the compose asset when present.
-          </CardDescription>
+          <CardTitle>{t('detail.compose.environmentFileTitle')}</CardTitle>
+          <CardDescription>{t('detail.compose.environmentFileDescription')}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex flex-wrap gap-2">
@@ -403,7 +411,7 @@ export function AppDetailComposeTab({
               ) : (
                 <RefreshCw className="mr-2 h-4 w-4" />
               )}
-              Reload Env
+              {t('detail.compose.reloadEnv')}
             </Button>
             <Button
               onClick={() => envFilePath && saveEnvFile(envFilePath)}
@@ -414,17 +422,21 @@ export function AppDetailComposeTab({
               ) : (
                 <Save className="mr-2 h-4 w-4" />
               )}
-              Save Env
+              {t('detail.compose.saveEnv')}
             </Button>
           </div>
           <div className="grid gap-2 text-sm md:grid-cols-2">
             <div>
-              <span className="text-muted-foreground">Env Path:</span>{' '}
+              <span className="text-muted-foreground">{t('detail.compose.envPath')}</span>{' '}
               <span className="font-mono text-xs">{envFilePath || '-'}</span>
             </div>
             <div>
-              <span className="text-muted-foreground">Status:</span>{' '}
-              {envFileLoaded ? 'loaded' : envFileLoading ? 'loading' : 'not loaded'}
+              <span className="text-muted-foreground">{t('detail.compose.envStatus')}</span>{' '}
+              {envFileLoaded
+                ? t('detail.compose.envLoaded')
+                : envFileLoading
+                  ? t('detail.compose.envLoading')
+                  : t('detail.compose.envNotLoaded')}
             </div>
           </div>
           {envFileError ? (
@@ -434,16 +446,14 @@ export function AppDetailComposeTab({
           ) : null}
           {!envFilePath ? (
             <Alert>
-              <AlertDescription>
-                Env editing is unavailable because the compose asset path is not resolved yet.
-              </AlertDescription>
+              <AlertDescription>{t('detail.compose.envUnavailable')}</AlertDescription>
             </Alert>
           ) : null}
           <Textarea
             className="min-h-[180px] font-mono text-xs"
             value={envFileText}
             onChange={event => setEnvFileText(event.target.value)}
-            placeholder="KEY=value"
+            placeholder={t('detail.compose.envPlaceholder')}
             disabled={!envFilePath || envFileLoading}
           />
         </CardContent>
@@ -452,7 +462,7 @@ export function AppDetailComposeTab({
       {diffText ? (
         <Card>
           <CardHeader className="pb-2.5">
-            <CardTitle>Draft Diff</CardTitle>
+            <CardTitle>{t('detail.compose.draftDiff')}</CardTitle>
           </CardHeader>
           <CardContent>
             <pre className="max-h-[220px] overflow-auto rounded-xl border bg-muted/20 p-4 font-mono text-xs leading-5">
@@ -477,6 +487,7 @@ export function AppDetailObservabilityTab({
   logViewportRef,
   stickToBottomRef,
 }: ObservabilityTabProps) {
+  const { t } = useTranslation('apps')
   const serverConnectionBlocked = hasBlockingServerConnectionIssue(app)
   const serverConnectionReason = getServerConnectionReason(app)
   const runtimeValue = formatEffectiveRuntimeLabel(app)
@@ -486,14 +497,14 @@ export function AppDetailObservabilityTab({
       <div className="grid gap-2.5 xl:grid-cols-2">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2.5">
-            <CardTitle>Metrics</CardTitle>
+            <CardTitle>{t('detail.observability.metricsTitle')}</CardTitle>
             <Button variant="outline" onClick={() => fetchLogs(true)} disabled={logsLoading}>
               {logsLoading ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
                 <RefreshCw className="mr-2 h-4 w-4" />
               )}
-              Refresh
+              {t('common:refresh')}
             </Button>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
@@ -501,7 +512,7 @@ export function AppDetailObservabilityTab({
             <div className="grid gap-2 md:grid-cols-2">
               <div className="rounded-xl border p-3">
                 <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                  Runtime Containers
+                  {t('detail.observability.runtimeContainers')}
                 </div>
                 <div className="mt-1 text-xl font-semibold">
                   {serverConnectionBlocked
@@ -511,15 +522,15 @@ export function AppDetailObservabilityTab({
                       : '-'}
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  running / total matched containers
+                  {t('detail.observability.runningTotal')}
                 </div>
               </div>
               <div className="rounded-xl border p-3">
                 <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                  Combined Resource Use
+                  {t('detail.observability.combinedResourceUse')}
                 </div>
                 <div className="mt-1 text-sm font-medium">
-                  CPU{' '}
+                  {t('detail.runtime.cpu')}{' '}
                   {serverConnectionBlocked
                     ? '-'
                     : runtimeLoaded
@@ -527,7 +538,7 @@ export function AppDetailObservabilityTab({
                       : '-'}
                 </div>
                 <div className="text-sm text-muted-foreground">
-                  Memory{' '}
+                  {t('detail.runtime.memory')}{' '}
                   {serverConnectionBlocked
                     ? '-'
                     : runtimeLoaded
@@ -538,7 +549,7 @@ export function AppDetailObservabilityTab({
             </div>
             <div className="rounded-xl border p-3">
               <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                Latest Lifecycle Execution
+                {t('detail.observability.latestLifecycleExecution')}
               </div>
               {latestScopedAction ? (
                 <div className="mt-1.5 flex flex-wrap items-center gap-2.5">
@@ -552,7 +563,7 @@ export function AppDetailObservabilityTab({
                 </div>
               ) : (
                 <div className="mt-1.5 text-muted-foreground">
-                  No app-scoped actions have been observed yet.
+                  {t('detail.observability.noScopedActions')}
                 </div>
               )}
             </div>
@@ -560,55 +571,74 @@ export function AppDetailObservabilityTab({
         </Card>
         <Card>
           <CardHeader className="pb-2.5">
-            <CardTitle>Signals</CardTitle>
+            <CardTitle>{t('detail.observability.signalsTitle')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2.5 text-sm">
             <ServerRuntimeUnavailableAlert app={app} />
             <div className="grid gap-2 md:grid-cols-2">
               <div>
-                <span className="text-muted-foreground">Container runtime:</span> {runtimeValue}
+                <span className="text-muted-foreground">
+                  {t('detail.observability.containerRuntime')}
+                </span>{' '}
+                {runtimeValue}
               </div>
               <div>
-                <span className="text-muted-foreground">Health:</span> {healthValue}
+                <span className="text-muted-foreground">{t('detail.observability.health')}</span>{' '}
+                {healthValue}
               </div>
               <div>
-                <span className="text-muted-foreground">State reason:</span>{' '}
+                <span className="text-muted-foreground">
+                  {t('detail.observability.stateReason')}
+                </span>{' '}
                 {app.state_reason || app.runtime_reason || '-'}
               </div>
               <div>
-                <span className="text-muted-foreground">Last projected runtime:</span>{' '}
+                <span className="text-muted-foreground">
+                  {t('detail.observability.lastProjectedRuntime')}
+                </span>{' '}
                 {app.runtime_status || '-'}
               </div>
               <div>
-                <span className="text-muted-foreground">Last projected app state:</span>{' '}
+                <span className="text-muted-foreground">
+                  {t('detail.observability.lastProjectedAppState')}
+                </span>{' '}
                 {app.instance_state || '-'}
               </div>
               <div>
-                <span className="text-muted-foreground">Health summary:</span>{' '}
-                {serverConnectionBlocked ? 'Unavailable' : app.health_summary || '-'}
+                <span className="text-muted-foreground">
+                  {t('detail.observability.healthSummary')}
+                </span>{' '}
+                {serverConnectionBlocked ? t('states.unavailable') : app.health_summary || '-'}
               </div>
               <div>
-                <span className="text-muted-foreground">Publication:</span>{' '}
+                <span className="text-muted-foreground">
+                  {t('detail.observability.publication')}
+                </span>{' '}
                 {app.publication_summary || '-'}
               </div>
               <div>
-                <span className="text-muted-foreground">Primary exposure health:</span>{' '}
+                <span className="text-muted-foreground">
+                  {t('detail.observability.primaryExposureHealth')}
+                </span>{' '}
                 {primaryExposure?.health_state || '-'}
               </div>
               <div>
-                <span className="text-muted-foreground">Server connection:</span>{' '}
+                <span className="text-muted-foreground">
+                  {t('detail.observability.serverConnection')}
+                </span>{' '}
                 {serverConnectionBlocked
                   ? `${formatServerConnectionLabel(app.server_connection_status)}${serverConnectionReason ? ` · ${serverConnectionReason}` : ''}`
-                  : 'Online'}
+                  : t('detail.observability.online')}
               </div>
               <div>
-                <span className="text-muted-foreground">Last exposure verification:</span>{' '}
+                <span className="text-muted-foreground">
+                  {t('detail.observability.lastExposureVerification')}
+                </span>{' '}
                 {formatTime(primaryExposure?.last_verified_at)}
               </div>
             </div>
             <div className="rounded-xl border bg-muted/20 px-3 py-2 text-muted-foreground">
-              Heartbeat is projected from app runtime and exposure health signals. The canonical
-              product-facing state is `instance_state`.
+              {t('detail.observability.heartbeat')}
             </div>
             {app.runtime_reason ? (
               <div className="rounded-lg bg-amber-50 px-3 py-2 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
@@ -620,7 +650,10 @@ export function AppDetailObservabilityTab({
               <MonitorTargetPanel
                 targetType="app"
                 targetId={app.id}
-                emptyMessage={`No monitoring projection is available yet for ${app.name}. Current runtime status is ${runtimeValue.toLowerCase() || 'unknown'}.`}
+                emptyMessage={t('detail.observability.monitorEmpty', {
+                  name: app.name,
+                  status: runtimeValue.toLowerCase() || t('states.unknown').toLowerCase(),
+                })}
               />
             </div>
           </CardContent>
@@ -628,7 +661,7 @@ export function AppDetailObservabilityTab({
       </div>
       <Card>
         <CardHeader className="pb-2.5">
-          <CardTitle>Logs</CardTitle>
+          <CardTitle>{t('detail.observability.logsTitle')}</CardTitle>
         </CardHeader>
         <CardContent>
           <div
@@ -643,7 +676,7 @@ export function AppDetailObservabilityTab({
             <pre
               className={cn('whitespace-pre-wrap break-words', !logs?.output && 'text-slate-500')}
             >
-              {logs?.output || 'No logs yet.'}
+              {logs?.output || t('detail.observability.noLogs')}
             </pre>
           </div>
         </CardContent>
@@ -665,18 +698,19 @@ export function AppDetailDataTab({
   canOpenServerWorkspace,
   openServerWorkspace,
 }: DataTabProps) {
+  const { t } = useTranslation('apps')
   const serverConnectionBlocked = hasBlockingServerConnectionIssue(app)
   const serverConnectionReason = getServerConnectionReason(app)
   return (
     <TabsContent value="data" className="space-y-2.5">
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle>Connected Data</CardTitle>
-          <CardDescription>Matched services, volumes, backups, and mounts.</CardDescription>
+          <CardTitle>{t('detail.data.connectedDataTitle')}</CardTitle>
+          <CardDescription>{t('detail.data.connectedDataDescription')}</CardDescription>
           <CardAction>
             <Button variant="outline" size="sm" asChild>
               <Link to="/resources/service-instances" search={{ create: undefined }}>
-                Open Service Instances
+                {t('actions.openServiceInstances')}
               </Link>
             </Button>
           </CardAction>
@@ -690,17 +724,17 @@ export function AppDetailDataTab({
           ) : null}
           {dataLoading && !dataLoaded ? (
             <div className="rounded-2xl border p-4 text-sm text-muted-foreground">
-              Loading service instance projections...
+              {t('loading.data')}
             </div>
           ) : !serverConnectionBlocked && matchedInstanceResources.length > 0 ? (
             <Table containerClassName="rounded-xl border">
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Kind</TableHead>
-                  <TableHead>Profile</TableHead>
-                  <TableHead>Endpoint</TableHead>
-                  <TableHead>Summary</TableHead>
+                  <TableHead>{t('labels.name')}</TableHead>
+                  <TableHead>{t('detail.data.kind')}</TableHead>
+                  <TableHead>{t('detail.data.profile')}</TableHead>
+                  <TableHead>{t('detail.data.endpoint')}</TableHead>
+                  <TableHead>{t('detail.data.summary')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -718,8 +752,8 @@ export function AppDetailDataTab({
           ) : (
             <div className="rounded-2xl border border-dashed p-4 text-sm text-muted-foreground">
               {serverConnectionBlocked
-                ? serverConnectionReason || 'Live server-backed data projections are unavailable.'
-                : 'No service instance matched this app by name, endpoint, summary, or description.'}
+                ? serverConnectionReason || t('detail.data.serverDataUnavailable')
+                : t('detail.data.noDataMatch')}
             </div>
           )}
         </CardContent>
@@ -727,8 +761,8 @@ export function AppDetailDataTab({
 
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle>Volumes and Restore Points</CardTitle>
-          <CardDescription>Runtime storage and backup coverage.</CardDescription>
+          <CardTitle>{t('detail.data.volumesTitle')}</CardTitle>
+          <CardDescription>{t('detail.data.volumesDescription')}</CardDescription>
           <CardAction>
             <Button variant="outline" size="sm" asChild>
               <Link
@@ -737,7 +771,7 @@ export function AppDetailDataTab({
                   server: app.server_id && app.server_id !== 'local' ? app.server_id : undefined,
                 }}
               >
-                Open Docker Workspace
+                {t('actions.openDockerWorkspace')}
               </Link>
             </Button>
           </CardAction>
@@ -745,15 +779,15 @@ export function AppDetailDataTab({
         <CardContent className="space-y-3">
           {dataLoading && !dataLoaded ? (
             <div className="rounded-2xl border p-4 text-sm text-muted-foreground">
-              Loading volume projections...
+              {t('loading.volumes')}
             </div>
           ) : !serverConnectionBlocked && matchedDataVolumes.length > 0 ? (
             <Table containerClassName="rounded-xl border">
               <TableHeader>
                 <TableRow>
-                  <TableHead>Volume</TableHead>
-                  <TableHead>Driver</TableHead>
-                  <TableHead>Mountpoint</TableHead>
+                  <TableHead>{t('detail.data.volume')}</TableHead>
+                  <TableHead>{t('detail.data.driver')}</TableHead>
+                  <TableHead>{t('detail.data.mountpoint')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -771,9 +805,8 @@ export function AppDetailDataTab({
           ) : (
             <div className="rounded-2xl border border-dashed p-4 text-sm text-muted-foreground">
               {serverConnectionBlocked
-                ? serverConnectionReason ||
-                  'Current Docker volume inventory is unavailable because the server is unreachable.'
-                : 'No Docker volumes matched this app in the current runtime inventory.'}
+                ? serverConnectionReason || t('detail.data.volumeUnavailable')
+                : t('detail.data.noVolumeMatch')}
             </div>
           )}
 
@@ -785,9 +818,9 @@ export function AppDetailDataTab({
             <Table containerClassName="rounded-xl border">
               <TableHeader>
                 <TableRow>
-                  <TableHead>Snapshot</TableHead>
-                  <TableHead>Size</TableHead>
-                  <TableHead>Updated</TableHead>
+                  <TableHead>{t('detail.data.snapshot')}</TableHead>
+                  <TableHead>{t('detail.data.size')}</TableHead>
+                  <TableHead>{t('labels.updated')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -806,24 +839,24 @@ export function AppDetailDataTab({
 
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle>Container Mounts</CardTitle>
-          <CardDescription>Files and paths that back the current runtime.</CardDescription>
+          <CardTitle>{t('detail.data.containerMountsTitle')}</CardTitle>
+          <CardDescription>{t('detail.data.containerMountsDescription')}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           {mountProjectionLoading ? (
             <div className="rounded-2xl border p-4 text-sm text-muted-foreground">
-              Loading container mount projection...
+              {t('loading.mounts')}
             </div>
           ) : !serverConnectionBlocked && containerMountRows.length > 0 ? (
             <Table containerClassName="rounded-xl border">
               <TableHeader>
                 <TableRow>
-                  <TableHead>Container</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Source</TableHead>
-                  <TableHead>Destination</TableHead>
-                  <TableHead>Mode</TableHead>
-                  <TableHead className="text-right">Action</TableHead>
+                  <TableHead>{t('detail.data.container')}</TableHead>
+                  <TableHead>{t('detail.data.type')}</TableHead>
+                  <TableHead>{t('detail.data.source')}</TableHead>
+                  <TableHead>{t('detail.data.destination')}</TableHead>
+                  <TableHead>{t('detail.data.mode')}</TableHead>
+                  <TableHead className="text-right">{t('detail.data.action')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -833,7 +866,9 @@ export function AppDetailDataTab({
                     <TableCell>{mount.type}</TableCell>
                     <TableCell className="max-w-[320px] truncate">{mount.source}</TableCell>
                     <TableCell className="max-w-[280px] truncate">{mount.destination}</TableCell>
-                    <TableCell>{mount.writable ? 'rw' : 'ro'}</TableCell>
+                    <TableCell>
+                      {mount.writable ? t('detail.data.rw') : t('detail.data.ro')}
+                    </TableCell>
                     <TableCell className="text-right">
                       <Button
                         variant="outline"
@@ -848,7 +883,7 @@ export function AppDetailDataTab({
                         disabled={!canOpenServerWorkspace || mount.source === '-'}
                       >
                         <FolderOpen className="mr-2 h-4 w-4" />
-                        Files
+                        {t('detail.runtime.files')}
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -858,9 +893,8 @@ export function AppDetailDataTab({
           ) : (
             <div className="rounded-2xl border border-dashed p-4 text-sm text-muted-foreground">
               {serverConnectionBlocked
-                ? serverConnectionReason ||
-                  'Container mount projection is unavailable because the server runtime cannot be reached.'
-                : 'No container mount projection is available for the current app runtime.'}
+                ? serverConnectionReason || t('detail.data.mountUnavailable')
+                : t('detail.data.noMounts')}
             </div>
           )}
         </CardContent>

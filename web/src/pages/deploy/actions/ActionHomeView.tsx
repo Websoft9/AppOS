@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { ArrowRight, CircleHelp, Ellipsis, Shuffle, Store, Wrench } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { getIconUrl } from '@/lib/store-presenter'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -145,6 +146,7 @@ function AppLauncherIcon({
 }
 
 function MoreAppsTile() {
+  const { t } = useTranslation('deploy')
   return (
     <Link
       to="/store"
@@ -155,7 +157,7 @@ function MoreAppsTile() {
         <Ellipsis className="h-8 w-8" />
       </span>
       <span className="line-clamp-2 min-h-[2rem] text-[11px] font-medium leading-4 text-slate-700 dark:text-slate-200">
-        More Apps
+        {t('home.moreApps', { defaultValue: 'More Apps' })}
       </span>
     </Link>
   )
@@ -182,6 +184,7 @@ export function ActionHomeView<TOperation extends LatestOperationItem>({
   onOpenOperation,
   renderActionMenu,
 }: ActionHomeViewProps<TOperation>) {
+  const { t } = useTranslation('deploy')
   const [shortcutBatch, setShortcutBatch] = useState(0)
   const shortcutBatchCount = Math.max(
     1,
@@ -203,22 +206,40 @@ export function ActionHomeView<TOperation extends LatestOperationItem>({
   return (
     <div className="space-y-6">
       {prefillLoading ? (
-        <Alert>
-          <AlertDescription>
-            {prefillMode === 'installed'
-              ? `Loading current compose config for ${prefillAppName || prefillAppId}...`
-              : `Loading deploy template for ${prefillAppName || prefillAppKey}...`}
-          </AlertDescription>
-        </Alert>
+          <Alert>
+            <AlertDescription>
+              {prefillMode === 'installed'
+                ? t('home.prefillInstalledLoading', {
+                    defaultValue: 'Loading current compose config for {{name}}...',
+                    name: prefillAppName || prefillAppId,
+                  })
+                : t('home.prefillTemplateLoading', {
+                    defaultValue: 'Loading deploy template for {{name}}...',
+                    name: prefillAppName || prefillAppKey,
+                  })}
+            </AlertDescription>
+          </Alert>
       ) : null}
       {prefillReady ? (
-        <Alert>
-          <AlertDescription>
-            {prefillMode === 'installed'
-              ? `${prefillSource === 'upgrade' ? 'Upgrade' : 'Redeploy'} handoff is ready for ${prefillReady}. The shared deployment form has been prefilled with the current installed compose config.`
-              : `App Store handoff is ready for ${prefillReady}. The shared deployment form has been prefilled with its compose template.`}
-          </AlertDescription>
-        </Alert>
+          <Alert>
+            <AlertDescription>
+              {prefillMode === 'installed'
+                ? t('home.prefillInstalledReady', {
+                    defaultValue:
+                      '{{mode}} handoff is ready for {{name}}. The shared deployment form has been prefilled with the current installed compose config.',
+                    mode:
+                      prefillSource === 'upgrade'
+                        ? t('home.upgrade', { defaultValue: 'Upgrade' })
+                        : t('home.redeploy', { defaultValue: 'Redeploy' }),
+                    name: prefillReady,
+                  })
+                : t('home.prefillTemplateReady', {
+                    defaultValue:
+                      'App Store handoff is ready for {{name}}. The shared deployment form has been prefilled with its compose template.',
+                    name: prefillReady,
+                  })}
+            </AlertDescription>
+          </Alert>
       ) : null}
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -227,8 +248,13 @@ export function ActionHomeView<TOperation extends LatestOperationItem>({
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-2 text-lg font-semibold text-slate-950 dark:text-slate-50">
                 <Store className="h-4 w-4 text-sky-600 dark:text-sky-300" />
-                <span>Install from Store</span>
-                <TitleHelp text="Use a Store application shortcut for a fast deploy handoff, or open App Store to browse more applications." />
+                <span>{t('home.installFromStore', { defaultValue: 'Install from Store' })}</span>
+                <TitleHelp
+                  text={t('home.installFromStoreHelp', {
+                    defaultValue:
+                      'Use a Store application shortcut for a fast deploy handoff, or open App Store to browse more applications.',
+                  })}
+                />
               </div>
               {shortcutBatchCount > 1 ? (
                 <Tooltip>
@@ -238,7 +264,7 @@ export function ActionHomeView<TOperation extends LatestOperationItem>({
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8 shrink-0 rounded-full text-sky-700 hover:text-sky-800 dark:text-sky-300 dark:hover:text-sky-200"
-                      aria-label="Show another set"
+                      aria-label={t('home.showAnotherSet', { defaultValue: 'Show another set' })}
                       onClick={() =>
                         setShortcutBatch(current => (current + 1) % shortcutBatchCount)
                       }
@@ -247,7 +273,7 @@ export function ActionHomeView<TOperation extends LatestOperationItem>({
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent side="top" sideOffset={6}>
-                    Show another set
+                    {t('home.showAnotherSet', { defaultValue: 'Show another set' })}
                   </TooltipContent>
                 </Tooltip>
               ) : null}
@@ -270,15 +296,18 @@ export function ActionHomeView<TOperation extends LatestOperationItem>({
             <div className="flex flex-col gap-3 rounded-2xl border border-sky-100 bg-white/70 px-4 py-3 dark:border-sky-900/50 dark:bg-white/5 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <div className="text-sm font-medium text-slate-900 dark:text-slate-100">
-                  Need more applications?
+                  {t('home.needMoreApps', { defaultValue: 'Need more applications?' })}
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  Browse 300+ applications in the App Store, then deploy with one click.
+                  {t('home.browseAppStore', {
+                    defaultValue:
+                      'Browse 300+ applications in the App Store, then deploy with one click.',
+                  })}
                 </div>
               </div>
               <Button asChild className="gap-2">
                 <Link to="/store" search={{ q: undefined, app: undefined }}>
-                  Browse All
+                  {t('home.browseAll', { defaultValue: 'Browse All' })}
                   <ArrowRight className="h-4 w-4" />
                 </Link>
               </Button>
@@ -290,8 +319,13 @@ export function ActionHomeView<TOperation extends LatestOperationItem>({
           <CardHeader className="space-y-3">
             <div className="flex items-center gap-2 text-lg font-semibold text-slate-950 dark:text-slate-50">
               <Wrench className="h-4 w-4 text-slate-700 dark:text-slate-300" />
-              <span>Custom Deployment</span>
-              <TitleHelp text="Use Compose, a Git repository, a Docker command, or user-provided source packages such as zip and tar.gz as deployment inputs." />
+              <span>{t('home.customDeployment', { defaultValue: 'Custom Deployment' })}</span>
+              <TitleHelp
+                text={t('home.customDeploymentHelp', {
+                  defaultValue:
+                    'Use Compose, a Git repository, a Docker command, or user-provided source packages such as zip and tar.gz as deployment inputs.',
+                })}
+              />
             </div>
           </CardHeader>
           <CardContent>
@@ -357,27 +391,31 @@ export function ActionHomeView<TOperation extends LatestOperationItem>({
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
-          <div className="space-y-1">
-            <CardTitle className="text-base">Latest Activity Summary</CardTitle>
+            <div className="space-y-1">
+            <CardTitle className="text-base">
+              {t('home.latestActivitySummary', { defaultValue: 'Latest Activity Summary' })}
+            </CardTitle>
             <p className="text-sm text-muted-foreground">
-              Showing the 5 most recently updated activity records. Open the full Activity page for
-              complete history.
+              {t('home.latestActivityDescription', {
+                defaultValue:
+                  'Showing the 5 most recently updated activity records. Open the full Activity page for complete history.',
+              })}
             </p>
           </div>
           <Button variant="outline" size="sm" asChild>
             <Link to="/activity" params={{} as never} search={{} as never}>
-              Open full activity
+              {t('home.openFullActivity', { defaultValue: 'Open full activity' })}
             </Link>
           </Button>
         </CardHeader>
         <CardContent>
           {loading ? (
             <div className="rounded-xl border border-dashed px-4 py-6 text-sm text-muted-foreground">
-              Loading activity...
+              {t('home.loadingActivity', { defaultValue: 'Loading activity...' })}
             </div>
           ) : latestOperations.length === 0 ? (
             <div className="rounded-xl border border-dashed px-4 py-6 text-sm text-muted-foreground">
-              No activity records yet.
+              {t('home.noActivity', { defaultValue: 'No activity records yet.' })}
             </div>
           ) : (
             <div className="overflow-hidden rounded-xl border">
@@ -385,12 +423,14 @@ export function ActionHomeView<TOperation extends LatestOperationItem>({
                 <TableHeader>
                   <TableRow>
                     <TableHead>Action</TableHead>
-                    <TableHead>User</TableHead>
-                    <TableHead>Source</TableHead>
-                    <TableHead>Server</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Updated</TableHead>
-                    <TableHead className="w-[84px] text-right">Action</TableHead>
+                    <TableHead>{t('home.table.user', { defaultValue: 'User' })}</TableHead>
+                    <TableHead>{t('home.table.source', { defaultValue: 'Source' })}</TableHead>
+                    <TableHead>{t('home.table.server', { defaultValue: 'Server' })}</TableHead>
+                    <TableHead>{t('home.table.status', { defaultValue: 'Status' })}</TableHead>
+                    <TableHead>{t('home.table.updated', { defaultValue: 'Updated' })}</TableHead>
+                    <TableHead className="w-[84px] text-right">
+                      {t('home.table.action', { defaultValue: 'Action' })}
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

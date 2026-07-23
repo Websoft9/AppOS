@@ -1,0 +1,58 @@
+{
+  "page": {
+    "title": "发布",
+    "description": "在一个列表中管理公共访问记录并创建可分享的发布项。",
+    "new": "新建发布项"
+  },
+  "stats": {
+    "activeEndpoints": "活跃端点",
+    "draftItems": "草稿项",
+    "expiredAccess": "已过期访问"
+  },
+  "list": {
+    "title": "公共访问记录",
+    "description": "该演示列表会在一个位置展示所有已发布入口和手动创建的发布项。",
+    "searchPlaceholder": "搜索发布记录",
+    "empty": "没有匹配当前搜索条件的发布记录。",
+    "table": {
+      "name": "名称",
+      "app": "应用",
+      "target": "目标",
+      "accessPath": "访问路径",
+      "status": "状态",
+      "expires": "过期时间",
+      "updated": "更新时间"
+    }
+  },
+  "status": {
+    "active": "启用",
+    "draft": "草稿",
+    "expired": "已过期"
+  },
+  "dialog": {
+    "title": "新建发布项",
+    "description": "为网关、控制台或应用预览创建一条手动公共访问记录。",
+    "name": "名称",
+    "app": "应用",
+    "target": "目标",
+    "accessPath": "访问路径",
+    "accessPathPlaceholder": "/publish/example",
+    "create": "创建草稿"
+  },
+  "seed": {
+    "traefikDashboard": "Traefik 仪表盘",
+    "gatewayAdmin": "网关管理",
+    "noExpiry": "不过期",
+    "fiveMinutesAgo": "5 分钟前",
+    "wordpressPreview": "WordPress 预览",
+    "appConsole": "应用控制台",
+    "inTwoHours": "2 小时后",
+    "twelveMinutesAgo": "12 分钟前",
+    "netdataPublicView": "Netdata 公共视图",
+    "monitoringSurface": "监控界面",
+    "expiredYesterday": "昨天已过期",
+    "oneDayAgo": "1 天前",
+    "notScheduled": "未安排",
+    "justNow": "刚刚"
+  }
+}

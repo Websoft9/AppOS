@@ -2,6 +2,21 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { AppDetailActionHistoryTable } from './AppDetailActionHistoryTable'
 
+function interpolate(defaultValue: string, values?: Record<string, unknown>) {
+  return defaultValue.replace(/\{\{(\w+)\}\}/g, (_, key) => String(values?.[key] ?? ''))
+}
+
+vi.mock('react-i18next', () => ({
+  initReactI18next: {
+    type: '3rdParty',
+    init: () => undefined,
+  },
+  useTranslation: () => ({
+    t: (key: string, options?: Record<string, unknown>) =>
+      options?.defaultValue ? interpolate(String(options.defaultValue), options) : key,
+  }),
+}))
+
 describe('AppDetailActionHistoryTable', () => {
   it('shows cancel and force-fail controls only for eligible actions', () => {
     const onRequestCancel = vi.fn()

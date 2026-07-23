@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 import { CheckCircle2, ChevronDown, ShieldAlert } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -57,26 +58,35 @@ export function CreateDeploymentReviewPanel({
   onCheck,
   onSubmit,
 }: CreateDeploymentReviewPanelProps) {
+  const { t } = useTranslation('deploy')
   const [templateImgError, setTemplateImgError] = useState(false)
   const preflightIssueCount = reviewMessages.length + portItems.filter(item => item.conflict).length
   const hasValidationDetails = preflightVisible && (preflightIssueCount > 0 || Boolean(checkResult))
   const validationSummary = !preflightVisible
-    ? 'Not checked yet'
+    ? t('create.notChecked', { defaultValue: 'Not checked yet' })
     : !checkResult
       ? activeChecking || activeSubmitting
-        ? 'Checking current inputs...'
-        : 'No pre-flight result for the current inputs yet.'
+        ? t('create.checkingInputs', { defaultValue: 'Checking current inputs...' })
+        : t('create.noPreflight', { defaultValue: 'No pre-flight result for the current inputs yet.' })
       : checkResult.ok && preflightIssueCount === 0
-        ? 'Ready to deploy'
-        : `${preflightIssueCount || 1} issue${preflightIssueCount === 1 ? '' : 's'} found`
+        ? t('create.ready', { defaultValue: 'Ready to deploy' })
+        : t(preflightIssueCount === 1 ? 'create.issuesFound' : 'create.issuesFoundPlural', {
+          count: preflightIssueCount || 1,
+          defaultValue:
+            preflightIssueCount === 1 ? '{{count}} issue found' : '{{count}} issues found',
+        })
 
   return (
     <div>
       <div className="space-y-4 xl:sticky xl:top-6 xl:ml-3">
         <Card className="rounded-2xl border-slate-200 shadow-sm dark:border-slate-800">
           <CardHeader className="space-y-1 pb-3">
-            <CardTitle className="text-sm">Summary</CardTitle>
-            <CardDescription>Current deployment overview.</CardDescription>
+            <CardTitle className="text-sm">{t('create.summary', { defaultValue: 'Summary' })}</CardTitle>
+            <CardDescription>
+              {t('create.currentDeploymentOverview', {
+                defaultValue: 'Current deployment overview.',
+              })}
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 p-4 pt-0 text-sm">
             <div className="space-y-2 rounded-lg bg-muted/10 p-3">
@@ -84,7 +94,9 @@ export function CreateDeploymentReviewPanel({
                 <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   App
                 </span>
-                <span className="text-right font-medium">{appName.trim() || 'Not set'}</span>
+                <span className="text-right font-medium">
+                  {appName.trim() || t('create.notSet', { defaultValue: 'Not set' })}
+                </span>
               </div>
               <div className="flex items-start justify-between gap-3">
                 <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -111,7 +123,10 @@ export function CreateDeploymentReviewPanel({
                     {templateIconUrl && !templateImgError ? (
                       <img
                         src={templateIconUrl}
-                        alt={`${templateLabel} logo`}
+                        alt={t('create.templateLogoAlt', {
+                          name: templateLabel,
+                          defaultValue: '{{name}} logo',
+                        })}
                         className="h-4 w-4 shrink-0 rounded-sm bg-muted object-contain ring-1 ring-border/60"
                         loading="lazy"
                         referrerPolicy="no-referrer"
@@ -166,7 +181,9 @@ export function CreateDeploymentReviewPanel({
                           </button>
                         </TooltipTrigger>
                         <TooltipContent side="top" className="max-w-xs text-xs">
-                          Check surfaces name, port, and disk issues before deployment.
+                          {t('create.preflightTooltip', {
+                            defaultValue: 'Check surfaces name, port, and disk issues before deployment.',
+                          })}
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
@@ -175,7 +192,10 @@ export function CreateDeploymentReviewPanel({
                   )}
                   {checkResult?.compose_project_name ? (
                     <div className="mt-1 text-xs text-muted-foreground">
-                      Resolved app name: {checkResult.compose_project_name}
+                      {t('create.resolvedAppName', {
+                        name: checkResult.compose_project_name,
+                        defaultValue: 'Resolved app name: {{name}}',
+                      })}
                     </div>
                   ) : null}
                   {checkResult && !checkResult.ok && checkResult.message ? (
@@ -204,8 +224,14 @@ export function CreateDeploymentReviewPanel({
                       >
                         <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                         <div>
-                          Port <span className="font-mono">{item.port}</span> / {item.protocol} is{' '}
-                          {item.occupied ? 'occupied' : 'reserved'}.
+                          {t('create.portConflict', {
+                            port: item.port,
+                            protocol: item.protocol,
+                            state: item.occupied
+                              ? t('create.occupied', { defaultValue: 'occupied' })
+                              : t('create.reserved', { defaultValue: 'reserved' }),
+                            defaultValue: 'Port {{port}} / {{protocol}} is {{state}}.',
+                          })}
                         </div>
                       </div>
                     ))}
@@ -220,14 +246,18 @@ export function CreateDeploymentReviewPanel({
                 disabled={checkDisabled}
                 className="h-10 w-full"
               >
-                {activeChecking ? 'Checking...' : 'Check'}
+                {activeChecking
+                  ? t('actions.checking', { defaultValue: 'Checking...' })
+                  : t('actions.check', { defaultValue: 'Check' })}
               </Button>
               <Button
                 onClick={onSubmit}
                 disabled={createDisabled || srcUploading}
                 className="h-10 w-full"
               >
-                {activeSubmitting || srcUploading ? 'Creating...' : 'Create Deployment'}
+                {activeSubmitting || srcUploading
+                  ? t('actions.creating', { defaultValue: 'Creating...' })
+                  : t('actions.createDeployment', { defaultValue: 'Create Deployment' })}
               </Button>
             </div>
           </CardContent>
@@ -236,41 +266,55 @@ export function CreateDeploymentReviewPanel({
         {helpVisible ? (
           <Card className="border-slate-200 dark:border-slate-800">
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm">Help</CardTitle>
+              <CardTitle className="text-sm">{t('create.help', { defaultValue: 'Help' })}</CardTitle>
               <CardDescription>
-                Short answers for the most common questions during deployment creation.
+                {t('create.helpDescription', {
+                  defaultValue: 'Short answers for the most common questions during deployment creation.',
+                })}
               </CardDescription>
             </CardHeader>
             <CardContent>
               <details className="group rounded-md border bg-muted/20">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5 text-sm font-medium [&::-webkit-details-marker]:hidden">
-                  <span>FAQ</span>
+                  <span>{t('create.faq', { defaultValue: 'FAQ' })}</span>
                   <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
                 </summary>
                 <div className="space-y-3 border-t px-3 py-3 text-xs text-muted-foreground">
                   <div>
-                    <div className="font-medium text-foreground">Why run Check first?</div>
+                    <div className="font-medium text-foreground">
+                      {t('create.whyCheck', { defaultValue: 'Why run Check first?' })}
+                    </div>
                     <div className="mt-1">
-                      Check runs backend pre-flight validation and can surface blocking issues
-                      before an action is created.
+                      {t('create.whyCheckAnswer', {
+                        defaultValue:
+                          'Check runs backend pre-flight validation and can surface blocking issues before an action is created.',
+                      })}
                     </div>
                   </div>
                   <div>
                     <div className="font-medium text-foreground">
-                      Does Create Deployment run validation again?
+                      {t('create.createRunsValidation', {
+                        defaultValue: 'Does Create Deployment run validation again?',
+                      })}
                     </div>
                     <div className="mt-1">
-                      Yes. The server performs final validation and normalization again when the
-                      deployment action is created.
+                      {t('create.createRunsValidationAnswer', {
+                        defaultValue:
+                          'Yes. The server performs final validation and normalization again when the deployment action is created.',
+                      })}
                     </div>
                   </div>
                   <div>
                     <div className="font-medium text-foreground">
-                      What should I do if Check reports warnings?
+                      {t('create.warningsQuestion', {
+                        defaultValue: 'What should I do if Check reports warnings?',
+                      })}
                     </div>
                     <div className="mt-1">
-                      Review the warnings, decide whether they are acceptable for this target, and
-                      then continue with Create Deployment only if the result is acceptable.
+                      {t('create.warningsAnswer', {
+                        defaultValue:
+                          'Review the warnings, decide whether they are acceptable for this target, and then continue with Create Deployment only if the result is acceptable.',
+                      })}
                     </div>
                   </div>
                 </div>

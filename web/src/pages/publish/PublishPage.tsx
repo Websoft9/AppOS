@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ExternalLink, Globe, Plus, Search, Shield, TimerReset } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -36,62 +37,61 @@ type PublishRecord = {
   updatedAt: string
 }
 
-const INITIAL_RECORDS: PublishRecord[] = [
-  {
-    id: 'publish-1',
-    name: 'Traefik Dashboard',
-    appName: 'Traefik',
-    target: 'Gateway Admin',
-    accessPath: '/publish/traefik',
-    status: 'active',
-    visibility: 'public',
-    expiresAt: 'No expiry',
-    updatedAt: '5 minutes ago',
-  },
-  {
-    id: 'publish-2',
-    name: 'WordPress Preview',
-    appName: 'WordPress',
-    target: 'App Console',
-    accessPath: '/publish/wordpress-preview',
-    status: 'draft',
-    visibility: 'private-preview',
-    expiresAt: 'In 2 hours',
-    updatedAt: '12 minutes ago',
-  },
-  {
-    id: 'publish-3',
-    name: 'Netdata Public View',
-    appName: 'Netdata',
-    target: 'Monitoring Surface',
-    accessPath: '/publish/netdata',
-    status: 'expired',
-    visibility: 'public',
-    expiresAt: 'Expired yesterday',
-    updatedAt: '1 day ago',
-  },
-]
-
 function statusVariant(status: PublishStatus): 'default' | 'secondary' | 'destructive' {
   if (status === 'active') return 'default'
   if (status === 'expired') return 'destructive'
   return 'secondary'
 }
 
-function statusLabel(status: PublishStatus): string {
-  if (status === 'active') return 'Active'
-  if (status === 'expired') return 'Expired'
-  return 'Draft'
-}
-
 export function PublishPage() {
+  const { t } = useTranslation('publish')
   const [query, setQuery] = useState('')
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [records, setRecords] = useState<PublishRecord[]>(INITIAL_RECORDS)
+  const initialRecords = useMemo<PublishRecord[]>(
+    () => [
+      {
+        id: 'publish-1',
+        name: t('seed.traefikDashboard'),
+        appName: 'Traefik',
+        target: t('seed.gatewayAdmin'),
+        accessPath: '/publish/traefik',
+        status: 'active',
+        visibility: 'public',
+        expiresAt: t('seed.noExpiry'),
+        updatedAt: t('seed.fiveMinutesAgo'),
+      },
+      {
+        id: 'publish-2',
+        name: t('seed.wordpressPreview'),
+        appName: 'WordPress',
+        target: t('seed.appConsole'),
+        accessPath: '/publish/wordpress-preview',
+        status: 'draft',
+        visibility: 'private-preview',
+        expiresAt: t('seed.inTwoHours'),
+        updatedAt: t('seed.twelveMinutesAgo'),
+      },
+      {
+        id: 'publish-3',
+        name: t('seed.netdataPublicView'),
+        appName: 'Netdata',
+        target: t('seed.monitoringSurface'),
+        accessPath: '/publish/netdata',
+        status: 'expired',
+        visibility: 'public',
+        expiresAt: t('seed.expiredYesterday'),
+        updatedAt: t('seed.oneDayAgo'),
+      },
+    ],
+    [t]
+  )
+  const [records, setRecords] = useState<PublishRecord[]>(initialRecords)
   const [name, setName] = useState('')
   const [appName, setAppName] = useState('')
   const [target, setTarget] = useState('')
   const [accessPath, setAccessPath] = useState('')
+
+  const statusLabel = (status: PublishStatus) => t(`status.${status}`)
 
   const filteredRecords = useMemo(() => {
     const keyword = query.trim().toLowerCase()
@@ -126,8 +126,8 @@ export function PublishPage() {
         accessPath: accessPath.trim(),
         status: 'draft',
         visibility: 'private-preview',
-        expiresAt: 'Not scheduled',
-        updatedAt: 'Just now',
+        expiresAt: t('seed.notScheduled'),
+        updatedAt: t('seed.justNow'),
       },
       ...prev,
     ])
@@ -139,21 +139,19 @@ export function PublishPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Publish</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Manage Public Access records and create shareable publish items from one list.
-          </p>
+          <h1 className="text-2xl font-bold tracking-tight">{t('page.title')}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{t('page.description')}</p>
         </div>
         <Button onClick={() => setDialogOpen(true)} className="gap-2 self-start">
           <Plus className="h-4 w-4" />
-          New Publish Item
+          {t('page.new')}
         </Button>
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader className="pb-3">
-            <CardDescription>Active endpoints</CardDescription>
+            <CardDescription>{t('stats.activeEndpoints')}</CardDescription>
             <CardTitle className="flex items-center gap-2 text-2xl">
               <Globe className="h-5 w-5 text-primary" />
               {activeCount}
@@ -162,7 +160,7 @@ export function PublishPage() {
         </Card>
         <Card>
           <CardHeader className="pb-3">
-            <CardDescription>Draft items</CardDescription>
+            <CardDescription>{t('stats.draftItems')}</CardDescription>
             <CardTitle className="flex items-center gap-2 text-2xl">
               <Shield className="h-5 w-5 text-muted-foreground" />
               {draftCount}
@@ -171,7 +169,7 @@ export function PublishPage() {
         </Card>
         <Card>
           <CardHeader className="pb-3">
-            <CardDescription>Expired access</CardDescription>
+            <CardDescription>{t('stats.expiredAccess')}</CardDescription>
             <CardTitle className="flex items-center gap-2 text-2xl">
               <TimerReset className="h-5 w-5 text-destructive" />
               {expiredCount}
@@ -183,17 +181,15 @@ export function PublishPage() {
       <Card>
         <CardHeader className="gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <CardTitle>Public Access Records</CardTitle>
-            <CardDescription>
-              This demo list shows all published entry points and manual publish items in one place.
-            </CardDescription>
+            <CardTitle>{t('list.title')}</CardTitle>
+            <CardDescription>{t('list.description')}</CardDescription>
           </div>
           <div className="relative w-full md:w-80">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={query}
               onChange={event => setQuery(event.target.value)}
-              placeholder="Search publish records"
+              placeholder={t('list.searchPlaceholder')}
               className="pl-9"
             />
           </div>
@@ -202,13 +198,13 @@ export function PublishPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>App</TableHead>
-                <TableHead>Target</TableHead>
-                <TableHead>Access Path</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Expires</TableHead>
-                <TableHead>Updated</TableHead>
+                <TableHead>{t('list.table.name')}</TableHead>
+                <TableHead>{t('list.table.app')}</TableHead>
+                <TableHead>{t('list.table.target')}</TableHead>
+                <TableHead>{t('list.table.accessPath')}</TableHead>
+                <TableHead>{t('list.table.status')}</TableHead>
+                <TableHead>{t('list.table.expires')}</TableHead>
+                <TableHead>{t('list.table.updated')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -239,7 +235,7 @@ export function PublishPage() {
                     colSpan={7}
                     className="py-10 text-center text-sm text-muted-foreground"
                   >
-                    No publish records match the current search.
+                    {t('list.empty')}
                   </TableCell>
                 </TableRow>
               )}
@@ -251,14 +247,12 @@ export function PublishPage() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>New Publish Item</DialogTitle>
-            <DialogDescription>
-              Create a manual Public Access record for a gateway, console, or app preview.
-            </DialogDescription>
+            <DialogTitle>{t('dialog.title')}</DialogTitle>
+            <DialogDescription>{t('dialog.description')}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-1.5">
-              <Label htmlFor="publish-name">Name</Label>
+              <Label htmlFor="publish-name">{t('dialog.name')}</Label>
               <Input
                 id="publish-name"
                 value={name}
@@ -266,7 +260,7 @@ export function PublishPage() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="publish-app">App</Label>
+              <Label htmlFor="publish-app">{t('dialog.app')}</Label>
               <Input
                 id="publish-app"
                 value={appName}
@@ -274,7 +268,7 @@ export function PublishPage() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="publish-target">Target</Label>
+              <Label htmlFor="publish-target">{t('dialog.target')}</Label>
               <Input
                 id="publish-target"
                 value={target}
@@ -282,10 +276,10 @@ export function PublishPage() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="publish-path">Access Path</Label>
+              <Label htmlFor="publish-path">{t('dialog.accessPath')}</Label>
               <Input
                 id="publish-path"
-                placeholder="/publish/example"
+                placeholder={t('dialog.accessPathPlaceholder')}
                 value={accessPath}
                 onChange={event => setAccessPath(event.target.value)}
               />
@@ -301,10 +295,10 @@ export function PublishPage() {
             >
               Cancel
             </Button>
-            <Button onClick={handleCreate}>Create Draft</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+              <Button onClick={handleCreate}>{t('dialog.create')}</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
     </div>
   )
 }

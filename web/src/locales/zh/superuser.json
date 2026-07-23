@@ -1,0 +1,215 @@
+{
+  "iac": {
+    "title": "编排文件",
+    "description": "浏览并编辑 AppOS 的应用、工作流和模板编排文件。",
+    "refreshAriaLabel": "刷新编排文件",
+    "refreshTitle": "刷新",
+    "files": "文件",
+    "failedToLoad": "加载失败",
+    "empty": "空",
+    "selectFileFromTree": "从树中选择文件",
+    "selectFileToStartEditing": "选择文件开始编辑",
+    "unsavedChanges": "未保存的更改",
+    "dialogTitle": "未保存的更改",
+    "dialogDescription": "{{file}} 中有未保存的更改。要丢弃并打开新文件吗？",
+    "discardAndOpen": "丢弃并打开",
+    "errors": {
+      "loadFile": "加载文件失败",
+      "saveFile": "保存文件失败"
+    }
+  },
+  "users": {
+    "page": {
+      "title": "用户",
+      "description": "管理平台成员和超级用户。",
+      "members": "成员",
+      "superusers": "超级用户"
+    },
+    "search": {
+      "users": "按名称或邮箱搜索...",
+      "superusers": "按邮箱搜索..."
+    },
+    "actions": {
+      "addUser": "添加用户",
+      "resetPassword": "重置密码"
+    },
+    "table": {
+      "nameEmail": "名称 / 邮箱",
+      "verified": "已验证",
+      "created": "创建时间",
+      "actions": "操作",
+      "verifiedBadge": "已验证",
+      "unverifiedBadge": "未验证"
+    },
+    "empty": {
+      "users": "还没有用户。",
+      "superusers": "还没有超级用户。"
+    },
+    "pagination": {
+      "total": "共 {{count}} 项"
+    },
+    "deleteDialog": {
+      "title": "删除用户？",
+      "description": "这将永久删除 {{email}}。此操作无法撤销。",
+      "cannotDeleteSelf": "不能删除你自己的账户。",
+      "cannotDeleteLastSuperuser": "不能删除最后一个超级用户。",
+      "deleteFailed": "删除失败"
+    }
+  },
+  "workflows": {
+    "breadcrumb": {
+      "parentLabel": "系统",
+      "currentPage": "工作流"
+    },
+    "page": {
+      "title": "工作流",
+      "description": "基于 YAML 的工作流定义，支持手动和定时执行。",
+      "create": "创建工作流"
+    },
+    "summary": {
+      "total": "总数",
+      "enabled": "已启用"
+    },
+    "table": {
+      "name": "名称",
+      "status": "状态",
+      "targetServer": "目标服务器",
+      "triggers": "触发器",
+      "updated": "更新时间",
+      "actions": "操作",
+      "loading": "正在加载工作流...",
+      "empty": "还没有工作流。"
+    },
+    "toggle": {
+      "enable": "启用工作流",
+      "disable": "禁用工作流",
+      "enabled": "已启用",
+      "disabled": "已禁用"
+    },
+    "menu": {
+      "runs": "运行记录",
+      "run": "运行",
+      "enable": "启用",
+      "disable": "禁用"
+    },
+    "editor": {
+      "createTitle": "创建工作流",
+      "editTitle": "编辑工作流",
+      "name": "名称",
+      "description": "描述",
+      "trigger": "触发器",
+      "triggerType": "触发器类型",
+      "selectTrigger": "选择触发器",
+      "manual": "手动",
+      "cron": "定时",
+      "cronSchedule": "Cron 表达式",
+      "targetServer": "目标服务器",
+      "selectServer": "选择服务器",
+      "unassigned": "未分配",
+      "targetServerHint": "目标服务器仅适用于 shell 和 docker 节点。新工作流默认包含一个基于服务器的 shell 步骤，因此所选服务器会立即生效。",
+      "draftTitle": "使用 AI Copilot 起草",
+      "draftDescription": "描述你想要的工作流。AI Copilot 会使用预设提示词打开，并帮助生成可粘贴回此处的 YAML。",
+      "draftRequest": "AI 工作流需求",
+      "draftPlaceholder": "示例：每天在所选服务器上检查磁盘使用率，当使用率超过 80% 时发送 HTTP 通知。",
+      "generateYaml": "生成 YAML",
+      "generatingYaml": "生成中...",
+      "openInAICopilot": "在 AI Copilot 中打开",
+      "enabled": "已启用",
+      "definitionYaml": "定义 YAML",
+      "saving": "保存中...",
+      "defaults": {
+        "name": "新工作流",
+        "description": "在所选服务器上运行一条命令"
+      },
+      "templates": {
+        "serverHealthCheck": {
+          "name": "服务器健康检查",
+          "description": "在单台服务器上运行 shell 检查，并通过 HTTP 上报。"
+        },
+        "manualApproval": {
+          "name": "手动审批关卡",
+          "description": "诊断后暂停，等待审批。"
+        }
+      },
+      "nodeExamples": {
+        "shell": "在选定的 AppOS 服务器上运行命令。",
+        "http": "调用外部 HTTP 端点。",
+        "manualGate": "暂停工作流，直到有人批准或拒绝。",
+        "docker": "在选定服务器上运行容器命令。"
+      }
+    },
+    "detail": {
+      "titleFallback": "工作流详情",
+      "description": "查看工作流元数据、触发设置、支持的模板以及节点 YAML 示例。",
+      "overview": "概览",
+      "name": "名称",
+      "descriptionLabel": "描述",
+      "targetServer": "目标服务器",
+      "triggers": "触发器",
+      "nodes": "节点数",
+      "templates": "工作流模板",
+      "nodeReference": "节点参考"
+    },
+    "runs": {
+      "title": "工作流运行记录",
+      "titleWithName": "工作流运行记录 · {{name}}",
+      "listTitle": "运行记录",
+      "empty": "还没有运行记录。",
+      "detailTitle": "运行详情",
+      "refreshing": "刷新中...",
+      "cancelRun": "取消运行",
+      "status": "状态",
+      "trigger": "触发器",
+      "requester": "发起人",
+      "targetServer": "目标服务器",
+      "started": "开始时间",
+      "ended": "结束时间",
+      "node": "节点",
+      "type": "类型",
+      "output": "输出",
+      "actions": "操作",
+      "approve": "批准",
+      "reject": "拒绝",
+      "selectRun": "选择一个运行记录以查看详情。"
+    },
+    "runDialog": {
+      "title": "运行工作流",
+      "description": "为这次手动运行提供可选的 JSON 参数。",
+      "parameters": "运行参数 JSON",
+      "runNow": "立即运行"
+    },
+    "values": {
+      "none": "—"
+    },
+    "statuses": {
+      "succeeded": "成功",
+      "failed": "失败",
+      "cancelled": "已取消",
+      "manual_gate": "人工审批",
+      "running": "运行中",
+      "pending": "等待中"
+    },
+    "errors": {
+      "loadWorkflows": "加载工作流失败。",
+      "noAICopilotModel": "没有可用的 AI Copilot 模型。",
+      "generateYaml": "使用 AI Copilot 生成 YAML 失败。",
+      "saveWorkflow": "保存工作流失败。",
+      "deleteWorkflow": "删除工作流失败。",
+      "loadRuns": "加载工作流运行记录失败。",
+      "loadRunDetail": "加载工作流运行详情失败。",
+      "cancelRun": "取消工作流运行失败。",
+      "updateWorkflow": "更新工作流失败。",
+      "runWorkflow": "运行工作流失败。",
+      "refreshRunDetail": "刷新工作流运行详情失败。",
+      "yamlObject": "工作流定义必须是 YAML 对象。",
+      "yamlNameRequired": "YAML 中必须包含工作流名称。",
+      "yamlNodeRequired": "YAML 中至少需要一个节点。",
+      "invalidYaml": "YAML 无效。",
+      "invalidGeneratedYaml": "AI 返回了无效的工作流 YAML：{{message}}",
+      "yamlLine": "{{reason}} 第 {{line}} 行"
+    },
+    "ai": {
+      "sessionTitle": "工作流 YAML 草稿"
+    }
+  }
+}

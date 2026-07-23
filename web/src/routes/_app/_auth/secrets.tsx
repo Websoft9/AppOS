@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 import {
   ArrowDown,
   ArrowUp,
@@ -278,6 +279,7 @@ function FilterHeader({
 // ─── Main page ───────────────────────────────────────────
 
 export function SecretsPage() {
+  const { t } = useTranslation('secrets')
   const { id: idFilter, edit: editFilter, returnGroup, returnType } = Route.useSearch()
   const navigate = Route.useNavigate()
   const [allItems, setAllItems] = useState<SecretRecord[]>([])
@@ -478,7 +480,7 @@ export function SecretsPage() {
       setAllItems(result)
     } catch (err) {
       setAllItems([])
-      setError(err instanceof Error ? err.message : 'Failed to load secrets')
+      setError(err instanceof Error ? err.message : t('errors.loadSecrets'))
     } finally {
       setLoading(false)
     }
@@ -488,7 +490,7 @@ export function SecretsPage() {
   // to reload when the user clicks Refresh (which only refreshes records).
   useEffect(() => {
     void fetchTemplates().catch(err =>
-      setError(err instanceof Error ? err.message : 'Failed to load secret types')
+      setError(err instanceof Error ? err.message : t('errors.loadSecretTypes'))
     )
   }, [])
 
@@ -555,7 +557,7 @@ export function SecretsPage() {
     try {
       await fetchTemplates()
     } catch (err) {
-      setCreateError(err instanceof Error ? err.message : 'Failed to load secret types')
+      setCreateError(err instanceof Error ? err.message : t('errors.loadSecretTypes'))
     }
   }
 
@@ -585,7 +587,7 @@ export function SecretsPage() {
         await loadData()
       }
     } catch (err) {
-      setCreateError(err instanceof Error ? err.message : 'Create failed')
+      setCreateError(err instanceof Error ? err.message : t('errors.create'))
     } finally {
       setCreateSaving(false)
     }
@@ -631,7 +633,7 @@ export function SecretsPage() {
     try {
       await fetchTemplates()
     } catch (err) {
-      setEditError(err instanceof Error ? err.message : 'Failed to load secret types')
+      setEditError(err instanceof Error ? err.message : t('errors.loadSecretTypes'))
     }
   }
 
@@ -660,10 +662,10 @@ export function SecretsPage() {
         scope: editScope,
         access_mode: editAccessMode,
       })
-      setEditNotice('Metadata updated')
+      setEditNotice(t('statuses.metadataUpdated'))
       await loadData()
     } catch (err) {
-      setEditError(err instanceof Error ? err.message : 'Metadata update failed')
+      setEditError(err instanceof Error ? err.message : t('errors.metadataUpdate'))
     } finally {
       setEditSavingMeta(false)
     }
@@ -685,10 +687,10 @@ export function SecretsPage() {
         body: { payload: editPayload },
       })
       setEditPayload({})
-      setEditNotice('Payload updated')
+      setEditNotice(t('statuses.payloadUpdated'))
       await loadData()
     } catch (err) {
-      setEditError(err instanceof Error ? err.message : 'Payload update failed')
+      setEditError(err instanceof Error ? err.message : t('errors.payloadUpdate'))
     } finally {
       setEditSavingPayload(false)
     }
@@ -704,10 +706,10 @@ export function SecretsPage() {
       await pb.collection('secrets').update(editId, {
         visible_to: editVisibleTo,
       })
-      setEditNotice('Visibility updated')
+      setEditNotice(t('statuses.visibilityUpdated'))
       await loadData()
     } catch (err) {
-      setEditError(err instanceof Error ? err.message : 'Visibility update failed')
+      setEditError(err instanceof Error ? err.message : t('errors.visibilityUpdate'))
     } finally {
       setEditSavingVisibility(false)
     }
@@ -728,7 +730,7 @@ export function SecretsPage() {
       }
       await loadData()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Action failed')
+      setError(err instanceof Error ? err.message : t('errors.action'))
     }
   }
 
@@ -749,7 +751,7 @@ export function SecretsPage() {
       setRevealOpen(true)
       await loadData()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Reveal failed')
+      setError(err instanceof Error ? err.message : t('errors.reveal'))
     } finally {
       setRevealingId(null)
     }
@@ -762,10 +764,8 @@ export function SecretsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Secrets</h1>
-          <p className="text-muted-foreground mt-1">
-            The single source of truth for all your platform credentials.
-          </p>
+          <h1 className="text-2xl font-bold tracking-tight">{t('page.title')}</h1>
+          <p className="text-muted-foreground mt-1">{t('page.description')}</p>
         </div>
         <div className="flex items-center gap-2">
           <Button
@@ -773,11 +773,11 @@ export function SecretsPage() {
             size="icon"
             onClick={() => void loadData()}
             disabled={loading}
-            title="Refresh"
+            title={t('common:refresh')}
           >
             <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
           </Button>
-          <Button onClick={() => void openCreate()}>Create Secret</Button>
+          <Button onClick={() => void openCreate()}>{t('page.create')}</Button>
         </div>
       </div>
 
@@ -788,7 +788,7 @@ export function SecretsPage() {
         <div className="relative max-w-sm">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search secrets..."
+            placeholder={t('page.searchPlaceholder')}
             className="pl-9"
             value={search}
             onChange={e => setSearch(e.target.value)}
@@ -796,7 +796,7 @@ export function SecretsPage() {
         </div>
         {idFilter && (
           <div className="flex items-center gap-1.5 rounded-md border bg-muted/50 px-2.5 py-1 text-sm">
-            <span className="text-muted-foreground">ID:</span>
+            <span className="text-muted-foreground">{t('detail.id')}:</span>
             <span className="font-mono text-xs">{idFilter}</span>
             <button
               type="button"
@@ -807,7 +807,7 @@ export function SecretsPage() {
                   search: prev => ({ ...prev, id: undefined }),
                 })
               }
-              aria-label="Clear ID filter"
+              aria-label={t('page.clearFilters')}
             >
               ×
             </button>
@@ -815,14 +815,14 @@ export function SecretsPage() {
         )}
         {filteredItems.length > 0 && (
           <div className="ml-auto flex items-center gap-3 text-sm text-muted-foreground">
-            <span className="whitespace-nowrap">Total {filteredItems.length} items</span>
+            <span className="whitespace-nowrap">{t('page.totalItems', { count: filteredItems.length })}</span>
             <div className="flex items-center gap-1">
               <button
                 type="button"
                 className="rounded p-0.5 transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
                 disabled={page <= 1}
                 onClick={() => setPage(p => p - 1)}
-                aria-label="Previous page"
+                aria-label={t('common:previous')}
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
@@ -834,7 +834,7 @@ export function SecretsPage() {
                 className="rounded p-0.5 transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
                 disabled={page >= totalPages}
                 onClick={() => setPage(p => p + 1)}
-                aria-label="Next page"
+                aria-label={t('common:next')}
               >
                 <ChevronRight className="h-4 w-4" />
               </button>
@@ -846,7 +846,7 @@ export function SecretsPage() {
       {/* Table */}
       {loading ? null : pagedItems.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-md border py-12 text-center">
-          <p className="text-muted-foreground">No secrets found.</p>
+          <p className="text-muted-foreground">{t('page.empty')}</p>
           {allItems.length > 0 ? (
             <button
               type="button"
@@ -865,7 +865,7 @@ export function SecretsPage() {
                 }
               }}
             >
-              Clear all filters
+              {t('page.clearFilters')}
             </button>
           ) : (
             <button
@@ -873,7 +873,7 @@ export function SecretsPage() {
               className="mt-2 text-sm text-primary hover:underline"
               onClick={() => void openCreate()}
             >
-              Create your first one
+              {t('page.createFirst')}
             </button>
           )}
         </div>
@@ -883,7 +883,7 @@ export function SecretsPage() {
             <TableRow>
               <TableHead>
                 <SortableHeader
-                  label="Name"
+                  label={t('table.name')}
                   field="name"
                   current={sortField}
                   dir={sortDir}
@@ -892,7 +892,7 @@ export function SecretsPage() {
               </TableHead>
               <TableHead>
                 <FilterHeader
-                  label="Type"
+                  label={t('table.type')}
                   options={filterOptions.type}
                   excluded={excludeType}
                   onChange={setExcludeType}
@@ -900,7 +900,7 @@ export function SecretsPage() {
               </TableHead>
               <TableHead>
                 <FilterHeader
-                  label="Scope"
+                  label={t('table.scope')}
                   options={filterOptions.scope}
                   excluded={excludeScope}
                   onChange={setExcludeScope}
@@ -908,7 +908,7 @@ export function SecretsPage() {
               </TableHead>
               <TableHead>
                 <FilterHeader
-                  label="Access Mode"
+                  label={t('table.accessMode')}
                   options={filterOptions.accessMode}
                   excluded={excludeAccessMode}
                   onChange={setExcludeAccessMode}
@@ -916,7 +916,7 @@ export function SecretsPage() {
               </TableHead>
               <TableHead>
                 <FilterHeader
-                  label="Status"
+                  label={t('table.status')}
                   options={filterOptions.status}
                   excluded={excludeStatus}
                   onChange={setExcludeStatus}
@@ -924,7 +924,7 @@ export function SecretsPage() {
               </TableHead>
               <TableHead>
                 <SortableHeader
-                  label="Created"
+                  label={t('table.created')}
                   field="created"
                   current={sortField}
                   dir={sortDir}
@@ -933,7 +933,7 @@ export function SecretsPage() {
               </TableHead>
               <TableHead>
                 <SortableHeader
-                  label="Last Used At"
+                  label={t('table.lastUsedAt')}
                   field="last_used_at"
                   current={sortField}
                   dir={sortDir}
@@ -942,7 +942,7 @@ export function SecretsPage() {
               </TableHead>
               <TableHead>
                 <SortableHeader
-                  label="Last Used By"
+                  label={t('table.lastUsedBy')}
                   field="last_used_by"
                   current={sortField}
                   dir={sortDir}
@@ -951,14 +951,14 @@ export function SecretsPage() {
               </TableHead>
               <TableHead>
                 <SortableHeader
-                  label="Expires At"
+                  label={t('table.expiresAt')}
                   field="expires_at"
                   current={sortField}
                   dir={sortDir}
                   onSort={handleSort}
                 />
               </TableHead>
-              <TableHead className="w-[48px]">Actions</TableHead>
+               <TableHead className="w-[48px]">{t('table.actions')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -983,7 +983,9 @@ export function SecretsPage() {
                   <TableCell>
                     {templateLabelMap.get(item.template_id) ?? item.template_id}
                   </TableCell>
-                  <TableCell>{item.scope || 'global'}</TableCell>
+                  <TableCell>
+                    {item.scope === 'user_private' ? t('statuses.userPrivate') : t('statuses.global')}
+                  </TableCell>
                   <TableCell>
                     <Badge variant="outline">
                       {item.access_mode || DEFAULT_SECRET_ACCESS_MODE}
@@ -991,7 +993,7 @@ export function SecretsPage() {
                   </TableCell>
                   <TableCell>
                     <Badge variant={item.status === 'revoked' ? 'secondary' : 'default'}>
-                      {item.status || 'active'}
+                       {item.status || 'active'}
                     </Badge>
                   </TableCell>
                   <TableCell>{formatDate(item.created)}</TableCell>
@@ -1009,7 +1011,7 @@ export function SecretsPage() {
                         return (
                           <span className="flex items-center gap-1.5">
                             <span className="text-destructive">{label}</span>
-                            <Badge variant="destructive">Expired</Badge>
+                            <Badge variant="destructive">{t('table.expired')}</Badge>
                           </span>
                         )
                       if (status === 'expiring-soon')
@@ -1017,7 +1019,7 @@ export function SecretsPage() {
                           <span className="flex items-center gap-1.5">
                             <span className="text-orange-500">{label}</span>
                             <Badge variant="outline" className="border-orange-400 text-orange-500">
-                              Expiring Soon
+                              {t('table.expiringSoon')}
                             </Badge>
                           </span>
                         )
@@ -1029,13 +1031,13 @@ export function SecretsPage() {
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="icon" className="h-8 w-8">
                           <MoreVertical className="h-4 w-4" />
-                          <span className="sr-only">Actions</span>
+                          <span className="sr-only">{t('table.actions')}</span>
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => void openEdit(item)}>
                           <Pencil className="h-4 w-4" />
-                          Edit
+                            {t('common:edit')}
                         </DropdownMenuItem>
                         {canRevealSecret(item.access_mode, secretPolicy) && (
                           <DropdownMenuItem
@@ -1043,7 +1045,7 @@ export function SecretsPage() {
                             onClick={() => void handleReveal(item)}
                           >
                             <Eye className="h-4 w-4" />
-                            {revealingId === item.id ? 'Revealing...' : 'Reveal'}
+                            {revealingId === item.id ? t('table.revealing') : t('table.reveal')}
                           </DropdownMenuItem>
                         )}
                         <DropdownMenuSeparator />
@@ -1055,7 +1057,7 @@ export function SecretsPage() {
                             }
                           >
                             <Trash2 className="h-4 w-4" />
-                            Delete
+                            {t('common:delete')}
                           </DropdownMenuItem>
                         ) : (
                           <DropdownMenuItem
@@ -1065,7 +1067,7 @@ export function SecretsPage() {
                             }
                           >
                             <ShieldOff className="h-4 w-4" />
-                            Revoke
+                            {t('table.revoke')}
                           </DropdownMenuItem>
                         )}
                       </DropdownMenuContent>
@@ -1078,48 +1080,48 @@ export function SecretsPage() {
                     <TableCell colSpan={10} className="bg-muted/30 py-3">
                       <div className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
                         <div>
-                          <span className="text-muted-foreground">ID:</span>{' '}
+                          <span className="text-muted-foreground">{t('detail.id')}:</span>{' '}
                           <span className="font-mono text-xs">{item.id}</span>
                         </div>
                         <div>
-                          <span className="text-muted-foreground">Name:</span>{' '}
+                          <span className="text-muted-foreground">{t('detail.name')}:</span>{' '}
                           <span>{item.name}</span>
                         </div>
                         <div>
-                          <span className="text-muted-foreground">Type:</span>{' '}
+                          <span className="text-muted-foreground">{t('detail.type')}:</span>{' '}
                           <span>{templateLabelMap.get(item.template_id) ?? item.template_id}</span>
                         </div>
                         <div>
-                          <span className="text-muted-foreground">Scope:</span>{' '}
+                          <span className="text-muted-foreground">{t('detail.scope')}:</span>{' '}
                           <span>{item.scope || 'global'}</span>
                         </div>
                         <div>
-                          <span className="text-muted-foreground">Access Mode:</span>{' '}
+                          <span className="text-muted-foreground">{t('detail.accessMode')}:</span>{' '}
                           <span>{item.access_mode || DEFAULT_SECRET_ACCESS_MODE}</span>
                         </div>
                         <div>
-                          <span className="text-muted-foreground">Status:</span>{' '}
+                          <span className="text-muted-foreground">{t('detail.status')}:</span>{' '}
                           <span>{item.status || 'active'}</span>
                         </div>
                         <div>
-                          <span className="text-muted-foreground">Created:</span>{' '}
+                          <span className="text-muted-foreground">{t('detail.created')}:</span>{' '}
                           <span>{formatDate(item.created)}</span>
                         </div>
                         <div>
-                          <span className="text-muted-foreground">Last Used At:</span>{' '}
+                          <span className="text-muted-foreground">{t('detail.lastUsedAt')}:</span>{' '}
                           <span>{formatDate(item.last_used_at)}</span>
                         </div>
                         <div>
-                          <span className="text-muted-foreground">Last Used By:</span>{' '}
+                          <span className="text-muted-foreground">{t('detail.lastUsedBy')}:</span>{' '}
                           <span>{item.last_used_by || '—'}</span>
                         </div>
                         <div>
-                          <span className="text-muted-foreground">Expires At:</span>{' '}
+                          <span className="text-muted-foreground">{t('detail.expiresAt')}:</span>{' '}
                           <span>{formatDate(item.expires_at)}</span>
                         </div>
                         {item.description && (
                           <div className="sm:col-span-2 lg:col-span-3">
-                            <span className="text-muted-foreground">Description:</span>{' '}
+                            <span className="text-muted-foreground">{t('detail.description')}:</span>{' '}
                             <span>{item.description}</span>
                           </div>
                         )}
@@ -1146,8 +1148,8 @@ export function SecretsPage() {
       >
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Edit Secret</DialogTitle>
-            <DialogDescription>Update metadata or replace encrypted values.</DialogDescription>
+            <DialogTitle>{t('dialogs.editTitle')}</DialogTitle>
+            <DialogDescription>{t('dialogs.editDescription')}</DialogDescription>
           </DialogHeader>
 
           {editError && <div className="text-sm text-destructive">{editError}</div>}
@@ -1156,32 +1158,35 @@ export function SecretsPage() {
           {/* ── Metadata section ── */}
           <form className="space-y-4" onSubmit={e => void handleEditMetadataSubmit(e)}>
             <div className="space-y-2">
-              <Label>Name</Label>
+              <Label>{t('dialogs.name')}</Label>
               <Input value={editName} onChange={e => setEditName(e.target.value)} required />
             </div>
             <div className="space-y-2">
-              <Label>Description</Label>
+              <Label>{t('dialogs.description')}</Label>
               <Textarea
                 value={editDescription}
                 onChange={e => setEditDescription(e.target.value)}
-                placeholder="Optional description"
+                placeholder={t('dialogs.descriptionPlaceholder')}
               />
             </div>
             <OptionGroup
-              label="Scope"
+              label={t('dialogs.scope')}
               value={editScope}
-              options={SCOPE_OPTIONS}
+              options={SCOPE_OPTIONS.map(option => ({
+                ...option,
+                label: option.value === 'user_private' ? t('statuses.userPrivate') : t('statuses.global'),
+              }))}
               onChange={setEditScope}
             />
             <OptionGroup
-              label="Access Mode"
+              label={t('dialogs.accessMode')}
               value={editAccessMode}
               options={ACCESS_MODE_OPTIONS}
               onChange={setEditAccessMode}
             />
             <div className="flex justify-end">
               <Button type="submit" disabled={editSavingMeta || !editId}>
-                {editSavingMeta ? 'Saving...' : 'Save Metadata'}
+                {editSavingMeta ? t('dialogs.saving') : t('dialogs.saveMetadata')}
               </Button>
             </div>
           </form>
@@ -1191,9 +1196,9 @@ export function SecretsPage() {
           {/* ── Payload section ── */}
           <form className="space-y-4" onSubmit={e => void handleEditPayloadSubmit(e)}>
             <div>
-              <h4 className="text-sm font-medium">Update Secret Values</h4>
+              <h4 className="text-sm font-medium">{t('dialogs.updateValuesTitle')}</h4>
               <p className="text-xs text-muted-foreground">
-                Fill in fields to replace current encrypted values.
+                {t('dialogs.updateValuesDescription')}
               </p>
             </div>
             <SecretForm
@@ -1209,8 +1214,8 @@ export function SecretsPage() {
                 type="submit"
                 disabled={editSavingPayload || !editId || !editPayloadHasValues}
               >
-                {editSavingPayload ? 'Updating...' : 'Update Values'}
-              </Button>
+                  {editSavingPayload ? t('dialogs.updating') : t('dialogs.updateValues')}
+                </Button>
             </div>
           </form>
 
@@ -1220,7 +1225,7 @@ export function SecretsPage() {
             <SecretVisibilityField value={editVisibleTo} onChange={setEditVisibleTo} />
             <div className="flex justify-end">
               <Button type="submit" disabled={editSavingVisibility || !editId}>
-                {editSavingVisibility ? 'Saving...' : 'Save Visibility'}
+                {editSavingVisibility ? t('dialogs.saving') : t('dialogs.saveVisibility')}
               </Button>
             </div>
           </form>
@@ -1237,17 +1242,15 @@ export function SecretsPage() {
       >
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Create Secret</DialogTitle>
-            <DialogDescription>
-              Create a credential secret with encrypted payload.
-            </DialogDescription>
+            <DialogTitle>{t('dialogs.createTitle')}</DialogTitle>
+            <DialogDescription>{t('dialogs.createDescription')}</DialogDescription>
           </DialogHeader>
 
           <form className="space-y-4" onSubmit={e => void handleCreateSubmit(e)}>
             {createError && <div className="text-sm text-destructive">{createError}</div>}
 
             <div className="space-y-2">
-              <Label>Name</Label>
+              <Label>{t('dialogs.name')}</Label>
               <Input value={createName} onChange={e => setCreateName(e.target.value)} required />
             </div>
 
@@ -1272,25 +1275,28 @@ export function SecretsPage() {
                 <ChevronDown
                   className={cn('h-4 w-4 transition-transform', createAdvancedOpen && 'rotate-180')}
                 />
-                <span>Advanced</span>
+                <span>{t('dialogs.advanced')}</span>
               </CollapsibleTrigger>
               <CollapsibleContent className="space-y-4 pt-2">
                 <div className="space-y-2">
-                  <Label>Description</Label>
+                  <Label>{t('dialogs.description')}</Label>
                   <Textarea
                     value={createDescription}
                     onChange={e => setCreateDescription(e.target.value)}
-                    placeholder="Optional description"
+                    placeholder={t('dialogs.descriptionPlaceholder')}
                   />
                 </div>
                 <OptionGroup
-                  label="Scope"
+                  label={t('dialogs.scope')}
                   value={createScope}
-                  options={SCOPE_OPTIONS}
+                  options={SCOPE_OPTIONS.map(option => ({
+                    ...option,
+                    label: option.value === 'user_private' ? t('statuses.userPrivate') : t('statuses.global'),
+                  }))}
                   onChange={setCreateScope}
                 />
                 <OptionGroup
-                  label="Access Mode"
+                  label={t('dialogs.accessMode')}
                   value={createAccessMode}
                   options={ACCESS_MODE_OPTIONS}
                   onChange={setCreateAccessMode}
@@ -1301,10 +1307,10 @@ export function SecretsPage() {
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>
-                Cancel
+                {t('common:cancel')}
               </Button>
               <Button type="submit" disabled={createSaving || !createTemplateId}>
-                {createSaving ? 'Creating...' : 'Create'}
+                {createSaving ? t('dialogs.creating') : t('dialogs.create')}
               </Button>
             </DialogFooter>
           </form>
@@ -1316,18 +1322,18 @@ export function SecretsPage() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {confirmAction?.type === 'revoke' ? 'Revoke Secret' : 'Delete Secret'}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {confirmAction?.type === 'revoke'
-                ? `Revoke ${confirmAction.name}? This will block future resolves.`
-                : `Delete ${confirmAction?.name}? This action cannot be undone.`}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => void handleConfirm()}>Confirm</AlertDialogAction>
-          </AlertDialogFooter>
+                {confirmAction?.type === 'revoke' ? t('dialogs.revokeTitle') : t('dialogs.deleteTitle')}
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                {confirmAction?.type === 'revoke'
+                  ? t('dialogs.revokeDescription', { name: confirmAction.name })
+                  : t('dialogs.deleteDescription', { name: confirmAction?.name ?? '' })}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+            <AlertDialogCancel>{t('common:cancel')}</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void handleConfirm()}>{t('common:confirm')}</AlertDialogAction>
+            </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 

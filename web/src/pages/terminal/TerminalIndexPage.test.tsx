@@ -3,6 +3,39 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TerminalIndexPage } from './TerminalIndexPage'
 import { TooltipProvider } from '@/components/ui/tooltip'
 
+const translationMap: Record<string, string> = {
+  'server.title': 'Server Terminal',
+  'hub.description': 'Open, resume, and manage server terminals with shell and files.',
+  'hub.availableServers': 'Available Servers',
+  'hub.activeSessions': 'Active Sessions',
+  'hub.openTerminal': 'Open Terminal',
+  'hub.connected': 'Connected',
+  'hub.idle': 'Idle',
+  'hub.idleSession': 'Idle session',
+  'hub.restoreWorkspace': 'Restore Workspace',
+  'hub.empty.noActiveTitle': 'No active sessions',
+  'hub.actions.addServer': 'Add Server',
+  'hub.exit': 'Exit',
+  'hub.resume': 'Resume',
+  'common:refresh': 'Refresh',
+}
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string, values?: Record<string, unknown>) => {
+      if (key === 'hub.sessionCount') {
+        const count = Number(values?.count ?? 0)
+        return count === 1 ? '1 session' : `${count} sessions`
+      }
+      if (key === 'hub.lastActive') {
+        return `Last active ${values?.count} min ago`
+      }
+      const template = translationMap[key] ?? key
+      return template.replace(/\{\{(\w+)\}\}/g, (_, token) => String(values?.[token] ?? ''))
+    },
+  }),
+}))
+
 const navigateMock = vi.fn()
 const listServersMock = vi.fn()
 const listTerminalSessionsMock = vi.fn()

@@ -2,6 +2,7 @@ import * as jsYaml from 'js-yaml'
 import { Link } from '@tanstack/react-router'
 import { ChevronRight, CircleHelp, Rocket } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import i18n from '@/lib/i18n'
 import type { CatalogTemplateField } from '@/lib/catalog-api'
 import type { SoftwareComponentDetail } from '@/lib/software-api'
 import type { CreateDeploymentEntryMode } from '@/pages/deploy/actions/action-types'
@@ -16,11 +17,11 @@ import {
 } from '@/components/docker/DockerDependencyAlert'
 
 export const SOURCE_LABELS: Record<string, string> = {
-  template: 'App Template',
-  compose: 'Compose File',
-  'git-compose': 'Git Repository',
-  'docker-command': 'Docker Command',
-  'install-script': 'Source Packages',
+  template: i18n.t('deploy:sources.template', 'App Template'),
+  compose: i18n.t('deploy:sources.compose', 'Compose File'),
+  'git-compose': i18n.t('deploy:sources.gitCompose', 'Git Repository'),
+  'docker-command': i18n.t('deploy:sources.dockerCommand', 'Docker Command'),
+  'install-script': i18n.t('deploy:sources.installScript', 'Source Packages'),
 }
 
 export type ExposureMode = 'port' | 'domain'
@@ -403,7 +404,7 @@ export function HelpTip({ text }: { text: string }) {
 export function DeployCreateBreadcrumb() {
   return (
     <nav
-      aria-label="Breadcrumb"
+      aria-label={i18n.t('deploy:breadcrumb.ariaLabel', 'Breadcrumb')}
       className="flex min-w-0 items-center gap-1 text-sm text-muted-foreground"
     >
       <Link
@@ -412,10 +413,14 @@ export function DeployCreateBreadcrumb() {
         className="inline-flex min-w-0 items-center gap-1.5 truncate transition-colors hover:text-foreground"
       >
         <Rocket className="h-4 w-4 shrink-0" />
-        <span className="truncate">Deploy</span>
+        <span className="truncate">
+          {i18n.t('deploy:breadcrumb.deploy', 'Deploy')}
+        </span>
       </Link>
       <ChevronRight className="h-3.5 w-3.5 shrink-0" />
-      <span className="truncate font-medium text-foreground">Create</span>
+      <span className="truncate font-medium text-foreground">
+        {i18n.t('deploy:breadcrumb.create', 'Create')}
+      </span>
     </nav>
   )
 }

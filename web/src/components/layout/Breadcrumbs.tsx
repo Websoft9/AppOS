@@ -2,6 +2,7 @@ import { Link } from '@tanstack/react-router'
 import { ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Fragment } from 'react'
+import { useTranslation } from 'react-i18next'
 
 export interface BreadcrumbItem {
   label: string
@@ -14,11 +15,13 @@ interface BreadcrumbsProps {
 }
 
 export function Breadcrumbs({ items, className }: BreadcrumbsProps) {
+  const { t } = useTranslation('navigation')
+
   if (items.length === 0) return null
 
   return (
     <nav
-      aria-label="Breadcrumb"
+      aria-label={t('shell.breadcrumb')}
       className={cn('flex items-center gap-1 text-sm text-muted-foreground', className)}
     >
       {items.map((item, i) => (

@@ -1,5 +1,6 @@
 import { Suspense, lazy } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 
 const LazyActionDetailPage = lazy(() =>
   import('@/pages/deploy/actions/ActionDetailPage').then(module => ({
@@ -8,12 +9,15 @@ const LazyActionDetailPage = lazy(() =>
 )
 
 function ActionDetailRoutePage() {
+  const { t } = useTranslation('common')
   const { actionId } = Route.useParams() as { actionId: string }
   const search = Route.useSearch()
   return (
     <Suspense
       fallback={
-        <div className="p-6 text-sm text-muted-foreground">Loading Execution Detail...</div>
+        <div className="p-6 text-sm text-muted-foreground">
+          {t('loadingPage', { page: t('pages.executionDetail') })}
+        </div>
       }
     >
       <LazyActionDetailPage actionId={actionId} search={search} />

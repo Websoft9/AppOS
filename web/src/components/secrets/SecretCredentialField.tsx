@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Link2, Unlink, Eye, EyeOff, Pencil } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -88,6 +89,7 @@ export function SecretCredentialField({
   editReferenceMode = 'button',
   allowReference = true,
 }: SecretCredentialFieldProps) {
+  const { t } = useTranslation('secrets')
   const [generatorOpen, setGeneratorOpen] = useState(false)
   const [length, setLength] = useState(24)
   const [revealed, setRevealed] = useState(false)
@@ -112,8 +114,10 @@ export function SecretCredentialField({
           variant="ghost"
           size="icon"
           className={`h-10 w-10 shrink-0 border-0 ${showReferencePicker ? pickerActionAlignmentClass : 'self-center'}`}
-          title={useReference ? 'Use direct API key input' : 'Use a saved secret'}
-          onClick={toggleReferenceMode}
+            title={
+              useReference ? t('form.useDirectInput') : t('form.useSavedSecret')
+            }
+            onClick={toggleReferenceMode}
         >
           {useReference ? <Unlink className="h-4 w-4" /> : <Link2 className="h-4 w-4" />}
         </Button>
@@ -129,7 +133,7 @@ export function SecretCredentialField({
               onUseReferenceChange(nextValue)
             }}
           />
-          <span>Select a Secret</span>
+          <span>{t('form.selectSecret')}</span>
         </label>
       )
     ) : null
@@ -146,10 +150,10 @@ export function SecretCredentialField({
                   value={referenceValue}
                   options={options}
                   onSelect={onReferenceValueChange}
-                  placeholder="Select a Secret"
-                  searchPlaceholder="Search secrets..."
-                  emptyMessage="No matching secrets."
-                  createLabel={onCreateReference ? 'New Secret' : undefined}
+                    placeholder={t('form.selectSecret')}
+                    searchPlaceholder={t('form.searchSecrets')}
+                    emptyMessage={t('form.noMatchingSecrets')}
+                    createLabel={onCreateReference ? t('form.newSecret') : undefined}
                   onCreate={onCreateReference}
                   autoOpen={!editMode}
                   showNoneOption={false}
@@ -167,8 +171,8 @@ export function SecretCredentialField({
                     variant="ghost"
                     size="icon"
                     className={`h-10 w-10 shrink-0 ${pickerActionAlignmentClass}`}
-                    title="Edit secret"
-                    onClick={() => onEditReference(referenceValue)}
+                     title={t('form.editSecret')}
+                     onClick={() => onEditReference(referenceValue)}
                   >
                     <Pencil className="h-3.5 w-3.5" />
                   </Button>
@@ -179,9 +183,9 @@ export function SecretCredentialField({
                     className="h-10"
                     onClick={() => onEditReference(referenceValue)}
                   >
-                    Edit Secret
-                  </Button>
-                ))}
+                     {t('form.editSecretButton')}
+                   </Button>
+                 ))}
             </div>
           ) : (
             <div className="flex flex-wrap items-start gap-3">
@@ -206,7 +210,7 @@ export function SecretCredentialField({
               {iconToggleMode ? referenceToggle : null}
               {allowGenerate ? (
                 <Button type="button" className="h-10" onClick={() => setGeneratorOpen(true)}>
-                  Generate
+                  {t('form.generate')}
                 </Button>
               ) : null}
             </div>
@@ -222,12 +226,24 @@ export function SecretCredentialField({
           length={length}
           onLengthChange={setLength}
           onConfirm={() => onManualValueChange(generateValue(length))}
-          title={generatorTitle}
-          description={generatorDescription}
-          lengthLabel={generatorLengthLabel}
-          confirmLabel={generatorConfirmLabel}
-        />
-      ) : null}
+            title={generatorTitle === 'Generate Password' ? t('generator.title') : generatorTitle}
+            description={
+              generatorDescription === 'Choose the password length before filling the field.'
+                ? t('generator.description')
+                : generatorDescription
+            }
+            lengthLabel={
+              generatorLengthLabel === 'Password Length'
+                ? t('generator.lengthLabel')
+                : generatorLengthLabel
+            }
+            confirmLabel={
+              generatorConfirmLabel === 'Fill Password'
+                ? t('generator.confirmLabel')
+                : generatorConfirmLabel
+            }
+          />
+        ) : null}
     </div>
   )
 }

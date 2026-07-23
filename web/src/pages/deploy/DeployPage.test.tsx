@@ -6,6 +6,10 @@ import { DeployPage } from './DeployPage'
 const sendMock = vi.fn()
 const navigateMock = vi.fn()
 
+function interpolate(defaultValue: string, values?: Record<string, unknown>) {
+  return defaultValue.replace(/\{\{(\w+)\}\}/g, (_, key) => String(values?.[key] ?? ''))
+}
+
 function paginatedActionsResponse(items: Array<Record<string, unknown>>) {
   return {
     items,
@@ -25,11 +29,20 @@ vi.mock('@tanstack/react-router', () => ({
 
 vi.mock('@/lib/i18n', () => ({
   getLocale: () => 'en',
+  default: {
+    t: (key: string, fallback?: string, values?: Record<string, unknown>) =>
+      fallback ? interpolate(fallback, values) : key,
+  },
 }))
 
 vi.mock('react-i18next', () => ({
+  initReactI18next: {
+    type: '3rdParty',
+    init: () => undefined,
+  },
   useTranslation: () => ({
-    t: (key: string) => key,
+    t: (key: string, options?: Record<string, unknown>) =>
+      options?.defaultValue ? interpolate(String(options.defaultValue), options) : key,
   }),
 }))
 

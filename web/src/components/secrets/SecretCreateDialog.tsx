@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
@@ -69,6 +70,7 @@ export function SecretCreateDialog({
   defaultName,
   defaultVisibleTo,
 }: SecretCreateDialogProps) {
+  const { t } = useTranslation('secrets')
   const [name, setName] = useState('')
   const [secretDescription, setSecretDescription] = useState('')
   const [templateId, setTemplateId] = useState(defaultTemplateId)
@@ -120,11 +122,11 @@ export function SecretCreateDialog({
 
   const handleCreate = async () => {
     if (!name.trim()) {
-      setError('Name is required')
+      setError(t('errors.nameRequired'))
       return
     }
     if (!templateId.trim()) {
-      setError('Type is required')
+      setError(t('errors.typeRequired'))
       return
     }
 
@@ -147,7 +149,7 @@ export function SecretCreateDialog({
       })
       onOpenChange(false)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Create failed')
+      setError(err instanceof Error ? err.message : t('errors.create'))
     } finally {
       setSaving(false)
     }
@@ -164,7 +166,7 @@ export function SecretCreateDialog({
 
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="shared-secret-name">Name *</Label>
+              <Label htmlFor="shared-secret-name">{t('dialogs.name')} *</Label>
               <Input
                 id="shared-secret-name"
                 value={name}
@@ -192,9 +194,9 @@ export function SecretCreateDialog({
                     variant="outline"
                     size="sm"
                     onClick={() => setGeneratorOpen(true)}
-                  >
-                    Generate
-                  </Button>
+                    >
+                      {t('form.generate')}
+                    </Button>
                 ) : null
               }
             />
@@ -206,11 +208,11 @@ export function SecretCreateDialog({
                 <ChevronDown
                   className={cn('h-4 w-4 transition-transform', advancedOpen && 'rotate-180')}
                 />
-                <span>Advanced</span>
+                <span>{t('dialogs.advanced')}</span>
               </CollapsibleTrigger>
               <CollapsibleContent className="space-y-4 pt-2">
                 <div className="space-y-2">
-                  <Label htmlFor="shared-secret-description">Description</Label>
+                  <Label htmlFor="shared-secret-description">{t('dialogs.description')}</Label>
                   <Input
                     id="shared-secret-description"
                     value={secretDescription}
@@ -225,12 +227,12 @@ export function SecretCreateDialog({
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button type="button" onClick={() => void handleCreate()} disabled={saving}>
-              Create Credential
-            </Button>
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              {t('common:cancel')}
+              </Button>
+              <Button type="button" onClick={() => void handleCreate()} disabled={saving}>
+              {title}
+              </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -240,10 +242,10 @@ export function SecretCreateDialog({
         onOpenChange={setGeneratorOpen}
         length={generatedLength}
         onLengthChange={setGeneratedLength}
-        title="Generate Secret Value"
-        description="Choose the value length before filling the field."
-        lengthLabel="Value Length"
-        confirmLabel="Fill Secret Value"
+        title={t('generator.secretValueTitle')}
+        description={t('generator.secretValueDescription')}
+        lengthLabel={t('generator.secretValueLengthLabel')}
+        confirmLabel={t('generator.secretValueConfirmLabel')}
         onConfirm={() => {
           setPayload(prev => ({ ...prev, value: buildRandomPassword(generatedLength) }))
         }}

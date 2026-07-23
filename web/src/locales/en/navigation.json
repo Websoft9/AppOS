@@ -45,5 +45,31 @@
   },
   "mobile": {
     "description": "Navigate between workspace, application, and admin sections."
+  },
+  "shell": {
+    "changeLanguage": "Change language",
+    "english": "English",
+    "userMenu": "User menu",
+    "superuser": "Superuser",
+    "user": "User",
+    "profile": "Profile",
+    "logout": "Logout",
+    "logoutSuccess": "Successfully logged out",
+    "redirectingToLogin": "Redirecting to login...",
+    "logoutConfirmTitle": "Logout",
+    "logoutConfirmDescription": "Are you sure you want to exit the AppOS console?",
+    "toggleNavigationMenu": "Toggle navigation menu",
+    "expandSidebar": "Expand sidebar",
+    "collapseSidebar": "Collapse sidebar",
+    "breadcrumb": "Breadcrumb",
+    "connected": "Connected",
+    "disconnected": "Disconnected",
+    "expandNotifications": "Expand notifications",
+    "collapseNotifications": "Collapse notifications",
+    "documentation": "Documentation",
+    "apiReference": "API Reference",
+    "help": "Help",
+    "notifications": "Notifications",
+    "noNotifications": "No notifications"
   }
 }

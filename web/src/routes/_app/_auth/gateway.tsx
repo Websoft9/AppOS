@@ -1,13 +1,22 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 import { NetworkPlaceholderPage } from '@/pages/system/NetworkPlaceholderPage'
 
 function GatewayPage() {
+  const { t } = useTranslation('system')
+
   return (
     <NetworkPlaceholderPage
-      title="Gateway"
-      description="Administer ingress, published endpoints, and gateway-facing controls here."
-      emptyTitle="Gateway console"
-      emptyDescription="Gateway administration surfaces will be added here in a future slice."
+      title={t('gatewayPage.title', 'Gateway')}
+      description={t(
+        'gatewayPage.description',
+        'Administer ingress, published endpoints, and gateway-facing controls here.'
+      )}
+      emptyTitle={t('gatewayPage.emptyTitle', 'Gateway console')}
+      emptyDescription={t(
+        'gatewayPage.emptyDescription',
+        'Gateway administration surfaces will be added here in a future slice.'
+      )}
     />
   )
 }

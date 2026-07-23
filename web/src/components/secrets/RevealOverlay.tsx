@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -24,6 +25,7 @@ export function RevealOverlay({
   clearAfterSeconds = 0,
   onClose,
 }: RevealOverlayProps) {
+  const { t } = useTranslation('secrets')
   const [copied, setCopied] = useState(false)
   const [copyError, setCopyError] = useState(false)
   const clearTimerRef = useRef<number | null>(null)
@@ -105,10 +107,10 @@ export function RevealOverlay({
   return (
     <Dialog open={open} onOpenChange={next => !next && onClose()}>
       <DialogContent className="sm:max-w-xl">
-        <DialogHeader>
-          <DialogTitle>Reveal Secret</DialogTitle>
+          <DialogHeader>
+          <DialogTitle>{t('reveal.title')}</DialogTitle>
           <DialogDescription>
-            Displayed once in overlay and never persisted locally.
+            {t('reveal.description')}
           </DialogDescription>
         </DialogHeader>
 
@@ -141,10 +143,10 @@ export function RevealOverlay({
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
-            Close
+            {t('common:close')}
           </Button>
           <Button onClick={() => void copyText()}>
-            {copyError ? 'Copy failed' : copied ? 'Copied' : 'Copy'}
+            {copyError ? t('reveal.copyFailed') : copied ? t('reveal.copied') : t('reveal.copy')}
           </Button>
         </DialogFooter>
       </DialogContent>

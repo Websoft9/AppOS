@@ -1,3 +1,4 @@
+import i18n from '@/lib/i18n'
 import { pb } from '@/lib/pb'
 import type {
   ActionControlKind,
@@ -34,38 +35,38 @@ export function statusVariant(status: string): 'default' | 'secondary' | 'destru
 export function actionStatusLabel(status: string): string {
   switch (status) {
     case 'success':
-      return 'Success'
+      return i18n.t('deploy:statuses.success', 'Success')
     case 'failed':
-      return 'Failed'
+      return i18n.t('deploy:statuses.failed', 'Failed')
     case 'running':
     case 'executing':
-      return 'Executing'
+      return i18n.t('deploy:statuses.executing', 'Executing')
     case 'queued':
-      return 'Queued'
+      return i18n.t('deploy:statuses.queued', 'Queued')
     case 'validating':
-      return 'Validating'
+      return i18n.t('deploy:statuses.validating', 'Validating')
     case 'preparing':
-      return 'Preparing'
+      return i18n.t('deploy:statuses.preparing', 'Preparing')
     case 'verifying':
-      return 'Verifying'
+      return i18n.t('deploy:statuses.verifying', 'Verifying')
     case 'rolling_back':
-      return 'Rolling back'
+      return i18n.t('deploy:statuses.rollingBack', 'Rolling back')
     case 'compensating':
-      return 'Compensating'
+      return i18n.t('deploy:statuses.compensating', 'Compensating')
     case 'compensated':
-      return 'Compensated'
+      return i18n.t('deploy:statuses.compensated', 'Compensated')
     case 'waiting':
-      return 'Waiting'
+      return i18n.t('deploy:statuses.waiting', 'Waiting')
     case 'manual_gate':
-      return 'Manual gate'
+      return i18n.t('deploy:statuses.manualGate', 'Manual gate')
     case 'timeout':
-      return 'Timed out'
+      return i18n.t('deploy:statuses.timedOut', 'Timed out')
     case 'cancelled':
-      return 'Cancelled'
+      return i18n.t('deploy:statuses.cancelled', 'Cancelled')
     case 'manual_intervention_required':
-      return 'Attention required'
+      return i18n.t('deploy:statuses.attentionRequired', 'Attention required')
     default:
-      return status || 'Pending'
+      return status || i18n.t('deploy:statuses.pending', 'Pending')
   }
 }
 
@@ -97,9 +98,9 @@ export function canResumeAction(action: Pick<ActionRecord, 'status'>): boolean {
 }
 
 export function actionControlLabel(kind: ActionControlKind): string {
-  if (kind === 'cancel') return 'Cancel'
-  if (kind === 'resume') return 'Resume'
-  return 'Force Fail'
+  if (kind === 'cancel') return i18n.t('deploy:controlLabels.cancel', 'Cancel')
+  if (kind === 'resume') return i18n.t('deploy:controlLabels.resume', 'Resume')
+  return i18n.t('deploy:controlLabels.forceFail', 'Force Fail')
 }
 
 export function formatTime(value?: string): string {

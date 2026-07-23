@@ -51,6 +51,25 @@ vi.mock('@/lib/pb', () => ({
   },
 }))
 
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string, options?: Record<string, unknown>) => {
+      if (options?.defaultValue_other && typeof options?.count === 'number' && options.count !== 1) {
+        return String(options.defaultValue_other).replace('{{count}}', String(options.count))
+      }
+      if (options?.defaultValue_one && options?.count === 1) {
+        return String(options.defaultValue_one).replace('{{count}}', String(options.count))
+      }
+      if (options?.defaultValue) {
+        return String(options.defaultValue).replace(/\{\{(\w+)\}\}/g, (_, name) =>
+          String(options?.[name] ?? '')
+        )
+      }
+      return key
+    },
+  }),
+}))
+
 vi.mock('@/components/ui/dropdown-menu', () => {
   let _radioOnValueChange: ((v: string) => void) | null = null
   return {
@@ -210,8 +229,8 @@ describe('ImagesTab pull history labels', () => {
   it('uses the updated tab labels and removes redundant pending section copy', () => {
     const source = readFileSync('src/components/docker/ImagesTab.tsx', 'utf8')
 
-    expect(source).toContain('<TabsTrigger value="pulling">Pending</TabsTrigger>')
-    expect(source).toContain('<TabsTrigger value="recents">History</TabsTrigger>')
+    expect(source).toContain("t('images.history.pendingTab', { defaultValue: 'Pending' })")
+    expect(source).toContain("t('images.history.historyTab', { defaultValue: 'History' })")
     expect(source).toContain("if (operation.phase === 'accepted') return 'Queued'")
     expect(source).toContain("return 'Pulling'")
 

@@ -320,6 +320,12 @@
     "secret": {
       "newCredential": "New credential",
       "editSecret": "Edit Secret",
+      "createTitle": "Create Credential",
+      "createDescription": "Create a reusable credential and attach it to this server.",
+      "editTitle": "Edit Credential",
+      "editDescription": "Update the selected Secret without leaving server editing.",
+      "loading": "Loading secret...",
+      "save": "Save Credential",
       "errors": {
         "load": "Failed to load secret",
         "nameRequired": "Name is required",
@@ -356,7 +362,9 @@
       "enable": "Enable",
       "disable": "Disable",
       "tunnelSetup": "Tunnel Setup",
-      "duplicateServer": "Duplicate Server"
+      "duplicateServer": "Duplicate Server",
+      "restart": "Restart",
+      "shutdown": "Shutdown"
     },
     "enabled": {
       "yes": "Yes",
@@ -1168,6 +1176,23 @@
       "rowsPerPage": "Rows per page",
       "rowsPerPageOption": "{{count}} / page",
       "columns": "Columns"
+    },
+    "dialogs": {
+      "target": "Target: {{name}}",
+      "connecting": {
+        "title": "Connecting...",
+        "preparing": "Preparing connection",
+        "checking": "Running connectivity check...",
+        "offlineFallback": "Server is offline."
+      },
+      "power": {
+        "restartTitle": "Restart Server",
+        "shutdownTitle": "Shutdown Server",
+        "description": "Confirm server operation",
+        "delayLabel": "Delay (min)",
+        "immediate": "Immediate",
+        "delayFromNow": "{{count}} min from now"
+      }
     },
     "validation": {
       "nameRequired": "Name is required",

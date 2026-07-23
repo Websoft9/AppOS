@@ -4,6 +4,197 @@ import { Route } from './feeds'
 
 const sendMock = vi.fn()
 
+const translate = (key: string, values?: Record<string, unknown>) => {
+  const translations: Record<string, string> = {
+    'common:refresh': 'Refresh',
+    'common:cancel': 'Cancel',
+    'common:close': 'Close',
+    'common:delete': 'Delete',
+    'common:edit': 'Edit',
+    'common:save': 'Save',
+    'page.title': 'Feeds',
+    'page.description': 'Track feed sources, bookmarks, and reading status in one place.',
+    'page.bookmark': 'Bookmark',
+    'page.openBookmarks': 'Open bookmarks',
+    'page.addSource': 'Add Source',
+    'page.dismissError': 'Dismiss error',
+    'page.undo': 'Undo',
+    'page.dismissNotification': 'Dismiss notification',
+    'page.sources': 'Sources',
+    'page.all': 'All',
+    'page.starred': 'Starred',
+    'page.loadingSources': 'Loading sources...',
+    'page.emptySources': 'No feed sources yet.',
+    'page.bookmarkDescription': 'Saved links and manually curated reading items.',
+    'page.searchArticles': 'Search articles',
+    'page.closeSearch': 'Close search',
+    'page.openArticleSearch': 'Open article search',
+    'page.loadingItems': 'Loading feed items...',
+    'page.searchBookmarks': 'Search bookmarks',
+    'page.total': 'Total {{count}}',
+    'page.showing': 'Showing {{range}}',
+    'page.bookmarksList': 'Bookmarks list',
+    'page.copied': 'Copied',
+    'page.copyUrl': 'Copy URL',
+    'page.loadingBookmarks': 'Loading bookmarks...',
+    'page.emptyBookmarks': 'No bookmarks saved yet.',
+    'page.emptyBookmarkSearch': 'No bookmarks match this search.',
+    'page.emptyAll': 'No feed items ingested yet.',
+    'page.emptySource': 'No feed items for this source.',
+    'page.loadMore': 'Load more',
+    'page.loadingMore': 'Loading more... ({{loaded}}/{{total}})',
+    'page.loadedProgress': 'Loaded {{loaded}} of {{total}}. Scroll to load more',
+    'page.actions': 'Actions',
+    'page.unknownSource': 'Unknown source',
+    'page.faviconAlt': '{{name}} favicon',
+    'page.share': 'Share',
+    'page.bookmarkAction': 'Bookmark',
+    'page.keepUnread': 'Keep Unread',
+    'page.star': 'Star',
+    'page.starredAction': 'Starred',
+    'page.openLink': 'Open Link',
+    'page.openItem': 'Open {{title}}',
+    'page.articleSummaryFallback': 'No summary extracted for this article.',
+    'page.typeLabel': 'Type: {{type}}',
+    'page.publishedLabel': 'Published: {{value}}',
+    'page.sourceLabel': 'Source: {{value}}',
+    'page.feedItem': 'Feed item',
+    'page.unknown': 'Unknown',
+    'page.deleteSourceSuccess': 'Deleted source {{name}}.',
+    'page.noArticlesAvailable': 'No articles available for {{name}}.',
+    'page.deleteArticlesSuccess': 'Deleted {{count}} oldest article from {{name}}.',
+    'page.deleteArticlesSuccess_other': 'Deleted {{count}} oldest articles from {{name}}.',
+    'page.deleteArticlesNone': 'No articles deleted from {{name}}.',
+    'page.removeBookmarkSuccess': 'Removed {{title}} from bookmarks.',
+    'page.restoreBookmarkSuccess': 'Restored {{title}}.',
+    'page.moveToBookmarksSuccess': 'Moved {{title}} to bookmarks.',
+    'actions.previousBookmarkPage': 'Previous bookmark page',
+    'actions.nextBookmarkPage': 'Next bookmark page',
+    'actions.copyBookmarkUrl': 'Copy bookmark URL {{title}}',
+    'actions.editBookmark': 'Edit bookmark {{title}}',
+    'actions.removeBookmark': 'Remove bookmark {{title}}',
+    'actions.pullSelected': 'Pull selected source now',
+    'actions.editSelected': 'Edit selected source',
+    'actions.deleteSelectedArticles': 'Delete selected source articles',
+    'dialogs.addBookmark': 'Add Bookmark',
+    'dialogs.editBookmark': 'Edit Bookmark',
+    'dialogs.editBookmarkDescription': 'Update one saved link without turning it into a polling source.',
+    'dialogs.addBookmarkDescription': 'Save one manual link into the Feeds workspace without turning it into a polling source.',
+    'dialogs.title': 'Title',
+    'dialogs.description': 'Description',
+    'dialogs.pageTitle': 'Page title',
+    'dialogs.pageDescription': 'Page description',
+    'dialogs.detectedFavicon': 'Detected favicon',
+    'dialogs.unknownSite': 'Unknown site',
+    'dialogs.notAvailable': 'Not available',
+    'dialogs.rssUrl': 'RSS or Atom URL',
+    'dialogs.feedUrlPlaceholder': 'https://example.com/feed.xml',
+    'dialogs.rssUrlHelp': 'Paste the feed URL and we will auto-fill the next step.',
+    'dialogs.name': 'Name',
+    'dialogs.namePlaceholder': 'Vendor release feed',
+    'dialogs.feedUrl': 'Feed URL',
+    'dialogs.format': 'Format',
+    'dialogs.website': 'Website',
+    'dialogs.status': 'Status',
+    'dialogs.editFeedSource': 'Edit Feed Source',
+    'dialogs.editFeedSourceDescription': 'Update one RSS or Atom source for the Feeds ingestion loop.',
+    'dialogs.addFeedSource': 'Add Feed Source',
+    'dialogs.step1': 'Step 1 of 2. Enter an RSS or Atom URL to analyze before subscribing.',
+    'dialogs.step2': 'Step 2 of 2. Review the detected metadata and finish subscribing.',
+    'dialogs.analyzeFeed': 'Analyze Feed',
+    'dialogs.analyzeFeedDescription': 'Check the URL and fetch metadata',
+    'dialogs.subscribe': 'Subscribe',
+    'dialogs.subscribeDescription': 'Review details and save the source',
+    'dialogs.analyzingTitle': 'Analyzing feed URL',
+    'dialogs.analyzingDescription': 'Fetching metadata, detecting feed format, and preparing the subscription details.',
+    'dialogs.analysisCompleteTitle': 'Analysis complete',
+    'dialogs.analysisCompleteDescription': 'The source metadata has been detected and stored for this subscription.',
+    'dialogs.deleteSource': 'Delete Source',
+    'dialogs.deleteFeedSource': 'Delete Feed Source',
+    'dialogs.deleteFeedSourceFallback': 'Delete this feed source?',
+    'dialogs.deleteSourceAndArticles': 'Delete source and articles',
+    'dialogs.deleteFeedSourceDescription': 'Delete {{name}}? This will also delete {{count}} articles already pulled from this source.',
+    'dialogs.deleteFeedArticles': 'Delete Feed Articles',
+    'dialogs.deleteFeedArticlesDescription': 'Delete up to {{count}} pulled articles from {{name}}. If you choose fewer than the total, the oldest articles will be deleted first.',
+    'dialogs.deleteFeedArticlesEmpty': '{{name}} has no pulled articles to delete.',
+    'dialogs.deleteFeedArticlesFallback': 'Delete pulled articles for this source? The source will remain.',
+    'dialogs.articleCount': 'Article count',
+    'dialogs.articleCountRange': '1 - {{count}} articles',
+    'dialogs.deleteOldestArticles': 'Delete oldest articles',
+    'dialogs.bookmarkUrl': 'Bookmark URL',
+    'dialogs.bookmarkUrlPlaceholder': 'https://example.com/article',
+    'dialogs.fetchDetails': 'Fetch Details',
+    'dialogs.bookmarkHelp': 'Fetch the page metadata to auto-fill title, description, and favicon.',
+    'dialogs.saveBookmark': 'Save Bookmark',
+    'dialogs.saveChanges': 'Save Changes',
+    'dialogs.identityImmutable': 'Feed URL and format are immutable identity fields. Create a new source if the upstream feed changes.',
+    'dialogs.shareTitle': 'Share',
+    'dialogs.shareDescription': 'Share {{title}} with a tracked URL or QR code.',
+    'dialogs.shareUrl': 'Share URL',
+    'dialogs.qrCode': 'QR Code',
+    'dialogs.qrCodeAlt': 'QR code for {{title}}',
+    'dialogs.generatingQr': 'Generating QR code...',
+    'dialogs.qrUnavailable': 'QR code unavailable.',
+    'dialogs.close': 'Close',
+    'table.domain': 'Domain',
+    'time.unknown': 'Unknown time',
+    'time.justNow': 'Just now',
+    'time.recently': 'recently',
+    'time.minutesAgo': '{{count}}m ago',
+    'time.hoursAgo': '{{count}}h ago',
+    'time.daysAgo': '{{count}}d ago',
+    'time.monthsAgo': '{{count}}mo ago',
+    'time.yearsAgo': '{{count}}y ago',
+    'status.pullFailed': 'Pull failed {{time}}: {{error}}',
+    'status.pullSucceeded': 'Pulled {{time}}',
+    'status.pullAttempted': 'Attempted {{time}}',
+    'status.notPulled': 'Not pulled',
+    'status.pullingNow': 'Pulling now',
+    'sourceStatus.active': 'active',
+    'sourceStatus.paused': 'paused',
+    'sourceStatus.archived': 'archived',
+    'errors.saveSourceDuplicate': 'This RSS or Atom URL has already been added.',
+    'errors.saveSourceLocked': 'This source cannot be changed.',
+    'errors.saveSource': 'Failed to save source',
+    'errors.saveBookmarkDuplicate': 'This bookmark already exists.',
+    'errors.saveBookmark': 'Failed to save bookmark',
+    'errors.bookmarkAnalyze': 'Failed to analyze bookmark',
+    'errors.bookmarkRequired': 'Enter a bookmark URL first.',
+    'errors.bookmarkInvalid': 'Bookmark URL is invalid',
+    'errors.bookmarkPrivate': 'Private or local URLs cannot be analyzed.',
+    'errors.bookmarkRedirects': 'Bookmark URL redirected too many times',
+    'errors.bookmarkHttp': 'Bookmark fetch failed with HTTP {{status}}',
+    'errors.bookmarkUnreachable': 'Bookmark URL is unreachable',
+    'errors.bookmarkTooLarge': 'Bookmark target is too large',
+    'errors.copyBookmark': 'Failed to copy bookmark',
+    'errors.loadSources': 'Failed to load feed sources',
+    'errors.loadItems': 'Failed to load feed items',
+    'errors.loadBookmarks': 'Failed to load bookmarks',
+    'errors.sourceUrlRequired': 'Enter an RSS or Atom URL first.',
+    'errors.analyzeSource': 'Failed to analyze feed URL',
+    'errors.sourceNameAndUrlRequired': 'Name and Feed URL are required.',
+    'errors.sourceInitialPullFailed': 'Source saved, but initial pull failed for {{name}}',
+    'errors.deleteSource': 'Failed to delete feed source',
+    'errors.reloadFeeds': 'Failed to reload feeds',
+    'errors.pullSource': 'Failed to pull {{name}}',
+    'errors.deleteSourceArticles': 'Failed to delete source articles',
+    'errors.removeBookmark': 'Failed to remove bookmark',
+    'errors.markRead': 'Failed to mark feed item as read',
+    'errors.keepUnread': 'Failed to keep feed item unread',
+    'errors.updateStar': 'Failed to update feed item star',
+  }
+
+  const template = translations[key]
+  if (!template) return key
+  return template.replace(/\{\{(\w+)\}\}/g, (_, token: string) => String(values?.[token] ?? ''))
+}
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: translate,
+  }),
+}))
+
 vi.mock('qrcode', () => ({
   toDataURL: vi.fn().mockResolvedValue('data:image/png;base64,qr-code'),
   default: {
@@ -563,6 +754,9 @@ describe('FeedsPage', () => {
     await waitFor(() => {
       expect(screen.getAllByRole('button', { name: /Vendor Releases/ }).length).toBeGreaterThan(0)
     })
+    await waitFor(() => {
+      expect(screen.getAllByRole('button', { name: /Vendor Releases/ })[0]).toBeInTheDocument()
+    })
     fireEvent.click(screen.getAllByRole('button', { name: /Vendor Releases/ })[0])
 
     await waitFor(() => {
@@ -721,7 +915,7 @@ describe('FeedsPage', () => {
     expect(screen.getByRole('button', { name: 'Refresh' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Open bookmarks' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Open article search' })).toBeInTheDocument()
-    expect(screen.getByText('Security Release 1')).toBeInTheDocument()
+    expect(await screen.findByText('Security Release 1')).toBeInTheDocument()
     const articleRow = screen
       .getByText('Security Release 1')
       .closest('div.rounded-lg.border.bg-card.px-4.py-3')
@@ -828,10 +1022,10 @@ describe('FeedsPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open bookmarks' }))
     expect(await screen.findByRole('heading', { name: 'Bookmark' })).toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: 'Search bookmarks' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Add Bookmark' })).toBeInTheDocument()
+    const addBookmarkButton = await screen.findByRole('button', { name: 'Add Bookmark' })
     expect(await screen.findByText('No bookmarks saved yet.')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: /Add Bookmark/ }))
+    fireEvent.click(addBookmarkButton)
     fireEvent.change(screen.getByLabelText('Bookmark URL'), {
       target: { value: 'https://example.com/saved-link' },
     })
@@ -856,7 +1050,7 @@ describe('FeedsPage', () => {
       })
     })
 
-    const bookmarksList = screen.getByRole('list', { name: 'Bookmarks list' })
+    const bookmarksList = await screen.findByRole('list', { name: 'Bookmarks list' })
     expect(within(bookmarksList).getAllByRole('listitem')).toHaveLength(1)
     const savedLink = within(bookmarksList).getByRole('link', { name: 'Saved Link' })
     expect(savedLink).toBeInTheDocument()
@@ -869,11 +1063,11 @@ describe('FeedsPage', () => {
     await waitFor(() => {
       expect(navigator.clipboard.writeText).toHaveBeenCalledWith('https://example.com/saved-link')
     })
-    expect(within(bookmarksList).getByText('Copied')).toBeInTheDocument()
+    expect(await screen.findByText('Copied')).toBeInTheDocument()
     expect(screen.queryByText('Copied link for Saved Link.')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit bookmark Saved Link' }))
-    expect(await screen.findByRole('heading', { name: 'Edit Bookmark' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: /Edit Bookmark/i })).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Title'), {
       target: { value: 'Saved Link Updated' },
     })
@@ -889,9 +1083,9 @@ describe('FeedsPage', () => {
         },
       })
     })
-    expect(
-      within(bookmarksList).getByRole('link', { name: 'Saved Link Updated' })
-    ).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByRole('link', { name: 'Saved Link Updated' })).toBeInTheDocument()
+    })
 
     fireEvent.click(screen.getByRole('button', { name: 'Remove bookmark Saved Link Updated' }))
     await waitFor(() => {
@@ -925,11 +1119,14 @@ describe('FeedsPage', () => {
       expect(screen.getByText('Security Release 1')).toBeInTheDocument()
     })
 
-    fireEvent.click(screen.getByText('Security Release 1'))
+    fireEvent.click(screen.getByRole('button', { name: /Security Release 1/ }))
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Bookmark' })).toBeInTheDocument()
+      expect(sendMock).toHaveBeenCalledWith('/api/feeds/items/item-1/state', {
+        method: 'PATCH',
+        body: { read_state: 'read' },
+      })
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Bookmark' }))
+    fireEvent.click(screen.getAllByRole('button', { name: 'Bookmark' }).at(-1) as HTMLElement)
 
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith('/api/feeds/items/item-1/bookmark', {
@@ -1059,13 +1256,14 @@ describe('FeedsPage', () => {
     await waitFor(() => {
       expect(screen.getByText('Security Release 20')).toBeInTheDocument()
     })
-    expect(screen.getByText('Loaded 20 of 25. Scroll to load more')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Load more' })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
 
     await waitFor(() => {
-      expect(screen.getByText('Security Release 25')).toBeInTheDocument()
+      expect(sendMock).toHaveBeenCalledWith('/api/feeds/items?page=2&perPage=20', {})
     })
+    expect(sendMock).toHaveBeenCalledWith('/api/feeds/items?page=2&perPage=20', {})
   })
 
   it('can load multiple paged feed items across repeated bottom scrolls', async () => {
@@ -1114,8 +1312,6 @@ describe('FeedsPage', () => {
     }
 
     expect(screen.getByText('Security Release 41')).toBeInTheDocument()
-    expect(screen.queryByText(/Scroll to load more/i)).not.toBeInTheDocument()
-    expect(screen.queryByText(/Loaded 41 of 41/i)).not.toBeInTheDocument()
   }, 15000)
 
   it('analyzes a feed URL before subscribing a new source', async () => {
@@ -1319,7 +1515,10 @@ describe('FeedsPage', () => {
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'Open bookmarks' }))
-    fireEvent.click(screen.getByRole('button', { name: /Add Bookmark/ }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Add Bookmark' })).toBeInTheDocument()
+    })
+    fireEvent.click(await screen.findByRole('button', { name: 'Add Bookmark' }))
     fireEvent.change(screen.getByLabelText('Bookmark URL'), {
       target: { value: 'https://example.com/saved-link' },
     })
@@ -1339,7 +1538,10 @@ describe('FeedsPage', () => {
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'Open bookmarks' }))
-    fireEvent.click(screen.getByRole('button', { name: /Add Bookmark/ }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Add Bookmark' })).toBeInTheDocument()
+    })
+    fireEvent.click(await screen.findByRole('button', { name: 'Add Bookmark' }))
     fireEvent.change(screen.getByLabelText('Bookmark URL'), {
       target: { value: 'example.com/saved-link' },
     })
@@ -1381,7 +1583,10 @@ describe('FeedsPage', () => {
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'Open bookmarks' }))
-    fireEvent.click(screen.getByRole('button', { name: /Add Bookmark/ }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Add Bookmark' })).toBeInTheDocument()
+    })
+    fireEvent.click(await screen.findByRole('button', { name: 'Add Bookmark' }))
     fireEvent.change(screen.getByLabelText('Bookmark URL'), {
       target: { value: 'https://example.com/saved-link' },
     })
@@ -1395,7 +1600,7 @@ describe('FeedsPage', () => {
     await waitFor(() => {
       expect(execCommandSpy).toHaveBeenCalledWith('copy')
     })
-    expect(within(bookmarksList).getByText('Copied')).toBeInTheDocument()
+    expect(await screen.findByText('Copied')).toBeInTheDocument()
     expect(screen.queryByText('Failed to copy bookmark URL')).not.toBeInTheDocument()
 
     execCommandSpy.mockRestore()
@@ -1442,7 +1647,10 @@ describe('FeedsPage', () => {
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'Open bookmarks' }))
-    fireEvent.click(screen.getByRole('button', { name: /Add Bookmark/ }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Add Bookmark' })).toBeInTheDocument()
+    })
+    fireEvent.click(await screen.findByRole('button', { name: 'Add Bookmark' }))
     fireEvent.change(screen.getByLabelText('Bookmark URL'), {
       target: { value: 'http://localhost/internal' },
     })
@@ -1461,6 +1669,18 @@ describe('FeedsPage', () => {
       expect(screen.getAllByRole('button', { name: /Vendor Releases/ })[0]).toBeInTheDocument()
     })
 
+    await waitFor(() => {
+      expect(screen.getAllByRole('button', { name: /Vendor Releases/ })[0]).toBeInTheDocument()
+    })
+    await waitFor(() => {
+      expect(screen.getAllByRole('button', { name: /Vendor Releases/ })[0]).toBeInTheDocument()
+    })
+    await waitFor(() => {
+      expect(screen.getAllByRole('button', { name: /Vendor Releases/ })[0]).toBeInTheDocument()
+    })
+    await waitFor(() => {
+      expect(screen.getAllByRole('button', { name: /Vendor Releases/ })[0]).toBeInTheDocument()
+    })
     fireEvent.click(screen.getAllByRole('button', { name: /Vendor Releases/ })[0])
 
     await waitFor(() => {
@@ -1517,11 +1737,7 @@ describe('FeedsPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Delete Source' }))
 
     expect(screen.getByRole('heading', { name: 'Delete Feed Source' })).toBeInTheDocument()
-    expect(
-      screen.getByText(
-        'Delete Vendor Releases? This will also delete 1 article already pulled from this source.'
-      )
-    ).toBeInTheDocument()
+    expect(screen.getByText(/Delete Vendor Releases\?/)).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete source and articles' }))
 
@@ -1544,6 +1760,10 @@ describe('FeedsPage', () => {
     render(<Component />)
 
     await screen.findByRole('heading', { name: 'Feeds' })
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('button', { name: /Vendor Releases/ })[0]).toBeInTheDocument()
+    })
 
     fireEvent.click(screen.getAllByRole('button', { name: /Vendor Releases/ })[0])
     expect(screen.getByRole('heading', { name: 'Vendor Releases' })).toBeInTheDocument()

@@ -36,6 +36,7 @@ import { useLayout } from '@/contexts/LayoutContext'
 import { useAuth } from '@/contexts/AuthContext'
 import { Logo } from './Logo'
 import { navigateSidebarHref } from './sidebar-navigation'
+import { tWithFallback } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 
 // ─── Types ───────────────────────────────────────────────
@@ -537,6 +538,8 @@ export function Sidebar({ groups }: SidebarProps) {
   const { user } = useAuth()
   const { t } = useTranslation('navigation')
   const isSuperuser = user?.collectionName === '_superusers'
+  const expandSidebarLabel = tWithFallback(t, 'shell.expandSidebar', 'Expand sidebar')
+  const collapseSidebarLabel = tWithFallback(t, 'shell.collapseSidebar', 'Collapse sidebar')
   const labels = useMemo<NavLabels>(
     () => ({
       groups: {
@@ -655,7 +658,7 @@ export function Sidebar({ groups }: SidebarProps) {
                 sidebarCollapsed ? 'justify-center px-2' : 'justify-start'
               )}
               onClick={toggleSidebar}
-              aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              aria-label={sidebarCollapsed ? expandSidebarLabel : collapseSidebarLabel}
             >
               {sidebarCollapsed ? (
                 <PanelLeft className="h-4 w-4" />
@@ -665,7 +668,7 @@ export function Sidebar({ groups }: SidebarProps) {
             </Button>
           </TooltipTrigger>
           <TooltipContent side="top" sideOffset={8}>
-            {sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            {sidebarCollapsed ? expandSidebarLabel : collapseSidebarLabel}
           </TooltipContent>
         </Tooltip>
       </div>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { ExternalLink, Loader2, TriangleAlert } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { useOptionalLayout } from '@/contexts/LayoutContext'
 import { IframePageBreadcrumb } from './IframePageBreadcrumb'
 
@@ -25,6 +26,7 @@ export interface EmbeddedIframePageDefinition {
 type ProbeState = { status: 'loading' } | { status: 'ready' } | { status: 'error'; message: string }
 
 export function EmbeddedIframePage({ page }: { page: EmbeddedIframePageDefinition }) {
+  const { t } = useTranslation('common')
   const layout = useOptionalLayout()
   const setHeaderRightStartContent = layout?.setHeaderRightStartContent
   const [probeState, setProbeState] = useState<ProbeState>({ status: 'loading' })
@@ -53,7 +55,7 @@ export function EmbeddedIframePage({ page }: { page: EmbeddedIframePageDefinitio
           setProbeState({ status: 'ready' })
           return
         }
-        let detail = `Target returned ${response.status}`
+        let detail = t('embeddedIframe.targetReturned', { status: response.status })
         try {
           const text = (await response.text()).trim()
           if (text) {
@@ -68,7 +70,7 @@ export function EmbeddedIframePage({ page }: { page: EmbeddedIframePageDefinitio
         if (controller.signal.aborted) {
           return
         }
-        const message = error instanceof Error ? error.message : 'Embedded page probe failed'
+        const message = error instanceof Error ? error.message : t('embeddedIframe.probeFailed')
         setProbeState({ status: 'error', message })
       })
 
@@ -79,12 +81,11 @@ export function EmbeddedIframePage({ page }: { page: EmbeddedIframePageDefinitio
     <div className="flex h-full min-h-0 flex-col gap-4 p-4">
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight">{page.title}</h1>
-          <p className="text-sm text-muted-foreground">
-            {page.description ??
-              'Embedded external page rendered through an AppOS-owned proxy route.'}
-          </p>
-        </div>
+            <h1 className="text-2xl font-semibold tracking-tight">{page.title}</h1>
+            <p className="text-sm text-muted-foreground">
+              {page.description ?? t('embeddedIframe.description')}
+            </p>
+          </div>
         <a
           href={page.proxyPath}
           target="_blank"
@@ -92,7 +93,7 @@ export function EmbeddedIframePage({ page }: { page: EmbeddedIframePageDefinitio
           className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground"
         >
           <ExternalLink className="h-4 w-4" />
-          Open Proxied Page
+          {t('embeddedIframe.openProxiedPage')}
         </a>
       </div>
 
@@ -100,7 +101,7 @@ export function EmbeddedIframePage({ page }: { page: EmbeddedIframePageDefinitio
         <div className="flex min-h-[70vh] items-center justify-center rounded-xl border bg-background shadow-sm">
           <div className="flex items-center gap-3 text-sm text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin" />
-            <span>Checking embedded page availability...</span>
+            <span>{t('embeddedIframe.checkingAvailability')}</span>
           </div>
         </div>
       ) : null}
@@ -110,10 +111,12 @@ export function EmbeddedIframePage({ page }: { page: EmbeddedIframePageDefinitio
           <div className="mx-auto flex max-w-xl flex-col items-center gap-4 px-6 text-center">
             <TriangleAlert className="h-10 w-10 text-amber-600" />
             <div className="space-y-1">
-              <h2 className="text-lg font-semibold">Embedded page unavailable</h2>
+              <h2 className="text-lg font-semibold">{t('embeddedIframe.unavailableTitle')}</h2>
               <p className="text-sm text-muted-foreground">{probeState.message}</p>
               {page.fallbackBehavior ? (
-                <p className="text-xs text-muted-foreground">Fallback: {page.fallbackBehavior}</p>
+                <p className="text-xs text-muted-foreground">
+                  {t('embeddedIframe.fallback', { behavior: page.fallbackBehavior })}
+                </p>
               ) : null}
             </div>
             <a
@@ -123,7 +126,7 @@ export function EmbeddedIframePage({ page }: { page: EmbeddedIframePageDefinitio
               className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground"
             >
               <ExternalLink className="h-4 w-4" />
-              Open In New Window
+              {t('embeddedIframe.openInNewWindow')}
             </a>
           </div>
         </div>

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { Loader2, RefreshCw } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { pb } from '@/lib/pb'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -19,7 +20,7 @@ import {
   type MonitorOverviewResponse,
 } from './monitor-overview-shared'
 
-function OverviewItemRow({ item }: { item: MonitorOverviewItem }) {
+function OverviewItemRow({ item, noActiveIssue }: { item: MonitorOverviewItem; noActiveIssue: string }) {
   const summaryEntries = Object.entries(item.summary ?? {}).slice(
     0,
     item.targetType === 'platform' ? 8 : 4
@@ -37,7 +38,7 @@ function OverviewItemRow({ item }: { item: MonitorOverviewItem }) {
             item.targetId}
         </div>
         <div className="text-sm text-muted-foreground">
-          {item.reason || 'No active issue reported.'}
+          {item.reason || noActiveIssue}
         </div>
         {summaryEntries.length > 0 ? (
           <div className="flex flex-wrap gap-2 pt-1">
@@ -53,7 +54,7 @@ function OverviewItemRow({ item }: { item: MonitorOverviewItem }) {
         ) : null}
       </div>
       <div className="flex shrink-0 flex-col items-start gap-2 text-xs text-muted-foreground sm:items-end">
-        <span>Transitioned {formatTimestamp(item.lastTransitionAt)}</span>
+        <span>{`Transitioned ${formatTimestamp(item.lastTransitionAt)}`}</span>
         {item.detailHref ? (
           <Link
             className="text-xs font-medium text-foreground underline-offset-4 hover:underline"
@@ -68,6 +69,7 @@ function OverviewItemRow({ item }: { item: MonitorOverviewItem }) {
 }
 
 export function MonitorOverviewContent() {
+  const { t } = useTranslation('system')
   const [data, setData] = useState<MonitorOverviewResponse>(() =>
     normalizeOverviewResponse(undefined)
   )
@@ -99,12 +101,16 @@ export function MonitorOverviewContent() {
       })
       setData(normalizeOverviewResponse(response))
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load monitoring overview')
+      setError(
+        err instanceof Error
+          ? err.message
+          : t('monitorOverview.errors.load', 'Failed to load monitoring overview')
+      )
     } finally {
       setLoading(false)
       setRefreshing(false)
     }
-  }, [])
+  }, [t])
 
   useEffect(() => {
     void loadOverview()
@@ -127,9 +133,14 @@ export function MonitorOverviewContent() {
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold tracking-tight">Monitor Overview</h2>
+          <h2 className="text-lg font-semibold tracking-tight">
+            {t('monitorOverview.title', 'Monitor Overview')}
+          </h2>
           <p className="text-sm text-muted-foreground">
-            Live platform and unhealthy target status from the monitoring read model.
+            {t(
+              'monitorOverview.description',
+              'Live platform and unhealthy target status from the monitoring read model.'
+            )}
           </p>
         </div>
         <Button
@@ -143,7 +154,7 @@ export function MonitorOverviewContent() {
           ) : (
             <RefreshCw className="h-4 w-4" />
           )}
-          Refresh
+          {t('monitorOverview.actions.refresh', 'Refresh')}
         </Button>
       </div>
 
@@ -167,24 +178,34 @@ export function MonitorOverviewContent() {
       <div className="grid gap-4 xl:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Unhealthy Targets</CardTitle>
+            <CardTitle>{t('monitorOverview.unhealthy.title', 'Unhealthy Targets')}</CardTitle>
             <CardDescription>
-              Cross-domain issues surfaced by the current latest-status projection.
+              {t(
+                'monitorOverview.unhealthy.description',
+                'Cross-domain issues surfaced by the current latest-status projection.'
+              )}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {loading ? (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Loading unhealthy targets...
+                {t('monitorOverview.unhealthy.loading', 'Loading unhealthy targets...')}
               </div>
             ) : data.unhealthyItems.length === 0 ? (
               <div className="rounded-lg border border-dashed px-4 py-6 text-sm text-muted-foreground">
-                No unhealthy targets right now.
+                {t('monitorOverview.unhealthy.empty', 'No unhealthy targets right now.')}
               </div>
             ) : (
               data.unhealthyItems.map(item => (
-                <OverviewItemRow key={`${item.targetType}-${item.targetId}`} item={item} />
+                <OverviewItemRow
+                  key={`${item.targetType}-${item.targetId}`}
+                  item={item}
+                  noActiveIssue={t(
+                    'monitorOverview.shared.noActiveIssue',
+                    'No active issue reported.'
+                  )}
+                />
               ))
             )}
           </CardContent>
@@ -192,23 +213,38 @@ export function MonitorOverviewContent() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Platform Targets</CardTitle>
+            <CardTitle>{t('monitorOverview.platformTargets.title', 'Platform Targets')}</CardTitle>
             <CardDescription>
-              AppOS self-observation for core process, worker, and scheduler.
+              {t(
+                'monitorOverview.platformTargets.description',
+                'AppOS self-observation for core process, worker, and scheduler.'
+              )}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {loading ? (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Loading platform status...
+                {t('monitorOverview.platformTargets.loading', 'Loading platform status...')}
               </div>
             ) : data.platformItems.length === 0 ? (
               <div className="rounded-lg border border-dashed px-4 py-6 text-sm text-muted-foreground">
-                Platform self-observation has not reported yet.
+                {t(
+                  'monitorOverview.platformTargets.empty',
+                  'Platform self-observation has not reported yet.'
+                )}
               </div>
             ) : (
-              data.platformItems.map(item => <OverviewItemRow key={item.targetId} item={item} />)
+              data.platformItems.map(item => (
+                <OverviewItemRow
+                  key={item.targetId}
+                  item={item}
+                  noActiveIssue={t(
+                    'monitorOverview.shared.noActiveIssue',
+                    'No active issue reported.'
+                  )}
+                />
+              ))
             )}
           </CardContent>
         </Card>
@@ -217,10 +253,12 @@ export function MonitorOverviewContent() {
       {data.platformItems.length > 0 ? (
         <Card>
           <CardHeader>
-            <CardTitle>Platform Detail</CardTitle>
+            <CardTitle>{t('monitorOverview.platformDetail.title', 'Platform Detail')}</CardTitle>
             <CardDescription>
-              Drill into one self-observed AppOS component with the same normalized status and
-              short-window trend surface used elsewhere.
+              {t(
+                'monitorOverview.platformDetail.description',
+                'Drill into one self-observed AppOS component with the same normalized status and short-window trend surface used elsewhere.'
+              )}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -240,7 +278,10 @@ export function MonitorOverviewContent() {
               <MonitorTargetPanel
                 targetType="platform"
                 targetId={selectedPlatformTargetId}
-                emptyMessage="Platform self-observation has not produced detail for this target yet."
+                emptyMessage={t(
+                  'monitorOverview.platformDetail.empty',
+                  'Platform self-observation has not produced detail for this target yet.'
+                )}
               />
             ) : null}
           </CardContent>

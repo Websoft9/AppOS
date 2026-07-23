@@ -1,5 +1,6 @@
 import { Fragment, useState, useEffect, useCallback, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { pb } from '@/lib/pb'
 import { dockerApiPath, dockerApiUrl } from '@/lib/docker-api'
 import {
@@ -83,15 +84,60 @@ const CONTAINER_STATS_LIVE_INTERVAL_MS = 2000
 const CONTAINER_SNAPSHOT_WINDOW = '5m'
 
 const CONTAINER_TELEMETRY_WINDOWS = [
-  { value: '1m', label: '1m', description: 'Last minute.' },
-  { value: '5m', label: '5m', description: 'Last five minutes.' },
-  { value: '15m', label: '15m', description: 'Last fifteen minutes.' },
-  { value: '0.5h', label: '0.5h', description: 'Last thirty minutes.' },
-  { value: '1h', label: '1h', description: 'Last hour.' },
-  { value: '5h', label: '5h', description: 'Last five hours.' },
-  { value: '12h', label: '12h', description: 'Last twelve hours.' },
-  { value: '24h', label: '24h', description: 'Last 24 hours.' },
-  { value: '7d', label: '7d', description: 'Last seven days.' },
+  {
+    value: '1m',
+    label: '1m',
+    descriptionKey: 'containers.stats.windows.1m',
+    defaultDescription: 'Last minute.',
+  },
+  {
+    value: '5m',
+    label: '5m',
+    descriptionKey: 'containers.stats.windows.5m',
+    defaultDescription: 'Last five minutes.',
+  },
+  {
+    value: '15m',
+    label: '15m',
+    descriptionKey: 'containers.stats.windows.15m',
+    defaultDescription: 'Last fifteen minutes.',
+  },
+  {
+    value: '0.5h',
+    label: '0.5h',
+    descriptionKey: 'containers.stats.windows.0_5h',
+    defaultDescription: 'Last thirty minutes.',
+  },
+  {
+    value: '1h',
+    label: '1h',
+    descriptionKey: 'containers.stats.windows.1h',
+    defaultDescription: 'Last hour.',
+  },
+  {
+    value: '5h',
+    label: '5h',
+    descriptionKey: 'containers.stats.windows.5h',
+    defaultDescription: 'Last five hours.',
+  },
+  {
+    value: '12h',
+    label: '12h',
+    descriptionKey: 'containers.stats.windows.12h',
+    defaultDescription: 'Last twelve hours.',
+  },
+  {
+    value: '24h',
+    label: '24h',
+    descriptionKey: 'containers.stats.windows.24h',
+    defaultDescription: 'Last 24 hours.',
+  },
+  {
+    value: '7d',
+    label: '7d',
+    descriptionKey: 'containers.stats.windows.7d',
+    defaultDescription: 'Last seven days.',
+  },
 ] as const
 
 type ContainerTelemetryWindow = (typeof CONTAINER_TELEMETRY_WINDOWS)[number]['value']
@@ -281,7 +327,7 @@ function resolveTelemetryItem(
   )
 }
 
-function telemetryBadge(item?: MonitorContainerTelemetryItem) {
+function telemetryBadge(item: MonitorContainerTelemetryItem | undefined, staleLabel: string) {
   if (!item || item.freshness.state === 'missing') return null
   if (item.freshness.state === 'stale') {
     return (
@@ -289,7 +335,7 @@ function telemetryBadge(item?: MonitorContainerTelemetryItem) {
         variant="outline"
         className="border-dashed border-amber-500/40 bg-amber-500/5 text-[11px] font-normal text-amber-700"
       >
-        Stale telemetry
+        {staleLabel}
       </Badge>
     )
   }
@@ -554,12 +600,7 @@ function shortImageLabel(image: string): string {
   return compact
 }
 
-function formatStateLabel(state: string): string {
-  if (!state) return 'Unknown'
-  return state.charAt(0).toUpperCase() + state.slice(1)
-}
-
-function statusBadge(state: string) {
+function statusBadge(state: string, label: string) {
   const normalized = state.toLowerCase()
   const className =
     normalized === 'running'
@@ -570,7 +611,7 @@ function statusBadge(state: string) {
 
   return (
     <Badge variant="outline" className={cn('text-[11px] font-medium', className)}>
-      {formatStateLabel(state)}
+      {label}
     </Badge>
   )
 }
@@ -635,6 +676,7 @@ export function ContainersTab({
   onOpenNetworkFilter?: (networkName: string) => void
   showPanelChrome?: boolean
 }) {
+  const { t } = useTranslation('docker')
   type PendingAction = {
     container: Container
     action: 'stop' | 'restart' | 'remove'
@@ -931,6 +973,19 @@ export function ContainersTab({
       CONTAINER_TELEMETRY_WINDOWS.find(window => window.value === telemetryWindow) ??
       CONTAINER_TELEMETRY_WINDOWS[2],
     [telemetryWindow]
+  )
+  const telemetryWindowDescription = t(telemetryWindowMeta.descriptionKey, {
+    defaultValue: telemetryWindowMeta.defaultDescription,
+  })
+  const formatContainerStateLabel = useCallback(
+    (state: string) => {
+      const normalized = String(state || '').toLowerCase()
+      const defaultLabel = state ? state.charAt(0).toUpperCase() + state.slice(1) : 'Unknown'
+      return t(`containers.states.${normalized || 'unknown'}`, {
+        defaultValue: defaultLabel,
+      })
+    },
+    [t]
   )
 
   useEffect(() => {
@@ -1269,10 +1324,20 @@ export function ContainersTab({
   const copyText = async (value: string, label: string) => {
     try {
       await navigator.clipboard.writeText(value)
-      setCopiedTip(`${label} copied`)
+      setCopiedTip(
+        t('containers.messages.copySuccess', {
+          label,
+          defaultValue: '{{label}} copied',
+        })
+      )
       window.setTimeout(() => setCopiedTip(''), 1200)
     } catch {
-      setCopiedTip(`Failed to copy ${label}`)
+      setCopiedTip(
+        t('containers.messages.copyFailed', {
+          label,
+          defaultValue: 'Failed to copy {{label}}',
+        })
+      )
       window.setTimeout(() => setCopiedTip(''), 1200)
     }
   }
@@ -1315,9 +1380,17 @@ export function ContainersTab({
   )
 
   const loadError = containersError
-    ? getApiErrorMessage(containersError, 'Failed to load containers')
+    ? getApiErrorMessage(
+        containersError,
+        t('containers.errors.load', { defaultValue: 'Failed to load containers' })
+      )
     : telemetryError
-      ? getApiErrorMessage(telemetryError, 'Failed to load container telemetry')
+      ? getApiErrorMessage(
+          telemetryError,
+          t('containers.errors.loadTelemetry', {
+            defaultValue: 'Failed to load container telemetry',
+          })
+        )
       : detailsErrorMessage
   const visibleError = loadError || actionError
   const dependencyIssue = getDockerDependencyIssue(
@@ -1368,16 +1441,18 @@ export function ContainersTab({
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2 text-sm font-semibold">
                 <ContainerIcon className="h-4 w-4 text-muted-foreground" />
-                <span>Containers</span>
+                <span>{t('containers.title', { defaultValue: 'Containers' })}</span>
               </div>
               <div className="flex flex-wrap items-center justify-end gap-2">
                 <input
                   value={searchQuery ?? ''}
                   onChange={event => onSearchQueryChange?.(event.target.value)}
-                  placeholder="Search containers"
+                  placeholder={t('containers.searchPlaceholder', { defaultValue: 'Search containers' })}
                   className="h-8 w-full min-w-0 rounded-md border bg-background px-3 text-sm sm:mr-[5ch] sm:w-[20ch]"
                 />
-                <span className="text-xs text-muted-foreground">{totalItems} total</span>
+                  <span className="text-xs text-muted-foreground">
+                    {t('containers.total', { count: totalItems, defaultValue: '{{count}} total' })}
+                  </span>
                 <div className="flex items-center gap-0.5 text-xs">
                   <Button
                     variant="ghost"
@@ -1385,7 +1460,9 @@ export function ContainersTab({
                     className="h-7 min-w-0 px-0.5"
                     onClick={() => onPageChange?.(Math.max(1, page - 1))}
                     disabled={page <= 1}
-                    aria-label="Previous containers page"
+                    aria-label={t('containers.pagination.previous', {
+                      defaultValue: 'Previous containers page',
+                    })}
                   >
                     <ChevronLeft className="h-3.5 w-3.5" />
                   </Button>
@@ -1398,7 +1475,9 @@ export function ContainersTab({
                     className="h-7 min-w-0 px-0.5"
                     onClick={() => onPageChange?.(Math.min(totalPages, page + 1))}
                     disabled={page >= totalPages}
-                    aria-label="Next containers page"
+                    aria-label={t('containers.pagination.next', {
+                      defaultValue: 'Next containers page',
+                    })}
                   >
                     <ChevronRight className="h-3.5 w-3.5" />
                   </Button>
@@ -1409,8 +1488,8 @@ export function ContainersTab({
                   className="shrink-0"
                   onClick={() => onRefresh?.()}
                   disabled={refreshDisabled || refreshing}
-                  title="Refresh Docker data"
-                  aria-label="Refresh Docker data"
+                  title={t('containers.refresh', { defaultValue: 'Refresh Docker data' })}
+                  aria-label={t('containers.refresh', { defaultValue: 'Refresh Docker data' })}
                 >
                   {refreshing ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -1424,33 +1503,56 @@ export function ContainersTab({
                       variant="outline"
                       size="icon"
                       className="h-8 w-8"
-                      aria-label="Container display settings"
-                      title="Container display settings"
+                      aria-label={t('containers.settings.button', {
+                        defaultValue: 'Container display settings',
+                      })}
+                      title={t('containers.settings.button', {
+                        defaultValue: 'Container display settings',
+                      })}
                     >
                       <Settings2 className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-56">
-                    <DropdownMenuLabel>Rows Per Page</DropdownMenuLabel>
+                    <DropdownMenuLabel>
+                      {t('containers.settings.rowsPerPage', { defaultValue: 'Rows Per Page' })}
+                    </DropdownMenuLabel>
                     <DropdownMenuRadioGroup
                       value={String(pageSize)}
                       onValueChange={value =>
                         onPageSizeChange?.(Number(value) as ContainerPageSize)
                       }
                     >
-                      <DropdownMenuRadioItem value="25">25 / page</DropdownMenuRadioItem>
-                      <DropdownMenuRadioItem value="50">50 / page</DropdownMenuRadioItem>
-                      <DropdownMenuRadioItem value="100">100 / page</DropdownMenuRadioItem>
+                      <DropdownMenuRadioItem value="25">
+                        {t('containers.settings.perPage', {
+                          count: 25,
+                          defaultValue: '{{count}} / page',
+                        })}
+                      </DropdownMenuRadioItem>
+                      <DropdownMenuRadioItem value="50">
+                        {t('containers.settings.perPage', {
+                          count: 50,
+                          defaultValue: '{{count}} / page',
+                        })}
+                      </DropdownMenuRadioItem>
+                      <DropdownMenuRadioItem value="100">
+                        {t('containers.settings.perPage', {
+                          count: 100,
+                          defaultValue: '{{count}} / page',
+                        })}
+                      </DropdownMenuRadioItem>
                     </DropdownMenuRadioGroup>
                     <DropdownMenuSeparator />
-                    <DropdownMenuLabel>Visible Columns</DropdownMenuLabel>
+                    <DropdownMenuLabel>
+                      {t('containers.settings.visibleColumns', { defaultValue: 'Visible Columns' })}
+                    </DropdownMenuLabel>
                     <DropdownMenuCheckboxItem
                       checked={visibleColumns.ports}
                       onCheckedChange={checked =>
                         onVisibleColumnsChange?.({ ...visibleColumns, ports: checked === true })
                       }
                     >
-                      Ports
+                      {t('containers.columns.ports', { defaultValue: 'Ports' })}
                     </DropdownMenuCheckboxItem>
                     <DropdownMenuCheckboxItem
                       checked={visibleColumns.volumes}
@@ -1458,7 +1560,7 @@ export function ContainersTab({
                         onVisibleColumnsChange?.({ ...visibleColumns, volumes: checked === true })
                       }
                     >
-                      Volumes
+                      {t('containers.columns.volumes', { defaultValue: 'Volumes' })}
                     </DropdownMenuCheckboxItem>
                     <DropdownMenuCheckboxItem
                       checked={visibleColumns.status}
@@ -1466,7 +1568,7 @@ export function ContainersTab({
                         onVisibleColumnsChange?.({ ...visibleColumns, status: checked === true })
                       }
                     >
-                      Lifecycle
+                      {t('containers.columns.lifecycle', { defaultValue: 'Lifecycle' })}
                     </DropdownMenuCheckboxItem>
                     <DropdownMenuCheckboxItem
                       checked={visibleColumns.created}
@@ -1474,7 +1576,7 @@ export function ContainersTab({
                         onVisibleColumnsChange?.({ ...visibleColumns, created: checked === true })
                       }
                     >
-                      Created
+                      {t('containers.columns.created', { defaultValue: 'Created' })}
                     </DropdownMenuCheckboxItem>
                     <DropdownMenuCheckboxItem
                       checked={visibleColumns.cpu}
@@ -1482,7 +1584,7 @@ export function ContainersTab({
                         onVisibleColumnsChange?.({ ...visibleColumns, cpu: checked === true })
                       }
                     >
-                      CPU
+                      {t('containers.columns.cpu', { defaultValue: 'CPU' })}
                     </DropdownMenuCheckboxItem>
                     <DropdownMenuCheckboxItem
                       checked={visibleColumns.mem}
@@ -1490,7 +1592,7 @@ export function ContainersTab({
                         onVisibleColumnsChange?.({ ...visibleColumns, mem: checked === true })
                       }
                     >
-                      Memory
+                      {t('containers.columns.memory', { defaultValue: 'Memory' })}
                     </DropdownMenuCheckboxItem>
                     <DropdownMenuCheckboxItem
                       checked={visibleColumns.network}
@@ -1498,7 +1600,7 @@ export function ContainersTab({
                         onVisibleColumnsChange?.({ ...visibleColumns, network: checked === true })
                       }
                     >
-                      Network
+                      {t('containers.columns.network', { defaultValue: 'Network' })}
                     </DropdownMenuCheckboxItem>
                     <DropdownMenuCheckboxItem
                       checked={visibleColumns.compose}
@@ -1506,7 +1608,7 @@ export function ContainersTab({
                         onVisibleColumnsChange?.({ ...visibleColumns, compose: checked === true })
                       }
                     >
-                      Compose
+                      {t('containers.columns.compose', { defaultValue: 'Compose' })}
                     </DropdownMenuCheckboxItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -1515,12 +1617,39 @@ export function ContainersTab({
           ) : null}
           {hasAnyFilter && (
             <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
-              {hasSearchFilter && <Badge variant="outline">Search: {activeSearchQuery}</Badge>}
-              {hasStateFilter && <Badge variant="outline">Runtime: {stateFilter}</Badge>}
-              {includeNames && includeNames.length > 0 && (
-                <Badge variant="outline">Linked containers: {includeNames.length}</Badge>
+              {hasSearchFilter && (
+                <Badge variant="outline">
+                  {t('containers.filters.searchBadge', {
+                    value: activeSearchQuery,
+                    defaultValue: 'Search: {{value}}',
+                  })}
+                </Badge>
               )}
-              {hasComposeFilter && <Badge variant="outline">Compose: {composeFilter}</Badge>}
+              {hasStateFilter && (
+                <Badge variant="outline">
+                  {t('containers.filters.runtimeBadge', {
+                    value: stateFilter,
+                    defaultValue: 'Runtime: {{value}}',
+                  })}
+                </Badge>
+              )}
+              {includeNames && includeNames.length > 0 && (
+                <Badge variant="outline">
+                  {t('containers.filters.linkedContainersBadge', {
+                    count: includeNames.length,
+                    value: includeNames.length,
+                    defaultValue: 'Linked containers: {{count}}',
+                  })}
+                </Badge>
+              )}
+              {hasComposeFilter && (
+                <Badge variant="outline">
+                  {t('containers.filters.composeBadge', {
+                    value: composeFilter,
+                    defaultValue: 'Compose: {{value}}',
+                  })}
+                </Badge>
+              )}
               <Button
                 variant="outline"
                 size="sm"
@@ -1531,14 +1660,22 @@ export function ContainersTab({
                   setComposeFilter('all')
                 }}
               >
-                Clear filters
+                {t('containers.filters.clear', { defaultValue: 'Clear filters' })}
               </Button>
             </div>
           )}
           {hasStatusBadges && (
             <div className="flex items-center gap-2 flex-wrap shrink-0">
-              {currentTelemetryLoading && <Badge variant="outline">Loading telemetry...</Badge>}
-              {currentRuntimeStatsLoading && <Badge variant="outline">Loading stats...</Badge>}
+              {currentTelemetryLoading && (
+                <Badge variant="outline">
+                  {t('containers.loading.telemetry', { defaultValue: 'Loading telemetry...' })}
+                </Badge>
+              )}
+              {currentRuntimeStatsLoading && (
+                <Badge variant="outline">
+                  {t('containers.loading.stats', { defaultValue: 'Loading stats...' })}
+                </Badge>
+              )}
               {copiedTip && (
                 <div className="text-xs text-muted-foreground shrink-0">{copiedTip}</div>
               )}
@@ -1553,12 +1690,14 @@ export function ContainersTab({
                 <TableRow>
                   <TableHead className="w-[32%] min-w-[260px] pl-4 pr-2">
                     <div className="flex items-center">
-                      <SortHead label="Name" keyName="name" />
+                      <SortHead label={t('containers.columns.name', { defaultValue: 'Name' })} keyName="name" />
                     </div>
                   </TableHead>
                   <TableHead className="w-[16%] min-w-[160px]">
                     <div className="flex items-center gap-1">
-                      <span className="text-xs font-medium text-foreground">Runtime</span>
+                      <span className="text-xs font-medium text-foreground">
+                        {t('containers.columns.runtime', { defaultValue: 'Runtime' })}
+                      </span>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button
@@ -1569,11 +1708,18 @@ export function ContainersTab({
                               stateFilter !== 'all' &&
                                 'bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary'
                             )}
-                            aria-label="Filter container state"
+                            aria-label={t('containers.filters.stateAria', {
+                              defaultValue: 'Filter container state',
+                            })}
                             title={
                               stateFilter === 'all'
-                                ? 'Filter container state'
-                                : `Container state: ${stateFilter}`
+                                ? t('containers.filters.stateAria', {
+                                    defaultValue: 'Filter container state',
+                                  })
+                                : t('containers.filters.stateTitle', {
+                                    value: stateFilter,
+                                    defaultValue: 'Container state: {{value}}',
+                                  })
                             }
                           >
                             <Filter className="h-3.5 w-3.5" />
@@ -1589,19 +1735,34 @@ export function ContainersTab({
                             }
                           >
                             <DropdownMenuRadioItem value="all">
-                              All states ({stateOptionCounts.all})
+                              {t('containers.filters.allStates', {
+                                count: stateOptionCounts.all,
+                                defaultValue: 'All states ({{count}})',
+                              })}
                             </DropdownMenuRadioItem>
                             <DropdownMenuRadioItem value="running">
-                              Running ({stateOptionCounts.running})
+                              {t('containers.filters.running', {
+                                count: stateOptionCounts.running,
+                                defaultValue: 'Running ({{count}})',
+                              })}
                             </DropdownMenuRadioItem>
                             <DropdownMenuRadioItem value="exited">
-                              Exited ({stateOptionCounts.exited})
+                              {t('containers.filters.exited', {
+                                count: stateOptionCounts.exited,
+                                defaultValue: 'Exited ({{count}})',
+                              })}
                             </DropdownMenuRadioItem>
                             <DropdownMenuRadioItem value="paused">
-                              Paused ({stateOptionCounts.paused})
+                              {t('containers.filters.paused', {
+                                count: stateOptionCounts.paused,
+                                defaultValue: 'Paused ({{count}})',
+                              })}
                             </DropdownMenuRadioItem>
                             <DropdownMenuRadioItem value="created">
-                              Created ({stateOptionCounts.created})
+                              {t('containers.filters.created', {
+                                count: stateOptionCounts.created,
+                                defaultValue: 'Created ({{count}})',
+                              })}
                             </DropdownMenuRadioItem>
                           </DropdownMenuRadioGroup>
                         </DropdownMenuContent>
@@ -1609,27 +1770,29 @@ export function ContainersTab({
                     </div>
                   </TableHead>
                   <TableHead className="w-[150px] min-w-[150px] text-xs font-medium text-foreground">
-                    Quick
+                    {t('containers.columns.quick', { defaultValue: 'Quick' })}
                   </TableHead>
                   {visibleColumns.ports && (
                     <TableHead className="min-w-[140px] text-xs font-medium text-foreground">
-                      Ports
+                      {t('containers.columns.ports', { defaultValue: 'Ports' })}
                     </TableHead>
                   )}
                   {visibleColumns.volumes && (
                     <TableHead className="w-[160px] min-w-[160px] text-left text-xs font-medium text-foreground">
-                      Volumes
+                      {t('containers.columns.volumes', { defaultValue: 'Volumes' })}
                     </TableHead>
                   )}
                   {visibleColumns.created && (
                     <TableHead className="min-w-[160px]">
-                      <SortHead label="Created" keyName="created" />
+                      <SortHead label={t('containers.columns.created', { defaultValue: 'Created' })} keyName="created" />
                     </TableHead>
                   )}
                   {visibleColumns.compose && (
                     <TableHead className="min-w-[140px]">
                       <div className="flex items-center gap-1">
-                        <span className="text-xs font-medium text-foreground">Compose</span>
+                        <span className="text-xs font-medium text-foreground">
+                          {t('containers.columns.compose', { defaultValue: 'Compose' })}
+                        </span>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button
@@ -1640,11 +1803,18 @@ export function ContainersTab({
                                 composeFilter !== 'all' &&
                                   'bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary'
                               )}
-                              aria-label="Filter compose project"
+                              aria-label={t('containers.filters.composeAria', {
+                                defaultValue: 'Filter compose project',
+                              })}
                               title={
                                 composeFilter === 'all'
-                                  ? 'Filter compose project'
-                                  : `Compose: ${composeFilter}`
+                                  ? t('containers.filters.composeAria', {
+                                      defaultValue: 'Filter compose project',
+                                    })
+                                  : t('containers.filters.composeTitle', {
+                                      value: composeFilter,
+                                      defaultValue: 'Compose: {{value}}',
+                                    })
                               }
                             >
                               <Filter className="h-3.5 w-3.5" />
@@ -1655,7 +1825,11 @@ export function ContainersTab({
                               value={composeFilter}
                               onValueChange={value => setComposeFilter(value)}
                             >
-                              <DropdownMenuRadioItem value="all">All compose</DropdownMenuRadioItem>
+                              <DropdownMenuRadioItem value="all">
+                                {t('containers.filters.allCompose', {
+                                  defaultValue: 'All compose',
+                                })}
+                              </DropdownMenuRadioItem>
                               {composeOptions.map(option => (
                                 <DropdownMenuRadioItem key={option.name} value={option.name}>
                                   {option.name} ({option.count})
@@ -1669,26 +1843,26 @@ export function ContainersTab({
                   )}
                   {visibleColumns.cpu && (
                     <TableHead className="w-[88px] min-w-[88px]">
-                      <SortHead label="CPU" keyName="cpu" />
+                      <SortHead label={t('containers.columns.cpu', { defaultValue: 'CPU' })} keyName="cpu" />
                     </TableHead>
                   )}
                   {visibleColumns.mem && (
                     <TableHead className="w-[110px] min-w-[110px]">
-                      <SortHead label="Memory" keyName="mem" />
+                      <SortHead label={t('containers.columns.memory', { defaultValue: 'Memory' })} keyName="mem" />
                     </TableHead>
                   )}
                   {visibleColumns.network && (
                     <TableHead className="min-w-[170px] text-xs font-medium text-foreground">
-                      Network
+                      {t('containers.columns.network', { defaultValue: 'Network' })}
                     </TableHead>
                   )}
                   {visibleColumns.status && (
                     <TableHead className="min-w-[150px] text-xs font-medium text-foreground">
-                      Lifecycle
+                      {t('containers.columns.lifecycle', { defaultValue: 'Lifecycle' })}
                     </TableHead>
                   )}
                   <TableHead className="w-[52px] text-xs font-medium text-foreground">
-                    Actions
+                    {t('containers.columns.actions', { defaultValue: 'Actions' })}
                   </TableHead>
                 </TableRow>
               </TableHeader>
@@ -1698,7 +1872,7 @@ export function ContainersTab({
                     <TableCell colSpan={tableColSpan} className="text-center text-muted-foreground">
                       <span className="inline-flex items-center gap-2">
                         <Loader2 className="h-4 w-4 animate-spin" />
-                        Loading...
+                        {t('common:loading', { defaultValue: 'Loading...' })}
                       </span>
                     </TableCell>
                   </TableRow>
@@ -1754,8 +1928,13 @@ export function ContainersTab({
                         </TableCell>
                         <TableCell className="py-3">
                           <div className="flex flex-wrap items-center gap-1.5">
-                            {statusBadge(c.State)}
-                            {telemetryBadge(telemetryItem)}
+                            {statusBadge(c.State, formatContainerStateLabel(c.State))}
+                            {telemetryBadge(
+                              telemetryItem,
+                              t('containers.telemetry.stale', {
+                                defaultValue: 'Stale telemetry',
+                              })
+                            )}
                           </div>
                         </TableCell>
                         <TableCell className="py-3">
@@ -1769,8 +1948,11 @@ export function ContainersTab({
                                 event.stopPropagation()
                                 void fetchOutput(c, 'logs')
                               }}
-                              aria-label={`Open logs for ${c.Names}`}
-                              title="Logs"
+                               aria-label={t('containers.quick.logsAria', {
+                                  name: shortName(c.Names),
+                                  defaultValue: 'Open logs for {{name}}',
+                                })}
+                               title={t('containers.quick.logs', { defaultValue: 'Logs' })}
                             >
                               <FileText className="h-3 w-3" />
                             </Button>
@@ -1783,8 +1965,11 @@ export function ContainersTab({
                                 event.stopPropagation()
                                 setStatsContainer(c)
                               }}
-                              aria-label={`Open monitor for ${c.Names}`}
-                              title="Monitor"
+                               aria-label={t('containers.quick.monitorAria', {
+                                  name: shortName(c.Names),
+                                  defaultValue: 'Open monitor for {{name}}',
+                                })}
+                               title={t('containers.quick.monitor', { defaultValue: 'Monitor' })}
                             >
                               <Activity className="h-3 w-3" />
                             </Button>
@@ -1798,8 +1983,17 @@ export function ContainersTab({
                                 onOpenTerminal?.(c.ID)
                               }}
                               disabled={c.State !== 'running' || !onOpenTerminal}
-                              aria-label={`Open exec for ${c.Names}`}
-                              title={c.State === 'running' ? 'Exec' : 'Exec unavailable'}
+                               aria-label={t('containers.quick.execAria', {
+                                  name: shortName(c.Names),
+                                  defaultValue: 'Open exec for {{name}}',
+                                })}
+                               title={
+                                 c.State === 'running'
+                                   ? t('containers.quick.exec', { defaultValue: 'Exec' })
+                                   : t('containers.quick.execUnavailable', {
+                                       defaultValue: 'Exec unavailable',
+                                     })
+                               }
                             >
                               <TerminalSquare className="h-3 w-3" />
                             </Button>
@@ -1821,9 +2015,13 @@ export function ContainersTab({
                                   onClick={() => onOpenVolumeFilter?.(linkedVolumes)}
                                 >
                                   <span className="truncate">
-                                    {linkedVolumes.length} volume
-                                    {linkedVolumes.length > 1 ? 's' : ''}
-                                  </span>
+                                     {t('containers.volumeCount', {
+                                        count: linkedVolumes.length,
+                                        value: linkedVolumes.length,
+                                        defaultValue_one: '{{count}} volume',
+                                        defaultValue_other: '{{count}} volumes',
+                                      })}
+                                   </span>
                                   <ExternalLink className="ml-1 h-3 w-3" />
                                 </button>
                               ) : (
@@ -1889,7 +2087,7 @@ export function ContainersTab({
                             <div className="flex h-8 items-center">
                               {!inspect && detailsLoadingMap[c.ID] ? (
                                 <span className="inline-flex h-8 items-center text-muted-foreground">
-                                  Loading...
+                                   {t('common:loading', { defaultValue: 'Loading...' })}
                                 </span>
                               ) : uniqueLinkedNetworks.length > 0 ? (
                                 <button
@@ -1923,8 +2121,14 @@ export function ContainersTab({
                                 variant="ghost"
                                 size="icon"
                                 className="h-7 w-7"
-                                aria-label={`More actions for ${c.Names}`}
-                                title={`More actions for ${c.Names}`}
+                                 aria-label={t('containers.moreActions', {
+                                    name: shortName(c.Names),
+                                    defaultValue: 'More actions for {{name}}',
+                                  })}
+                                  title={t('containers.moreActions', {
+                                    name: shortName(c.Names),
+                                    defaultValue: 'More actions for {{name}}',
+                                  })}
                                 onClick={event => event.stopPropagation()}
                               >
                                 <MoreVertical className="h-4 w-4" />
@@ -1938,7 +2142,8 @@ export function ContainersTab({
                                     window.setTimeout(() => onOpenTerminal(c.ID), 0)
                                   }}
                                 >
-                                  <TerminalSquare className="h-4 w-4 mr-2" /> Exec
+                                  <TerminalSquare className="h-4 w-4 mr-2" />
+                                  {t('containers.actions.exec', { defaultValue: 'Exec' })}
                                 </DropdownMenuItem>
                               )}
                               <DropdownMenuItem
@@ -1947,7 +2152,8 @@ export function ContainersTab({
                                   window.setTimeout(() => setStatsContainer(c), 0)
                                 }}
                               >
-                                <Activity className="h-4 w-4 mr-2" /> Stats
+                                  <Activity className="h-4 w-4 mr-2" />
+                                  {t('containers.actions.stats', { defaultValue: 'Stats' })}
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 onSelect={event => {
@@ -1955,7 +2161,8 @@ export function ContainersTab({
                                   window.setTimeout(() => void fetchOutput(c, 'logs'), 0)
                                 }}
                               >
-                                <FileText className="h-4 w-4 mr-2" /> Logs
+                                  <FileText className="h-4 w-4 mr-2" />
+                                  {t('containers.actions.logs', { defaultValue: 'Logs' })}
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 onSelect={event => {
@@ -1963,7 +2170,8 @@ export function ContainersTab({
                                   window.setTimeout(() => void fetchOutput(c, 'inspect'), 0)
                                 }}
                               >
-                                <FileText className="h-4 w-4 mr-2" /> Inspect
+                                  <FileText className="h-4 w-4 mr-2" />
+                                  {t('containers.actions.inspect', { defaultValue: 'Inspect' })}
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
@@ -1973,7 +2181,8 @@ export function ContainersTab({
                                 }}
                                 disabled={(c.State || '').toLowerCase() === 'running'}
                               >
-                                <Play className="h-4 w-4 mr-2" /> Start
+                                  <Play className="h-4 w-4 mr-2" />
+                                  {t('containers.actions.start', { defaultValue: 'Start' })}
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 onSelect={event => {
@@ -1984,7 +2193,8 @@ export function ContainersTab({
                                   )
                                 }}
                               >
-                                <Square className="h-4 w-4 mr-2" /> Stop
+                                  <Square className="h-4 w-4 mr-2" />
+                                  {t('containers.actions.stop', { defaultValue: 'Stop' })}
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 onSelect={event => {
@@ -1995,7 +2205,8 @@ export function ContainersTab({
                                   )
                                 }}
                               >
-                                <RotateCw className="h-4 w-4 mr-2" /> Restart
+                                  <RotateCw className="h-4 w-4 mr-2" />
+                                  {t('containers.actions.restart', { defaultValue: 'Restart' })}
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
@@ -2013,7 +2224,8 @@ export function ContainersTab({
                                 }}
                                 className="text-destructive"
                               >
-                                <Trash2 className="h-4 w-4 mr-2" /> Remove
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  {t('containers.actions.remove', { defaultValue: 'Remove' })}
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -2023,22 +2235,30 @@ export function ContainersTab({
                         <TableRow>
                           <TableCell colSpan={tableColSpan} className="bg-muted/20 px-3 py-3">
                             <div className="space-y-3 rounded-lg bg-background/80 p-3">
-                              <div className="text-sm font-medium">Container Details</div>
+                              <div className="text-sm font-medium">
+                                {t('containers.details.title', { defaultValue: 'Container Details' })}
+                              </div>
                               {detailsLoadingMap[c.ID] ? (
                                 <div className="inline-flex items-center gap-2 text-xs text-muted-foreground">
-                                  <Loader2 className="h-4 w-4 animate-spin" /> Loading inspect
-                                  details...
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                  {t('containers.details.loadingInspect', {
+                                    defaultValue: 'Loading inspect details...',
+                                  })}
                                 </div>
                               ) : (
                                 <div className="space-y-4 text-xs">
                                   <div className="overflow-hidden rounded-md border">
                                     <div className="border-b bg-muted/30 px-3 py-2 text-sm font-medium">
-                                      Metadata
+                                      {t('containers.details.sections.metadata', {
+                                        defaultValue: 'Metadata',
+                                      })}
                                     </div>
                                     <div className="grid gap-x-6 gap-y-3 p-3 md:grid-cols-2 xl:grid-cols-3">
                                       <div className="space-y-1">
                                         <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                                          Name
+                                          {t('containers.details.fields.name', {
+                                            defaultValue: 'Name',
+                                          })}
                                         </div>
                                         <div className="font-mono text-foreground">
                                           {c.Names || '-'}
@@ -2046,20 +2266,31 @@ export function ContainersTab({
                                       </div>
                                       <div className="space-y-1">
                                         <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                                          ID
+                                          {t('containers.details.fields.id', { defaultValue: 'ID' })}
                                         </div>
                                         <button
                                           type="button"
                                           className="font-mono text-left text-foreground hover:underline"
-                                          onClick={() => void copyText(c.ID || '-', 'ID')}
-                                          title="Click to copy ID"
+                                          onClick={() =>
+                                            void copyText(
+                                              c.ID || '-',
+                                              t('containers.details.fields.id', {
+                                                defaultValue: 'ID',
+                                              })
+                                            )
+                                          }
+                                          title={t('containers.details.copyId', {
+                                            defaultValue: 'Click to copy ID',
+                                          })}
                                         >
                                           {c.ID || '-'}
                                         </button>
                                       </div>
                                       <div className="space-y-1">
                                         <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                                          Image
+                                          {t('containers.details.fields.image', {
+                                            defaultValue: 'Image',
+                                          })}
                                         </div>
                                         {onOpenImageFilter ? (
                                           <Button
@@ -2077,7 +2308,9 @@ export function ContainersTab({
                                       </div>
                                       <div className="space-y-1">
                                         <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                                          Compose
+                                          {t('containers.details.fields.compose', {
+                                            defaultValue: 'Compose',
+                                          })}
                                         </div>
                                         {metadataComposeName(metadata) !== '-' ? (
                                           <Button
@@ -2095,19 +2328,30 @@ export function ContainersTab({
                                       </div>
                                       <div className="space-y-1">
                                         <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                                          Runtime
+                                          {t('containers.details.fields.runtime', {
+                                            defaultValue: 'Runtime',
+                                          })}
                                         </div>
                                         <div className="text-foreground">{c.Status || '-'}</div>
                                       </div>
                                       <div className="space-y-1">
                                         <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                                          Lifecycle
+                                          {t('containers.details.fields.lifecycle', {
+                                            defaultValue: 'Lifecycle',
+                                          })}
                                         </div>
-                                        <div>{statusBadge(c.State)}</div>
+                                        <div>
+                                          {statusBadge(
+                                            c.State,
+                                            formatContainerStateLabel(c.State)
+                                          )}
+                                        </div>
                                       </div>
                                       <div className="space-y-1">
                                         <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                                          Created
+                                          {t('containers.details.fields.created', {
+                                            defaultValue: 'Created',
+                                          })}
                                         </div>
                                         <div className="text-foreground">
                                           {metadata?.created
@@ -2117,19 +2361,30 @@ export function ContainersTab({
                                       </div>
                                       <div className="space-y-1">
                                         <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                                          Running For
+                                          {t('containers.details.fields.runningFor', {
+                                            defaultValue: 'Running For',
+                                          })}
                                         </div>
                                         <div className="text-foreground">{c.RunningFor || '-'}</div>
                                       </div>
                                       <div className="space-y-1">
                                         <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                                          IP
+                                          {t('containers.details.fields.ip', { defaultValue: 'IP' })}
                                         </div>
                                         <button
                                           type="button"
                                           className="font-mono text-left text-foreground hover:underline"
-                                          onClick={() => void copyText(containerIP(inspect), 'IP')}
-                                          title="Click to copy IP"
+                                          onClick={() =>
+                                            void copyText(
+                                              containerIP(inspect),
+                                              t('containers.details.fields.ip', {
+                                                defaultValue: 'IP',
+                                              })
+                                            )
+                                          }
+                                          title={t('containers.details.copyIp', {
+                                            defaultValue: 'Click to copy IP',
+                                          })}
                                         >
                                           {containerIP(inspect)}
                                         </button>
@@ -2139,7 +2394,9 @@ export function ContainersTab({
 
                                   <div className="overflow-hidden rounded-md border">
                                     <div className="border-b bg-muted/30 px-3 py-2 text-sm font-medium">
-                                      Ports
+                                      {t('containers.details.sections.ports', {
+                                        defaultValue: 'Ports',
+                                      })}
                                     </div>
                                     {inspectPorts(inspect).length > 0 ? (
                                       <div className="overflow-x-auto">
@@ -2147,16 +2404,24 @@ export function ContainersTab({
                                           <thead className="bg-muted/10 text-muted-foreground">
                                             <tr>
                                               <th className="px-3 py-2 text-left font-medium">
-                                                Host IP
+                                                {t('containers.details.ports.hostIp', {
+                                                  defaultValue: 'Host IP',
+                                                })}
                                               </th>
                                               <th className="px-3 py-2 text-left font-medium">
-                                                Host Port
+                                                {t('containers.details.ports.hostPort', {
+                                                  defaultValue: 'Host Port',
+                                                })}
                                               </th>
                                               <th className="px-3 py-2 text-left font-medium">
-                                                Container Port
+                                                {t('containers.details.ports.containerPort', {
+                                                  defaultValue: 'Container Port',
+                                                })}
                                               </th>
                                               <th className="px-3 py-2 text-left font-medium">
-                                                Protocol
+                                                {t('containers.details.ports.protocol', {
+                                                  defaultValue: 'Protocol',
+                                                })}
                                               </th>
                                             </tr>
                                           </thead>
@@ -2185,14 +2450,18 @@ export function ContainersTab({
                                       </div>
                                     ) : (
                                       <div className="px-3 py-3 text-muted-foreground">
-                                        No exposed ports
+                                        {t('containers.details.empty.ports', {
+                                          defaultValue: 'No exposed ports',
+                                        })}
                                       </div>
                                     )}
                                   </div>
 
                                   <div className="overflow-hidden rounded-md border">
                                     <div className="border-b bg-muted/30 px-3 py-2 text-sm font-medium">
-                                      Networks
+                                      {t('containers.details.sections.networks', {
+                                        defaultValue: 'Networks',
+                                      })}
                                     </div>
                                     {inspectNetworks(inspect).length > 0 ? (
                                       <div className="overflow-x-auto">
@@ -2200,16 +2469,22 @@ export function ContainersTab({
                                           <thead className="bg-muted/10 text-muted-foreground">
                                             <tr>
                                               <th className="px-3 py-2 text-left font-medium">
-                                                Network
+                                                {t('containers.details.networks.name', {
+                                                  defaultValue: 'Network',
+                                                })}
                                               </th>
                                               <th className="px-3 py-2 text-left font-medium">
-                                                IP
+                                                {t('containers.details.fields.ip', { defaultValue: 'IP' })}
                                               </th>
                                               <th className="px-3 py-2 text-left font-medium">
-                                                Gateway
+                                                {t('containers.details.networks.gateway', {
+                                                  defaultValue: 'Gateway',
+                                                })}
                                               </th>
                                               <th className="px-3 py-2 text-left font-medium">
-                                                Aliases
+                                                {t('containers.details.networks.aliases', {
+                                                  defaultValue: 'Aliases',
+                                                })}
                                               </th>
                                             </tr>
                                           </thead>
@@ -2249,14 +2524,18 @@ export function ContainersTab({
                                       </div>
                                     ) : (
                                       <div className="px-3 py-3 text-muted-foreground">
-                                        No attached networks
+                                        {t('containers.details.empty.networks', {
+                                          defaultValue: 'No attached networks',
+                                        })}
                                       </div>
                                     )}
                                   </div>
 
                                   <div className="overflow-hidden rounded-md border">
                                     <div className="border-b bg-muted/30 px-3 py-2 text-sm font-medium">
-                                      Volumes
+                                      {t('containers.details.sections.volumes', {
+                                        defaultValue: 'Volumes',
+                                      })}
                                     </div>
                                     {inspectVolumes(inspect).length > 0 ? (
                                       <div className="overflow-x-auto">
@@ -2264,16 +2543,24 @@ export function ContainersTab({
                                           <thead className="bg-muted/10 text-muted-foreground">
                                             <tr>
                                               <th className="px-3 py-2 text-left font-medium">
-                                                Type
+                                                {t('containers.details.volumes.type', {
+                                                  defaultValue: 'Type',
+                                                })}
                                               </th>
                                               <th className="px-3 py-2 text-left font-medium">
-                                                Source / Name
+                                                {t('containers.details.volumes.sourceName', {
+                                                  defaultValue: 'Source / Name',
+                                                })}
                                               </th>
                                               <th className="px-3 py-2 text-left font-medium">
-                                                Destination
+                                                {t('containers.details.volumes.destination', {
+                                                  defaultValue: 'Destination',
+                                                })}
                                               </th>
                                               <th className="px-3 py-2 text-left font-medium">
-                                                Mode
+                                                {t('containers.details.volumes.mode', {
+                                                  defaultValue: 'Mode',
+                                                })}
                                               </th>
                                             </tr>
                                           </thead>
@@ -2314,14 +2601,18 @@ export function ContainersTab({
                                       </div>
                                     ) : (
                                       <div className="px-3 py-3 text-muted-foreground">
-                                        No mounted volumes
+                                        {t('containers.details.empty.volumes', {
+                                          defaultValue: 'No mounted volumes',
+                                        })}
                                       </div>
                                     )}
                                   </div>
 
                                   <div className="overflow-hidden rounded-md border">
                                     <div className="border-b bg-muted/30 px-3 py-2 text-sm font-medium">
-                                      Environment
+                                      {t('containers.details.sections.environment', {
+                                        defaultValue: 'Environment',
+                                      })}
                                     </div>
                                     {inspectEnvRows(inspect).length > 0 ? (
                                       <div className="max-h-72 overflow-auto">
@@ -2329,10 +2620,14 @@ export function ContainersTab({
                                           <thead className="bg-muted/10 text-muted-foreground">
                                             <tr>
                                               <th className="px-3 py-2 text-left font-medium">
-                                                Key
+                                                {t('containers.details.environment.key', {
+                                                  defaultValue: 'Key',
+                                                })}
                                               </th>
                                               <th className="px-3 py-2 text-left font-medium">
-                                                Value
+                                                {t('containers.details.environment.value', {
+                                                  defaultValue: 'Value',
+                                                })}
                                               </th>
                                             </tr>
                                           </thead>
@@ -2353,7 +2648,9 @@ export function ContainersTab({
                                       </div>
                                     ) : (
                                       <div className="px-3 py-3 text-muted-foreground">
-                                        No environment variables
+                                        {t('containers.details.empty.environment', {
+                                          defaultValue: 'No environment variables',
+                                        })}
                                       </div>
                                     )}
                                   </div>
@@ -2369,7 +2666,7 @@ export function ContainersTab({
                 {!loading && sorted.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={tableColSpan} className="text-center text-muted-foreground">
-                      No containers found
+                      {t('containers.empty.list', { defaultValue: 'No containers found' })}
                     </TableCell>
                   </TableRow>
                 )}
@@ -2389,15 +2686,22 @@ export function ContainersTab({
           <AlertDialogHeader>
             <AlertDialogTitle>
               {pendingAction?.action === 'remove'
-                ? 'Remove container?'
+                ? t('containers.confirm.removeTitle', { defaultValue: 'Remove container?' })
                 : pendingAction?.action === 'restart'
-                  ? 'Restart container?'
-                  : 'Stop container?'}
+                  ? t('containers.confirm.restartTitle', {
+                      defaultValue: 'Restart container?',
+                    })
+                  : t('containers.confirm.stopTitle', { defaultValue: 'Stop container?' })}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {pendingAction?.container?.Names
-                ? `Container: ${pendingAction.container.Names}`
-                : 'Please confirm this action.'}
+                ? t('containers.confirm.containerDescription', {
+                    name: pendingAction.container.Names,
+                    defaultValue: 'Container: {{name}}',
+                  })
+                : t('containers.confirm.description', {
+                    defaultValue: 'Please confirm this action.',
+                  })}
             </AlertDialogDescription>
           </AlertDialogHeader>
 
@@ -2414,13 +2718,13 @@ export function ContainersTab({
                 htmlFor="container-remove-force"
                 className="text-sm text-muted-foreground cursor-pointer"
               >
-                Force remove
+                {t('containers.confirm.forceRemove', { defaultValue: 'Force remove' })}
               </label>
             </div>
           )}
 
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t('common:cancel', { defaultValue: 'Cancel' })}</AlertDialogCancel>
             <AlertDialogAction
               className={
                 pendingAction?.action === 'remove'
@@ -2434,7 +2738,7 @@ export function ContainersTab({
                 void action(next.container.ID, next.action, { force: !!next.force })
               }}
             >
-              Confirm
+              {t('containers.confirm.submit', { defaultValue: 'Confirm' })}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -2443,10 +2747,18 @@ export function ContainersTab({
       <Dialog open={!!statsContainer} onOpenChange={open => !open && setStatsContainer(null)}>
         <DialogContent className="sm:max-w-4xl">
           <DialogHeader>
-            <DialogTitle>Container Stats: {statsContainer?.Names}</DialogTitle>
+            <DialogTitle>
+              {t('containers.stats.title', {
+                name: statsContainer?.Names || '',
+                defaultValue: 'Container Stats: {{name}}',
+              })}
+            </DialogTitle>
             <DialogDescription>
-              Direct Docker snapshot with canonical monitor trends for{' '}
-              {telemetryWindowMeta.description.toLowerCase()}
+              {t('containers.stats.dialogDescription', {
+                range: telemetryWindowDescription.toLowerCase(),
+                defaultValue:
+                  'Direct Docker snapshot with canonical monitor trends for {{range}}',
+              })}
             </DialogDescription>
           </DialogHeader>
           {(() => {
@@ -2468,8 +2780,10 @@ export function ContainersTab({
             if (!runtimeStats && (!snapshotItem || snapshotItem.freshness.state === 'missing')) {
               return (
                 <div className="rounded-lg border border-dashed bg-muted/20 px-4 py-10 text-center text-sm text-muted-foreground">
-                  No telemetry for this container yet. Inventory, inspect, logs, and actions remain
-                  available.
+                  {t('containers.stats.empty', {
+                    defaultValue:
+                      'No telemetry for this container yet. Inventory, inspect, logs, and actions remain available.',
+                  })}
                 </div>
               )
             }
@@ -2478,9 +2792,13 @@ export function ContainersTab({
                 <div className="rounded-lg border bg-muted/10 p-4">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div className="space-y-1">
-                      <div className="text-sm font-semibold">Realtime Snapshot</div>
+                      <div className="text-sm font-semibold">
+                        {t('containers.stats.realtimeSnapshot', { defaultValue: 'Realtime Snapshot' })}
+                      </div>
                       <div className="text-xs text-muted-foreground">
-                        Current runtime values from docker stats.
+                        {t('containers.stats.realtimeDescription', {
+                          defaultValue: 'Current runtime values from docker stats.',
+                        })}
                       </div>
                     </div>
                     <Button
@@ -2501,19 +2819,19 @@ export function ContainersTab({
                       disabled={runtimeStatsSnapshotLoading || runtimeStatsStreamLoading}
                     >
                       <Activity className={cn('h-4 w-4', statsLive && 'text-emerald-600')} />
-                      Live
+                      {t('containers.stats.live', { defaultValue: 'Live' })}
                     </Button>
                   </div>
                   <div className="mt-4 grid gap-3 md:grid-cols-4">
                     <div className="rounded-md border bg-background p-3 text-sm">
                       <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                        CPU
+                        {t('containers.columns.cpu', { defaultValue: 'CPU' })}
                       </div>
                       <div className="mt-2 font-medium">{formatPercent(runtimeCPU)}</div>
                     </div>
                     <div className="rounded-md border bg-background p-3 text-sm">
                       <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                        Memory
+                        {t('containers.columns.memory', { defaultValue: 'Memory' })}
                       </div>
                       <div className="mt-2 font-medium">{formatPercent(runtimeMemoryPercent)}</div>
                       <div className="mt-1 text-xs text-muted-foreground">
@@ -2524,41 +2842,76 @@ export function ContainersTab({
                     </div>
                     <div className="rounded-md border bg-background p-3 text-sm">
                       <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                        Network
+                        {t('containers.columns.network', { defaultValue: 'Network' })}
                       </div>
                       <div className="mt-2 space-y-1 font-medium leading-tight">
-                        <div>{formatMetricLine(runtimeNetwork.input, 'in total')}</div>
-                        <div>{formatMetricLine(runtimeNetwork.output, 'out total')}</div>
+                        <div>
+                          {formatMetricLine(
+                            runtimeNetwork.input,
+                            t('containers.stats.inTotal', { defaultValue: 'in total' })
+                          )}
+                        </div>
+                        <div>
+                          {formatMetricLine(
+                            runtimeNetwork.output,
+                            t('containers.stats.outTotal', { defaultValue: 'out total' })
+                          )}
+                        </div>
                       </div>
                     </div>
                     <div className="rounded-md border bg-background p-3 text-sm">
                       <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                        Block I/O
+                        {t('containers.stats.blockIo', { defaultValue: 'Block I/O' })}
                       </div>
                       <div className="mt-2 space-y-1 font-medium leading-tight">
-                        <div>{formatMetricLine(runtimeBlock.input, 'read total')}</div>
-                        <div>{formatMetricLine(runtimeBlock.output, 'write total')}</div>
+                        <div>
+                          {formatMetricLine(
+                            runtimeBlock.input,
+                            t('containers.stats.readTotal', { defaultValue: 'read total' })
+                          )}
+                        </div>
+                        <div>
+                          {formatMetricLine(
+                            runtimeBlock.output,
+                            t('containers.stats.writeTotal', { defaultValue: 'write total' })
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
                   <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                    <Badge variant="outline">Docker stats snapshot</Badge>
-                    <span>Observed now</span>
-                    {statsLive ? <span>Refreshing every 2s</span> : null}
+                    <Badge variant="outline">
+                      {t('containers.stats.snapshotBadge', { defaultValue: 'Docker stats snapshot' })}
+                    </Badge>
+                    <span>{t('containers.stats.observedNow', { defaultValue: 'Observed now' })}</span>
+                    {statsLive ? (
+                      <span>
+                        {t('containers.stats.refreshingEvery2s', {
+                          defaultValue: 'Refreshing every 2s',
+                        })}
+                      </span>
+                    ) : null}
                   </div>
                 </div>
                 <div className="rounded-lg border bg-background p-4">
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                     <div className="space-y-1">
-                      <div className="text-sm font-semibold">Trend History</div>
+                      <div className="text-sm font-semibold">
+                        {t('containers.stats.trendHistory', { defaultValue: 'Trend History' })}
+                      </div>
                       <div className="text-xs text-muted-foreground">
-                        {telemetryWindowMeta.description} Select a range to redraw all trend charts.
+                        {t('containers.stats.trendDescription', {
+                          range: telemetryWindowDescription,
+                          defaultValue: '{{range}} Select a range to redraw all trend charts.',
+                        })}
                       </div>
                     </div>
                     <div
                       className="inline-flex flex-wrap items-center rounded-lg border bg-muted/20 p-1"
                       role="tablist"
-                      aria-label="container trend window selector"
+                      aria-label={t('containers.stats.trendWindowSelector', {
+                        defaultValue: 'container trend window selector',
+                      })}
                     >
                       {CONTAINER_TELEMETRY_WINDOWS.map(window => {
                         const active = window.value === telemetryWindow
@@ -2580,7 +2933,9 @@ export function ContainersTab({
                   </div>
                   <div className="mt-4 grid gap-4 lg:grid-cols-2">
                     <div className="space-y-2 rounded-md border bg-muted/10 p-3">
-                      <div className="text-sm font-medium">CPU Trend</div>
+                      <div className="text-sm font-medium">
+                        {t('containers.stats.cpuTrend', { defaultValue: 'CPU Trend' })}
+                      </div>
                       <TimeSeriesChart
                         name="cpu"
                         unit={cpuSeries?.unit || 'percent'}
@@ -2593,7 +2948,9 @@ export function ContainersTab({
                       />
                     </div>
                     <div className="space-y-2 rounded-md border bg-muted/10 p-3">
-                      <div className="text-sm font-medium">Memory Trend</div>
+                      <div className="text-sm font-medium">
+                        {t('containers.stats.memoryTrend', { defaultValue: 'Memory Trend' })}
+                      </div>
                       <TimeSeriesChart
                         name="memory"
                         unit={memorySeries?.unit || 'bytes'}
@@ -2607,7 +2964,9 @@ export function ContainersTab({
                       />
                     </div>
                     <div className="space-y-2 rounded-md border bg-muted/10 p-3">
-                      <div className="text-sm font-medium">Network Trend</div>
+                      <div className="text-sm font-medium">
+                        {t('containers.stats.networkTrend', { defaultValue: 'Network Trend' })}
+                      </div>
                       <TimeSeriesChart
                         name="network"
                         unit={networkSeries?.unit || 'bytes/s'}
@@ -2621,7 +2980,9 @@ export function ContainersTab({
                       />
                     </div>
                     <div className="space-y-2 rounded-md border bg-muted/10 p-3">
-                      <div className="text-sm font-medium">Block I/O Trend</div>
+                      <div className="text-sm font-medium">
+                        {t('containers.stats.blockIoTrend', { defaultValue: 'Block I/O Trend' })}
+                      </div>
                       <TimeSeriesChart
                         name="block"
                         unit={blockSeries?.unit || 'bytes/s'}
@@ -2645,28 +3006,54 @@ export function ContainersTab({
       <DockerTextDialog
         open={!!outputContainer}
         onOpenChange={open => !open && setOutputContainer(null)}
-        title={`${outputMode === 'inspect' ? 'Container Inspect' : 'Container Logs'}: ${outputContainer?.Names || ''}`}
+        title={`${
+          outputMode === 'inspect'
+            ? t('containers.dialogs.inspectTitlePrefix', { defaultValue: 'Container Inspect' })
+            : t('containers.dialogs.logsTitlePrefix', { defaultValue: 'Container Logs' })
+        }: ${outputContainer?.Names || ''}`}
         description={
           outputMode === 'inspect'
-            ? 'Structured docker inspect output for this container.'
-            : 'Recent docker logs for this container.'
+            ? t('containers.dialogs.inspectDescription', {
+                defaultValue: 'Structured docker inspect output for this container.',
+              })
+            : t('containers.dialogs.logsDescription', {
+                defaultValue: 'Recent docker logs for this container.',
+              })
         }
         content={outputContent}
         loading={outputLoading}
-        loadingText={outputMode === 'inspect' ? 'Loading inspect...' : 'Loading logs...'}
-        emptyText="(no output)"
+        loadingText={
+          outputMode === 'inspect'
+            ? t('containers.loading.inspect', { defaultValue: 'Loading inspect...' })
+            : t('containers.loading.logs', { defaultValue: 'Loading logs...' })
+        }
+        emptyText={t('containers.empty.output', { defaultValue: '(no output)' })}
         onRefresh={
           outputContainer ? () => void fetchOutput(outputContainer, outputMode) : undefined
         }
         refreshDisabled={!outputContainer}
         downloadBaseName={`${outputContainer?.Names || 'container'}-${outputMode}`}
         downloadExtension={outputMode === 'inspect' ? 'json' : 'log'}
-        copySuccessText={outputMode === 'inspect' ? 'Inspect copied' : 'Logs copied'}
+        copySuccessText={
+          outputMode === 'inspect'
+            ? t('containers.dialogs.inspectCopySuccess', { defaultValue: 'Inspect copied' })
+            : t('containers.dialogs.logsCopySuccess', { defaultValue: 'Logs copied' })
+        }
         copyFailureText={
-          outputMode === 'inspect' ? 'Failed to copy inspect' : 'Failed to copy logs'
+          outputMode === 'inspect'
+            ? t('containers.dialogs.inspectCopyFailure', {
+                defaultValue: 'Failed to copy inspect',
+              })
+            : t('containers.dialogs.logsCopyFailure', { defaultValue: 'Failed to copy logs' })
         }
         downloadFailureText={
-          outputMode === 'inspect' ? 'Failed to download inspect' : 'Failed to download logs'
+          outputMode === 'inspect'
+            ? t('containers.dialogs.inspectDownloadFailure', {
+                defaultValue: 'Failed to download inspect',
+              })
+            : t('containers.dialogs.logsDownloadFailure', {
+                defaultValue: 'Failed to download logs',
+              })
         }
       />
     </div>

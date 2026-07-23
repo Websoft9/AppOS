@@ -1,5 +1,6 @@
 import { Fragment, forwardRef, useEffect, useImperativeHandle, useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { pb } from '@/lib/pb'
 import { dockerApiPath } from '@/lib/docker-api'
 import {
@@ -182,6 +183,7 @@ export const VolumesTab = forwardRef<
   },
   ref
 ) {
+  const { t } = useTranslation('docker')
   const queryClient = useQueryClient()
   const [filter, setFilter] = useState('')
   const [driverFilter, setDriverFilter] = useState<string>('all')
@@ -343,7 +345,10 @@ export const VolumesTab = forwardRef<
     } catch (err) {
       setInspectMap(state => ({
         ...state,
-        [name]: getApiErrorMessage(err, 'Failed to inspect volume'),
+          [name]: getApiErrorMessage(
+            err,
+            t('volumes.errors.inspect', { defaultValue: 'Failed to inspect volume' })
+          ),
       }))
     } finally {
       setInspectLoadingMap(state => ({ ...state, [name]: false }))
@@ -356,7 +361,9 @@ export const VolumesTab = forwardRef<
       await pb.send(dockerApiPath(serverId, `/volumes/${name}`), { method: 'DELETE' })
       await queryClient.invalidateQueries({ queryKey: ['docker', 'volumes', serverId] })
     } catch (err) {
-      setActionError(getApiErrorMessage(err, 'Failed to remove volume'))
+      setActionError(
+        getApiErrorMessage(err, t('volumes.errors.remove', { defaultValue: 'Failed to remove volume' }))
+      )
     }
   }
 
@@ -366,11 +373,15 @@ export const VolumesTab = forwardRef<
       await pb.send(dockerApiPath(serverId, '/volumes/prune'), { method: 'POST' })
       await queryClient.invalidateQueries({ queryKey: ['docker', 'volumes', serverId] })
     } catch (err) {
-      setActionError(getApiErrorMessage(err, 'Failed to prune volumes'))
+      setActionError(
+        getApiErrorMessage(err, t('volumes.errors.prune', { defaultValue: 'Failed to prune volumes' }))
+      )
     }
   }
 
-  const loadError = error ? getApiErrorMessage(error, 'Failed to load volumes') : null
+  const loadError = error
+    ? getApiErrorMessage(error, t('volumes.errors.load', { defaultValue: 'Failed to load volumes' }))
+    : null
   const visibleError = loadError || actionError
   const dependencyIssue = getDockerDependencyIssue(error ?? visibleError)
 
@@ -507,7 +518,7 @@ export const VolumesTab = forwardRef<
         <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/20 px-3 py-3 shrink-0">
           <input
             type="text"
-            placeholder="Filter volumes..."
+            placeholder={t('volumes.filterPlaceholder', { defaultValue: 'Filter volumes...' })}
             className="h-9 min-w-[14rem] rounded-md border bg-background px-3 text-sm"
             value={filter}
             onChange={e => setFilter(e.target.value)}
@@ -519,7 +530,8 @@ export const VolumesTab = forwardRef<
             onClick={() => setPruneConfirmOpen(true)}
             disabled={loading || volumeContainersLoading}
           >
-            <Eraser className="h-4 w-4 mr-1" /> Prune unused
+            <Eraser className="h-4 w-4 mr-1" />
+            {t('volumes.actions.pruneUnused', { defaultValue: 'Prune unused' })}
           </Button>
         </div>
       )}
@@ -528,7 +540,10 @@ export const VolumesTab = forwardRef<
           {includeNames && includeNames.length > 0 && (
             <Alert className="border-dashed bg-muted/10 px-3 py-2">
               <AlertDescription className="text-xs">
-                Linked containers: {includeNames.length}
+                {t('volumes.filters.linkedContainers', {
+                  count: includeNames.length,
+                  defaultValue: 'Linked containers: {{count}}',
+                })}
               </AlertDescription>
             </Alert>
           )}
@@ -542,7 +557,7 @@ export const VolumesTab = forwardRef<
               onClearIncludeNames?.()
             }}
           >
-            Clear filters
+            {t('volumes.filters.clear', { defaultValue: 'Clear filters' })}
           </Button>
         </div>
       )}
@@ -552,11 +567,13 @@ export const VolumesTab = forwardRef<
             <TableHeader className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/90">
               <TableRow>
                 <TableHead className="min-w-[220px] pl-4 pr-2">
-                  <SortHead label="Name" keyName="name" />
+                  <SortHead label={t('volumes.columns.name', { defaultValue: 'Name' })} keyName="name" />
                 </TableHead>
                 <TableHead className="min-w-[120px]">
                   <div className="flex items-center gap-1">
-                    <span className="text-xs font-medium text-foreground">Driver</span>
+                    <span className="text-xs font-medium text-foreground">
+                      {t('volumes.columns.driver', { defaultValue: 'Driver' })}
+                    </span>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button
@@ -567,11 +584,14 @@ export const VolumesTab = forwardRef<
                             driverFilter !== 'all' &&
                               'bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary'
                           )}
-                          aria-label="Filter volume driver"
+                          aria-label={t('volumes.filters.driverAria', { defaultValue: 'Filter volume driver' })}
                           title={
                             driverFilter === 'all'
-                              ? 'Filter volume driver'
-                              : `Volume driver: ${driverFilter}`
+                              ? t('volumes.filters.driverAria', { defaultValue: 'Filter volume driver' })
+                              : t('volumes.filters.driverTitle', {
+                                  value: driverFilter,
+                                  defaultValue: 'Volume driver: {{value}}',
+                                })
                           }
                         >
                           <Filter className="h-3.5 w-3.5" />
@@ -583,7 +603,10 @@ export const VolumesTab = forwardRef<
                           onValueChange={setDriverFilter}
                         >
                           <DropdownMenuRadioItem value="all">
-                            All drivers ({volumes.length})
+                            {t('volumes.filters.allDrivers', {
+                              count: volumes.length,
+                              defaultValue: 'All drivers ({{count}})',
+                            })}
                           </DropdownMenuRadioItem>
                           {driverCounts.map(([driver, count]) => (
                             <DropdownMenuRadioItem key={driver} value={driver}>
@@ -596,11 +619,13 @@ export const VolumesTab = forwardRef<
                   </div>
                 </TableHead>
                 <TableHead className="min-w-[280px] text-xs font-medium text-foreground">
-                  Mountpoint
+                  {t('volumes.columns.mountpoint', { defaultValue: 'Mountpoint' })}
                 </TableHead>
                 <TableHead className="w-[180px] min-w-[180px] text-left">
                   <div className="flex items-center gap-1">
-                    <span className="text-xs font-medium text-foreground">Containers</span>
+                    <span className="text-xs font-medium text-foreground">
+                      {t('volumes.columns.containers', { defaultValue: 'Containers' })}
+                    </span>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button
@@ -611,13 +636,17 @@ export const VolumesTab = forwardRef<
                             linkedContainerFilter !== 'all' &&
                               'bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary'
                           )}
-                          aria-label="Filter linked containers"
+                          aria-label={t('volumes.filters.linkedAria', { defaultValue: 'Filter linked containers' })}
                           title={
                             linkedContainerFilter === 'all'
-                              ? 'All'
+                              ? t('volumes.filters.all', { defaultValue: 'All' })
                               : linkedContainerFilter === 'linked'
-                                ? 'With container'
-                                : 'Without container'
+                                ? t('volumes.filters.withContainer', {
+                                    defaultValue: 'With container',
+                                  })
+                                : t('volumes.filters.withoutContainer', {
+                                    defaultValue: 'Without container',
+                                  })
                           }
                         >
                           <Filter className="h-3.5 w-3.5" />
@@ -630,12 +659,16 @@ export const VolumesTab = forwardRef<
                             setLinkedContainerFilter(value as LinkedContainerFilter)
                           }
                         >
-                          <DropdownMenuRadioItem value="all">All</DropdownMenuRadioItem>
+                          <DropdownMenuRadioItem value="all">
+                            {t('volumes.filters.all', { defaultValue: 'All' })}
+                          </DropdownMenuRadioItem>
                           <DropdownMenuRadioItem value="linked">
-                            With container
+                            {t('volumes.filters.withContainer', { defaultValue: 'With container' })}
                           </DropdownMenuRadioItem>
                           <DropdownMenuRadioItem value="unlinked">
-                            Without container
+                            {t('volumes.filters.withoutContainer', {
+                              defaultValue: 'Without container',
+                            })}
                           </DropdownMenuRadioItem>
                         </DropdownMenuRadioGroup>
                       </DropdownMenuContent>
@@ -643,7 +676,7 @@ export const VolumesTab = forwardRef<
                   </div>
                 </TableHead>
                 <TableHead className="w-[52px] text-xs font-medium text-foreground">
-                  Actions
+                  {t('volumes.columns.actions', { defaultValue: 'Actions' })}
                 </TableHead>
               </TableRow>
             </TableHeader>
@@ -653,7 +686,7 @@ export const VolumesTab = forwardRef<
                   <TableCell colSpan={5} className="text-center text-muted-foreground">
                     <span className="inline-flex items-center gap-2">
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      Loading...
+                      {t('common:loading', { defaultValue: 'Loading...' })}
                     </span>
                   </TableCell>
                 </TableRow>
@@ -693,7 +726,7 @@ export const VolumesTab = forwardRef<
                         <div className="flex h-8 max-w-[180px] items-center">
                           {volumeContainersLoading ? (
                             <span className="inline-flex h-8 items-center truncate text-muted-foreground">
-                              Loading...
+                              {t('common:loading', { defaultValue: 'Loading...' })}
                             </span>
                           ) : linkedContainers.length > 0 ? (
                             <button
@@ -703,9 +736,12 @@ export const VolumesTab = forwardRef<
                               title={linkedContainers.join(', ')}
                             >
                               <span className="truncate">
-                                {linkedContainers.length} linked container
-                                {linkedContainers.length > 1 ? 's' : ''}
-                              </span>
+                                 {t('volumes.linkedContainerCount', {
+                                   count: linkedContainers.length,
+                                   defaultValue_one: '{{count}} linked container',
+                                   defaultValue_other: '{{count}} linked containers',
+                                 })}
+                               </span>
                               <ExternalLink className="ml-1 h-3 w-3" />
                             </button>
                           ) : (
@@ -724,13 +760,15 @@ export const VolumesTab = forwardRef<
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem onClick={() => openVolumeFiles(v)}>
-                              <FolderOpen className="h-4 w-4 mr-2" /> Open in Files
+                              <FolderOpen className="h-4 w-4 mr-2" />
+                              {t('volumes.actions.openInFiles', { defaultValue: 'Open in Files' })}
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               onClick={() => setPendingRemoveVolume(v.Name)}
                               className="text-destructive"
                             >
-                              <Trash2 className="h-4 w-4 mr-2" /> Remove
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              {t('volumes.actions.remove', { defaultValue: 'Remove' })}
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -741,11 +779,12 @@ export const VolumesTab = forwardRef<
                         <TableCell colSpan={5} className="bg-muted/20 px-0 py-3">
                           {inspectLoadingMap[v.Name] ? (
                             <div className="inline-flex items-center gap-2 text-xs text-muted-foreground">
-                              <Loader2 className="h-4 w-4 animate-spin" /> Loading inspect...
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              {t('volumes.loading.inspect', { defaultValue: 'Loading inspect...' })}
                             </div>
                           ) : (
                             <pre className="text-xs font-mono bg-muted/40 rounded-md border p-3 overflow-auto max-h-[300px] whitespace-pre-wrap">
-                              {inspectMap[v.Name] || '(empty output)'}
+                              {inspectMap[v.Name] || t('volumes.empty.inspect', { defaultValue: '(empty output)' })}
                             </pre>
                           )}
                         </TableCell>
@@ -757,7 +796,7 @@ export const VolumesTab = forwardRef<
               {!loading && sorted.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center text-muted-foreground">
-                    No volumes found
+                    {t('volumes.empty.list', { defaultValue: 'No volumes found' })}
                   </TableCell>
                 </TableRow>
               )}
@@ -769,8 +808,13 @@ export const VolumesTab = forwardRef<
         <div className="flex items-center justify-between gap-2 shrink-0">
           <div className="text-xs text-muted-foreground">
             {sorted.length === 0
-              ? '0 items'
-              : `${(effectivePage - 1) * effectivePageSize + 1}-${Math.min(effectivePage * effectivePageSize, sorted.length)} of ${sorted.length}`}
+               ? t('volumes.pagination.zeroItems', { defaultValue: '0 items' })
+               : t('volumes.pagination.range', {
+                   start: (effectivePage - 1) * effectivePageSize + 1,
+                   end: Math.min(effectivePage * effectivePageSize, sorted.length),
+                   total: sorted.length,
+                   defaultValue: '{{start}}-{{end}} of {{total}}',
+                 })}
           </div>
           <div className="flex items-center gap-2 text-xs">
             <select
@@ -778,9 +822,9 @@ export const VolumesTab = forwardRef<
               value={String(effectivePageSize)}
               onChange={e => changePageSize(Number(e.target.value) as 25 | 50 | 100)}
             >
-              <option value={25}>25 / page</option>
-              <option value={50}>50 / page</option>
-              <option value={100}>100 / page</option>
+              <option value={25}>{t('volumes.pagination.perPage', { count: 25, defaultValue: '{{count}} / page' })}</option>
+              <option value={50}>{t('volumes.pagination.perPage', { count: 50, defaultValue: '{{count}} / page' })}</option>
+              <option value={100}>{t('volumes.pagination.perPage', { count: 100, defaultValue: '{{count}} / page' })}</option>
             </select>
             <Button
               variant="ghost"
@@ -788,7 +832,7 @@ export const VolumesTab = forwardRef<
               className="h-7 min-w-0 px-0.5"
               onClick={() => changePage(Math.max(1, effectivePage - 1))}
               disabled={effectivePage <= 1}
-              aria-label="Previous volumes page"
+              aria-label={t('volumes.pagination.previous', { defaultValue: 'Previous volumes page' })}
             >
               <ChevronLeft className="h-3.5 w-3.5" />
             </Button>
@@ -801,7 +845,7 @@ export const VolumesTab = forwardRef<
               className="h-7 min-w-0 px-0.5"
               onClick={() => changePage(Math.min(totalPages, effectivePage + 1))}
               disabled={effectivePage >= totalPages}
-              aria-label="Next volumes page"
+              aria-label={t('volumes.pagination.next', { defaultValue: 'Next volumes page' })}
             >
               <ChevronRight className="h-3.5 w-3.5" />
             </Button>
@@ -817,14 +861,22 @@ export const VolumesTab = forwardRef<
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Remove volume?</AlertDialogTitle>
+            <AlertDialogTitle>{t('volumes.dialogs.removeTitle', { defaultValue: 'Remove volume?' })}</AlertDialogTitle>
             <AlertDialogDescription>
-              This operation is irreversible and may permanently delete data stored in the volume.
-              {pendingRemoveVolume ? `\nVolume: ${pendingRemoveVolume}` : ''}
+              {t('volumes.dialogs.removeDescription', {
+                defaultValue:
+                  'This operation is irreversible and may permanently delete data stored in the volume.',
+              })}
+              {pendingRemoveVolume
+                ? `\n${t('volumes.dialogs.volumeLabel', {
+                    name: pendingRemoveVolume,
+                    defaultValue: 'Volume: {{name}}',
+                  })}`
+                : ''}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t('common:cancel', { defaultValue: 'Cancel' })}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => {
@@ -834,7 +886,7 @@ export const VolumesTab = forwardRef<
                 void removeVolume(next)
               }}
             >
-              Delete volume
+              {t('volumes.actions.deleteVolume', { defaultValue: 'Delete volume' })}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -843,23 +895,33 @@ export const VolumesTab = forwardRef<
       <AlertDialog open={pruneConfirmOpen} onOpenChange={handlePruneDialogOpenChange}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Review unused volumes</AlertDialogTitle>
+            <AlertDialogTitle>
+              {t('volumes.dialogs.pruneReviewTitle', { defaultValue: 'Review unused volumes' })}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              Review the local volumes that are not used by any container before running prune. This
-              action cannot be undone.
+              {t('volumes.dialogs.pruneReviewDescription', {
+                defaultValue:
+                  'Review the local volumes that are not used by any container before running prune. This action cannot be undone.',
+              })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="space-y-4">
             <div className="rounded-md border bg-muted/20 px-3 py-3 text-sm">
               {volumeContainersLoading ? (
                 <div className="inline-flex items-center gap-2 text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" /> Checking linked containers...
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  {t('volumes.loading.checkingLinked', {
+                    defaultValue: 'Checking linked containers...',
+                  })}
                 </div>
               ) : unusedVolumes.length > 0 ? (
                 <div className="space-y-3">
                   <div className="text-foreground">
-                    {unusedVolumes.length} unused volume{unusedVolumes.length > 1 ? 's' : ''} will
-                    be removed.
+                    {t('volumes.prune.willRemove', {
+                      count: unusedVolumes.length,
+                      defaultValue_one: '{{count}} unused volume will be removed.',
+                      defaultValue_other: '{{count}} unused volumes will be removed.',
+                    })}
                   </div>
                   <div className="max-h-56 overflow-auto rounded-md bg-background/90 ring-1 ring-border/60">
                     <div className="divide-y divide-border/60">
@@ -889,7 +951,9 @@ export const VolumesTab = forwardRef<
                 </div>
               ) : (
                 <div className="text-muted-foreground">
-                  No unused volumes are available to prune.
+                  {t('volumes.prune.noneAvailable', {
+                    defaultValue: 'No unused volumes are available to prune.',
+                  })}
                 </div>
               )}
             </div>
@@ -900,9 +964,11 @@ export const VolumesTab = forwardRef<
                   htmlFor="prune-volumes-confirmation"
                   className="text-sm font-medium text-foreground"
                 >
-                  Type <span className="font-mono">{PRUNE_CONFIRMATION_PHRASE}</span> to enable
-                  prune.
-                </label>
+                   {t('volumes.prune.confirmLabel', {
+                     phrase: PRUNE_CONFIRMATION_PHRASE,
+                     defaultValue: 'Type {{phrase}} to enable prune.',
+                   })}
+                 </label>
                 <Input
                   id="prune-volumes-confirmation"
                   value={pruneConfirmationText}
@@ -917,7 +983,7 @@ export const VolumesTab = forwardRef<
             ) : null}
           </div>
           <AlertDialogFooter>
-            <AlertDialogCancel>Close</AlertDialogCancel>
+            <AlertDialogCancel>{t('common:close', { defaultValue: 'Close' })}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               disabled={!pruneActionEnabled}
@@ -926,7 +992,7 @@ export const VolumesTab = forwardRef<
                 void pruneVolumes()
               }}
             >
-              Prune
+              {t('volumes.actions.prune', { defaultValue: 'Prune' })}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -935,7 +1001,9 @@ export const VolumesTab = forwardRef<
       <Dialog open={!!filesVolume} onOpenChange={open => !open && setFilesVolume(null)}>
         <DialogContent className="flex h-[82vh] sm:max-w-4xl flex-col gap-0 p-0">
           <DialogHeader className="border-b px-4 py-3 pr-12">
-            <DialogTitle className="truncate text-base">Volume files</DialogTitle>
+            <DialogTitle className="truncate text-base">
+              {t('volumes.files.title', { defaultValue: 'Volume files' })}
+            </DialogTitle>
             <DialogDescription className="truncate font-mono text-xs">
               {filesVolume?.Mountpoint || ''}
             </DialogDescription>
@@ -945,10 +1013,14 @@ export const VolumesTab = forwardRef<
               {filesVolumeRunningContainers.length > 0 ? (
                 <Alert className="mx-4 mt-4 mb-0 min-w-0 w-auto shrink-0 border-amber-500/40 bg-amber-500/8 text-foreground">
                   <AlertDescription className="min-w-0 pr-8 leading-5">
-                    This volume is currently used by {filesVolumeRunningContainers.length} running
-                    container
-                    {filesVolumeRunningContainers.length > 1 ? 's' : ''}:{' '}
-                    {filesVolumeRunningContainers.join(', ')}. Editing may affect the running app.
+                    {t('volumes.files.runningWarning', {
+                      count: filesVolumeRunningContainers.length,
+                      containers: filesVolumeRunningContainers.join(', '),
+                      defaultValue_one:
+                        'This volume is currently used by {{count}} running container: {{containers}}. Editing may affect the running app.',
+                      defaultValue_other:
+                        'This volume is currently used by {{count}} running containers: {{containers}}. Editing may affect the running app.',
+                    })}
                   </AlertDescription>
                 </Alert>
               ) : null}

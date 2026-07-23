@@ -1,5 +1,6 @@
 import { Suspense, lazy } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 
 const LazyCreateDeploymentPage = lazy(() =>
   import('@/pages/deploy/CreateDeploymentPage').then(module => ({
@@ -8,6 +9,7 @@ const LazyCreateDeploymentPage = lazy(() =>
 )
 
 function DeployCreateRoutePage() {
+  const { t } = useTranslation('common')
   const search = Route.useSearch()
   const entryMode =
     search.entry === 'compose' ||
@@ -20,7 +22,9 @@ function DeployCreateRoutePage() {
   return (
     <Suspense
       fallback={
-        <div className="p-6 text-sm text-muted-foreground">Loading Create Deployment...</div>
+        <div className="p-6 text-sm text-muted-foreground">
+          {t('loadingPage', { page: t('pages.createDeployment') })}
+        </div>
       }
     >
       <LazyCreateDeploymentPage

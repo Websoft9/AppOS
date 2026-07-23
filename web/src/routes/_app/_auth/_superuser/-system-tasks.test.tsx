@@ -2,6 +2,25 @@ import { render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { SystemCronsContent } from './system-tasks'
 
+const translationMap: Record<string, string> = {
+  'crons.title': 'Platform Crons',
+  'crons.description':
+    'Review platform scheduled jobs across PocketBase core tasks and AppOS platform tasks.',
+  'crons.refreshAria': 'Refresh platform crons',
+  'crons.table.type': 'Type',
+  'crons.table.effectiveInterval': 'Effective Interval',
+  'crons.status.success': 'Success',
+  'crons.type.core': 'Core',
+  'crons.type.platform': 'Platform',
+  'common:refresh': 'Refresh',
+}
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string) => translationMap[key] ?? key,
+  }),
+}))
+
 const sendMock = vi.fn()
 
 vi.mock('@tanstack/react-router', () => ({

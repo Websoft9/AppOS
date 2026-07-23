@@ -45,5 +45,31 @@
   },
   "mobile": {
     "description": "在工作区、应用和平台管理区域之间导航。"
+  },
+  "shell": {
+    "changeLanguage": "切换语言",
+    "english": "English",
+    "userMenu": "用户菜单",
+    "superuser": "超级管理员",
+    "user": "用户",
+    "profile": "个人资料",
+    "logout": "退出登录",
+    "logoutSuccess": "已成功退出登录",
+    "redirectingToLogin": "正在跳转到登录页...",
+    "logoutConfirmTitle": "退出登录",
+    "logoutConfirmDescription": "确定要退出 AppOS 控制台吗？",
+    "toggleNavigationMenu": "切换导航菜单",
+    "expandSidebar": "展开侧边栏",
+    "collapseSidebar": "收起侧边栏",
+    "breadcrumb": "面包屑导航",
+    "connected": "已连接",
+    "disconnected": "未连接",
+    "expandNotifications": "展开通知",
+    "collapseNotifications": "收起通知",
+    "documentation": "文档",
+    "apiReference": "API 参考",
+    "help": "帮助",
+    "notifications": "通知",
+    "noNotifications": "暂无通知"
   }
 }

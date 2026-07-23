@@ -106,6 +106,10 @@ The adapter layer should own:
 - mapping root/path semantics that are not simple backend options
 - backend-specific overrides when AppOS intentionally narrows the surface
 
+Secret classification must remain an AppOS policy decision.
+
+`fs.Option` sensitivity metadata is an input, not the final authority for whether a field belongs in AppOS Secrets.
+
 Decision:
 
 - `fs.Option` is the upstream schema source
@@ -128,6 +132,12 @@ This gives AppOS a practical balance:
 - stable AppOS-facing contracts
 - explicit room to hide, rename, or constrain fields when product needs differ from backend flexibility
 
+For MVP, this adapter should stay intentionally narrow.
+
+- do not attempt full runtime projection of every `rclone` backend into a user-facing form system
+- start with curated support for `s3`, `r2`, and `sftp`
+- treat `r2` as a product preset on top of the `s3` backend family, not as a separate execution model
+
 ## Secret Delivery and Execution Boundary
 
 AppOS secrets remain the source of truth for credential material.
@@ -146,6 +156,11 @@ Execution direction:
 - create backend config in memory for each operation
 - pass cancellation and timeout control through AppOS-managed context boundaries
 - map backend errors into stable AppOS operation errors and status phases
+
+For SFTP authentication:
+
+- prefer in-memory secret injection paths such as raw key content when supported by the backend
+- use temporary key files only as a compatibility fallback, not as the primary design
 
 If a backend requires temporary files for execution, such as an SSH private key file for a specific auth path, the file must be:
 
@@ -167,6 +182,12 @@ Implications:
 - worker code calls `rclone` from inside the AppOS async job boundary
 - AppOS owns retries, cancellation semantics, timeout policy, and progress projection into operation logs/status
 - `rclone` is a blocking execution dependency inside an AppOS-managed job, not a competing job system
+
+MVP simplification:
+
+- keep async execution for directory-level or long-running sync work
+- prefer synchronous request/stream handling for connection tests, browse/list, and simple single-file transfer paths when feasible
+- do not require detailed real-time transfer progress as an MVP blocker
 
 ## Product Guardrails
 
@@ -199,12 +220,18 @@ Phase 1 should stay intentionally small:
 - top-level `storage` resource family
 - template-driven backend definitions for `s3`, `r2`, and `sftp`
 - credential-backed connection configuration
+- limited MVP auth modes: access key + secret key for `s3`/`r2`; password or private key for `sftp`
 - `test connection`
 - `list files`
 - `upload`
 - `download`
 - async `sync`
 - operation status and basic logs
+
+MVP path semantics:
+
+- AppOS exposes paths relative to the configured storage root
+- backend-specific root semantics such as bucket or base path are absorbed by the adapter layer
 
 ## Out of Scope
 

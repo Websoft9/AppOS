@@ -1,5 +1,6 @@
 import { Fragment, forwardRef, useEffect, useImperativeHandle, useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { pb } from '@/lib/pb'
 import { dockerApiPath } from '@/lib/docker-api'
 import {
@@ -480,6 +481,7 @@ export const ImagesTab = forwardRef<
   },
   ref
 ) {
+  const { t } = useTranslation('docker')
   const queryClient = useQueryClient()
   const [filter, setFilter] = useState('')
   const [usageFilter, setUsageFilter] = useState<'all' | 'used' | 'unused'>('all')
@@ -677,7 +679,10 @@ export const ImagesTab = forwardRef<
       setInspectMap(state => ({ ...state, [id]: output }))
       return output
     } catch (err) {
-      const message = getApiErrorMessage(err, 'Failed to inspect image')
+      const message = getApiErrorMessage(
+        err,
+        t('images.errors.inspect', { defaultValue: 'Failed to inspect image' })
+      )
       setInspectMap(state => ({
         ...state,
         [id]: message,
@@ -705,7 +710,10 @@ export const ImagesTab = forwardRef<
     } catch (err) {
       setSelectedPullOperation({
         ...operation,
-        output: getApiErrorMessage(err, 'Failed to load pull operation'),
+         output: getApiErrorMessage(
+           err,
+           t('images.errors.loadPullOperation', { defaultValue: 'Failed to load pull operation' })
+         ),
       })
     }
   }
@@ -726,7 +734,12 @@ export const ImagesTab = forwardRef<
       }
       await refreshPullOperations()
     } catch (err) {
-      setActionError(getApiErrorMessage(err, 'Failed to delete pull record'))
+       setActionError(
+         getApiErrorMessage(
+           err,
+           t('images.errors.deletePullRecord', { defaultValue: 'Failed to delete pull record' })
+         )
+       )
     } finally {
       setPullOperationActionId(current => (current === operation.id ? null : current))
     }
@@ -741,7 +754,12 @@ export const ImagesTab = forwardRef<
       setClearPullHistoryOpen(false)
       await refreshPullOperations()
     } catch (err) {
-      setActionError(getApiErrorMessage(err, 'Failed to clear pull history'))
+       setActionError(
+         getApiErrorMessage(
+           err,
+           t('images.errors.clearPullHistory', { defaultValue: 'Failed to clear pull history' })
+         )
+       )
     } finally {
       setClearingPullHistory(false)
     }
@@ -760,7 +778,12 @@ export const ImagesTab = forwardRef<
       }
       await refreshPullOperations()
     } catch (err) {
-      setActionError(getApiErrorMessage(err, 'Failed to cancel queued pull'))
+       setActionError(
+         getApiErrorMessage(
+           err,
+           t('images.errors.cancelQueuedPull', { defaultValue: 'Failed to cancel queued pull' })
+         )
+       )
     } finally {
       setPullOperationActionId(current => (current === operation.id ? null : current))
     }
@@ -778,7 +801,9 @@ export const ImagesTab = forwardRef<
         }),
       ])
     } catch (err) {
-      setActionError(getApiErrorMessage(err, 'Failed to remove image'))
+       setActionError(
+         getApiErrorMessage(err, t('images.errors.remove', { defaultValue: 'Failed to remove image' }))
+       )
     }
   }
 
@@ -804,10 +829,21 @@ export const ImagesTab = forwardRef<
         }),
       ])
       if (failed.length > 0) {
-        setActionError(`${failed.length} of ${selectedIds.length} images failed to remove`)
+         setActionError(
+           t('images.errors.removeSome', {
+             failed: failed.length,
+             total: selectedIds.length,
+             defaultValue: '{{failed}} of {{total}} images failed to remove',
+           })
+         )
       }
     } catch (err) {
-      setActionError(getApiErrorMessage(err, 'Failed to remove selected images'))
+       setActionError(
+         getApiErrorMessage(
+           err,
+           t('images.errors.removeSelected', { defaultValue: 'Failed to remove selected images' })
+         )
+       )
     }
   }
 
@@ -816,7 +852,7 @@ export const ImagesTab = forwardRef<
       setActionError(null)
       setMockPruneNotice(null)
       await pb.send(dockerApiPath(serverId, '/images/prune'), { method: 'POST' })
-      setMockPruneNotice('Prune completed.')
+       setMockPruneNotice(t('images.prune.completed', { defaultValue: 'Prune completed.' }))
       setSelectedIds([])
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['docker', 'images', serverId] }),
@@ -825,7 +861,9 @@ export const ImagesTab = forwardRef<
         }),
       ])
     } catch (err) {
-      setActionError(getApiErrorMessage(err, 'Failed to prune images'))
+       setActionError(
+         getApiErrorMessage(err, t('images.errors.prune', { defaultValue: 'Failed to prune images' }))
+       )
     }
   }
 
@@ -894,7 +932,13 @@ export const ImagesTab = forwardRef<
         if (cancelled) return
 
         const nextLog = String(response.output || '').trim()
-        setPullLog(nextLog || `Pull ${response.phase}...`)
+         setPullLog(
+           nextLog ||
+             t('images.pull.phase', {
+               phase: response.phase,
+               defaultValue: 'Pull {{phase}}...',
+             })
+         )
 
         if (response.terminal_status === 'none') {
           setPulling(true)
@@ -920,12 +964,20 @@ export const ImagesTab = forwardRef<
           return
         }
 
-        setActionError(response.failure_reason || 'Failed to pull image')
+        setActionError(
+          response.failure_reason ||
+            t('images.errors.pull', { defaultValue: 'Failed to pull image' })
+        )
       } catch (err) {
         if (cancelled) return
         setPulling(false)
         setPullOperationId(null)
-        setPullLog(getApiErrorMessage(err, 'Failed to load pull operation'))
+        setPullLog(
+          getApiErrorMessage(
+            err,
+            t('images.errors.loadPullOperation', { defaultValue: 'Failed to load pull operation' })
+          )
+        )
       }
     }
 
@@ -954,7 +1006,12 @@ export const ImagesTab = forwardRef<
       setRegistryStatus({
         available: false,
         registry: selectedRegistry.label,
-        reason: getApiErrorMessage(err, 'Failed to check registry reachability'),
+           reason: getApiErrorMessage(
+             err,
+             t('images.errors.registryReachability', {
+               defaultValue: 'Failed to check registry reachability',
+             })
+           ),
       })
     } finally {
       setCheckingRegistry(false)
@@ -967,14 +1024,24 @@ export const ImagesTab = forwardRef<
     try {
       setActionError(null)
       setPulling(true)
-      setPullLog(`Submitting pull for ${name}...`)
+       setPullLog(
+         t('images.pull.submitting', {
+           name,
+           defaultValue: 'Submitting pull for {{name}}...',
+         })
+       )
       const res = await pb.send(dockerApiPath(serverId, '/images/pull'), {
         method: 'POST',
         body: { name },
       })
       const operationId = typeof res.operation_id === 'string' ? res.operation_id : ''
       setPullOperationId(operationId || null)
-      setPullLog(String(res.message || `Pull accepted for ${name}.`))
+       setPullLog(
+         String(
+           res.message ||
+             t('images.pull.accepted', { name, defaultValue: 'Pull accepted for {{name}}.' })
+         )
+       )
       setPulling(!!operationId)
       await queryClient.invalidateQueries({
         queryKey: ['docker', 'image-pull-operations', serverId],
@@ -982,11 +1049,15 @@ export const ImagesTab = forwardRef<
     } catch (err) {
       setPullOperationId(null)
       setPulling(false)
-      setPullLog(getApiErrorMessage(err, 'Failed to pull image'))
+       setPullLog(
+         getApiErrorMessage(err, t('images.errors.pull', { defaultValue: 'Failed to pull image' }))
+       )
     }
   }
 
-  const loadError = error ? getApiErrorMessage(error, 'Failed to load images') : null
+  const loadError = error
+    ? getApiErrorMessage(error, t('images.errors.load', { defaultValue: 'Failed to load images' }))
+    : null
   const visibleError = loadError || actionError
   const dependencyIssue = getDockerDependencyIssue(error ?? visibleError)
 
@@ -1217,7 +1288,7 @@ export const ImagesTab = forwardRef<
           <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/20 px-3 py-3 shrink-0">
             <input
               type="text"
-              placeholder="Filter images..."
+              placeholder={t('images.filterPlaceholder', { defaultValue: 'Filter images...' })}
               className="h-9 min-w-[14rem] rounded-md border bg-background px-3 text-sm"
               value={filter}
               onChange={e => setFilter(e.target.value)}
@@ -1227,19 +1298,23 @@ export const ImagesTab = forwardRef<
                 'h-9 rounded-md border bg-background px-3 text-sm',
                 usageFilter !== 'all' && 'border-primary/40 bg-primary/5 text-primary'
               )}
-              aria-label="Filter by image usage"
+              aria-label={t('images.filters.usageAria', { defaultValue: 'Filter by image usage' })}
               value={usageFilter}
               onChange={e => setUsageFilter(e.target.value as 'all' | 'used' | 'unused')}
             >
-              <option value="all">All images</option>
-              <option value="used">Used ({usedCount})</option>
-              <option value="unused">Unused ({unusedCount})</option>
+              <option value="all">{t('images.filters.allImages', { defaultValue: 'All images' })}</option>
+              <option value="used">
+                {t('images.filters.used', { count: usedCount, defaultValue: 'Used ({{count}})' })}
+              </option>
+              <option value="unused">
+                {t('images.filters.unused', { count: unusedCount, defaultValue: 'Unused ({{count}})' })}
+              </option>
             </select>
 
             <div className="flex-1" />
 
             <Button variant="link" size="sm" onClick={() => openPullDialog()}>
-              Pull image
+              {t('images.actions.pullImage', { defaultValue: 'Pull image' })}
             </Button>
 
             <Button
@@ -1248,19 +1323,37 @@ export const ImagesTab = forwardRef<
               disabled={selectedIds.length === 0}
               onClick={() => setBatchDeleteOpen(true)}
             >
-              <Trash2 className="h-4 w-4 mr-1" /> Remove selected ({selectedIds.length})
+              <Trash2 className="h-4 w-4 mr-1" />
+              {t('images.actions.removeSelected', {
+                count: selectedIds.length,
+                defaultValue: 'Remove selected ({{count}})',
+              })}
             </Button>
 
             <Button variant="outline" size="sm" onClick={() => setPruneConfirmOpen(true)}>
-              <Eraser className="h-4 w-4 mr-1" /> Prune
+              <Eraser className="h-4 w-4 mr-1" />
+              {t('images.actions.prune', { defaultValue: 'Prune' })}
             </Button>
           </div>
 
           <div className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed bg-muted/10 px-3 py-2 shrink-0">
-            {usageFilter === 'unused' && <Badge variant="outline">Only unused images</Badge>}
-            {usageFilter === 'used' && <Badge variant="outline">Only used images</Badge>}
+            {usageFilter === 'unused' && (
+              <Badge variant="outline">
+                {t('images.filters.onlyUnused', { defaultValue: 'Only unused images' })}
+              </Badge>
+            )}
+            {usageFilter === 'used' && (
+              <Badge variant="outline">
+                {t('images.filters.onlyUsed', { defaultValue: 'Only used images' })}
+              </Badge>
+            )}
             {registryFilter !== 'all' && (
-              <Badge variant="outline">Registry: {registryFilter}</Badge>
+              <Badge variant="outline">
+                {t('images.filters.registryBadge', {
+                  value: registryFilter,
+                  defaultValue: 'Registry: {{value}}',
+                })}
+              </Badge>
             )}
             {mockPruneNotice && <Badge variant="secondary">{mockPruneNotice}</Badge>}
           </div>
@@ -1268,11 +1361,31 @@ export const ImagesTab = forwardRef<
       )}
       {hasActiveFilters && (
         <div className="flex flex-wrap items-center justify-end gap-2 rounded-lg border border-dashed bg-muted/10 px-3 py-2 shrink-0">
-          {filter.trim() ? <Badge variant="outline">Search: {filter.trim()}</Badge> : null}
-          {usageFilter === 'used' ? <Badge variant="outline">Only used images</Badge> : null}
-          {usageFilter === 'unused' ? <Badge variant="outline">Only unused images</Badge> : null}
+          {filter.trim() ? (
+            <Badge variant="outline">
+              {t('images.filters.searchBadge', {
+                value: filter.trim(),
+                defaultValue: 'Search: {{value}}',
+              })}
+            </Badge>
+          ) : null}
+          {usageFilter === 'used' ? (
+            <Badge variant="outline">
+              {t('images.filters.onlyUsed', { defaultValue: 'Only used images' })}
+            </Badge>
+          ) : null}
+          {usageFilter === 'unused' ? (
+            <Badge variant="outline">
+              {t('images.filters.onlyUnused', { defaultValue: 'Only unused images' })}
+            </Badge>
+          ) : null}
           {registryFilter !== 'all' ? (
-            <Badge variant="outline">Registry: {registryFilter}</Badge>
+            <Badge variant="outline">
+              {t('images.filters.registryBadge', {
+                value: registryFilter,
+                defaultValue: 'Registry: {{value}}',
+              })}
+            </Badge>
           ) : null}
           <Button
             variant="outline"
@@ -1283,14 +1396,18 @@ export const ImagesTab = forwardRef<
               setRegistryFilter('all')
             }}
           >
-            Clear filters
+            {t('images.filters.clear', { defaultValue: 'Clear filters' })}
           </Button>
         </div>
       )}
       {embeddedInWorkspace && selectedIds.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 shrink-0 pb-1">
           <Button variant="outline" size="sm" onClick={() => setBatchDeleteOpen(true)}>
-            <Trash2 className="h-4 w-4 mr-1" /> Remove selected ({selectedIds.length})
+            <Trash2 className="h-4 w-4 mr-1" />
+            {t('images.actions.removeSelected', {
+              count: selectedIds.length,
+              defaultValue: 'Remove selected ({{count}})',
+            })}
           </Button>
         </div>
       )}
@@ -1311,14 +1428,18 @@ export const ImagesTab = forwardRef<
                       }
                       disabled={selectableIds.length === 0}
                       onCheckedChange={() => toggleSelectAll()}
-                      aria-label="Select all unused images"
+                      aria-label={t('images.actions.selectAllUnused', {
+                        defaultValue: 'Select all unused images',
+                      })}
                     />
-                    <SortHead label="Repository" keyName="repo" />
+                    <SortHead label={t('images.columns.repository', { defaultValue: 'Repository' })} keyName="repo" />
                   </div>
                 </TableHead>
                 <TableHead className="min-w-[110px]">
                   <div className="flex items-center gap-1">
-                    <span className="text-xs font-medium text-foreground">Registry</span>
+                    <span className="text-xs font-medium text-foreground">
+                      {t('images.columns.registry', { defaultValue: 'Registry' })}
+                    </span>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button
@@ -1329,11 +1450,14 @@ export const ImagesTab = forwardRef<
                             registryFilter !== 'all' &&
                               'bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary'
                           )}
-                          aria-label="Filter by registry"
+                          aria-label={t('images.filters.registryAria', { defaultValue: 'Filter by registry' })}
                           title={
                             registryFilter === 'all'
-                              ? 'Filter by registry'
-                              : `Registry: ${registryFilter}`
+                              ? t('images.filters.registryAria', { defaultValue: 'Filter by registry' })
+                              : t('images.filters.registryBadge', {
+                                  value: registryFilter,
+                                  defaultValue: 'Registry: {{value}}',
+                                })
                           }
                         >
                           <Filter className="h-3.5 w-3.5" />
@@ -1344,7 +1468,9 @@ export const ImagesTab = forwardRef<
                           value={registryFilter}
                           onValueChange={setRegistryFilter}
                         >
-                          <DropdownMenuRadioItem value="all">All</DropdownMenuRadioItem>
+                          <DropdownMenuRadioItem value="all">
+                            {t('images.filters.all', { defaultValue: 'All' })}
+                          </DropdownMenuRadioItem>
                           {registryOptions.map(({ registry, count }) => (
                             <DropdownMenuRadioItem key={registry} value={registry}>
                               {registry} ({count})
@@ -1356,26 +1482,26 @@ export const ImagesTab = forwardRef<
                   </div>
                 </TableHead>
                 <TableHead className="min-w-[110px] text-xs font-medium text-foreground">
-                  ID
+                  {t('images.columns.id', { defaultValue: 'ID' })}
                 </TableHead>
                 <TableHead className="min-w-[100px] text-xs font-medium text-foreground">
-                  Tag
+                  {t('images.columns.tag', { defaultValue: 'Tag' })}
                 </TableHead>
                 <TableHead className="w-[160px] min-w-[160px] text-left text-xs font-medium text-foreground">
-                  Containers
+                  {t('images.columns.containers', { defaultValue: 'Containers' })}
                 </TableHead>
                 <TableHead className="min-w-[80px]">
                   <div className="flex items-center">
-                    <SortHead label="Size" keyName="size" />
+                    <SortHead label={t('images.columns.size', { defaultValue: 'Size' })} keyName="size" />
                   </div>
                 </TableHead>
                 <TableHead className="min-w-[120px]">
                   <div className="flex items-center">
-                    <SortHead label="Created" keyName="created" />
+                    <SortHead label={t('images.columns.created', { defaultValue: 'Created' })} keyName="created" />
                   </div>
                 </TableHead>
                 <TableHead className="w-[52px] text-xs font-medium text-foreground">
-                  Actions
+                  {t('images.columns.actions', { defaultValue: 'Actions' })}
                 </TableHead>
               </TableRow>
             </TableHeader>
@@ -1385,7 +1511,7 @@ export const ImagesTab = forwardRef<
                   <TableCell colSpan={8} className="text-center text-muted-foreground">
                     <span className="inline-flex items-center gap-2">
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      Loading...
+                      {t('common:loading', { defaultValue: 'Loading...' })}
                     </span>
                   </TableCell>
                 </TableRow>
@@ -1452,9 +1578,12 @@ export const ImagesTab = forwardRef<
                               }
                             >
                               <span className="truncate">
-                                {linkedContainers.length} container
-                                {linkedContainers.length > 1 ? 's' : ''}
-                              </span>
+                                 {t('images.containerCount', {
+                                   count: linkedContainers.length,
+                                   defaultValue_one: '{{count}} container',
+                                   defaultValue_other: '{{count}} containers',
+                                 })}
+                               </span>
                               <ExternalLink className="ml-1 h-3 w-3" />
                             </button>
                           ) : (
@@ -1479,7 +1608,8 @@ export const ImagesTab = forwardRef<
                             <DropdownMenuItem
                               onSelect={() => setTimeout(() => openInspectDialog(img), 0)}
                             >
-                              <FileText className="h-4 w-4 mr-2" /> Inspect
+                              <FileText className="h-4 w-4 mr-2" />
+                              {t('images.actions.inspect', { defaultValue: 'Inspect' })}
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
@@ -1487,13 +1617,15 @@ export const ImagesTab = forwardRef<
                                 setTimeout(() => openPullDialog(imageRef(img) || img.Repository), 0)
                               }
                             >
-                              <Download className="h-4 w-4 mr-2" /> Pull
+                              <Download className="h-4 w-4 mr-2" />
+                              {t('images.actions.pull', { defaultValue: 'Pull' })}
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               onSelect={() => setTimeout(() => removeImage(img.ID), 0)}
                               className="text-destructive"
                             >
-                              <Trash2 className="h-4 w-4 mr-2" /> Remove
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              {t('images.actions.remove', { defaultValue: 'Remove' })}
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -1504,11 +1636,14 @@ export const ImagesTab = forwardRef<
                         <TableCell colSpan={8} className="bg-muted/20 px-3 py-3">
                           {inspectLoadingMap[img.ID] ? (
                             <div className="inline-flex items-center gap-2 text-xs text-muted-foreground">
-                              <Loader2 className="h-4 w-4 animate-spin" /> Loading inspect...
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              {t('images.loading.inspect', { defaultValue: 'Loading inspect...' })}
                             </div>
                           ) : (
                             <div className="space-y-4 rounded-lg bg-background/80 p-3 text-xs">
-                              <div className="text-sm font-medium">Image Details</div>
+                              <div className="text-sm font-medium">
+                                {t('images.details.title', { defaultValue: 'Image Details' })}
+                              </div>
 
                               <div className="overflow-hidden rounded-md border">
                                 <div className="border-b bg-muted/30 px-3 py-2 text-sm font-medium">
@@ -1622,8 +1757,11 @@ export const ImagesTab = forwardRef<
                                     className="h-auto px-0 text-xs"
                                     onClick={() => openInspectDialog(img)}
                                   >
-                                    <FileText className="mr-1 h-3.5 w-3.5" /> View full inspect
-                                  </Button>
+                                     <FileText className="mr-1 h-3.5 w-3.5" />
+                                     {t('images.actions.viewFullInspect', {
+                                       defaultValue: 'View full inspect',
+                                     })}
+                                   </Button>
                                 </div>
                               )}
                             </div>
@@ -1637,7 +1775,7 @@ export const ImagesTab = forwardRef<
               {!loading && sorted.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={8} className="text-center text-muted-foreground">
-                    No images found
+                    {t('images.empty', { defaultValue: 'No images found' })}
                   </TableCell>
                 </TableRow>
               )}
@@ -1650,8 +1788,13 @@ export const ImagesTab = forwardRef<
         <div className="flex items-center justify-between gap-2 shrink-0">
           <div className="text-xs text-muted-foreground">
             {sorted.length === 0
-              ? '0 items'
-              : `${(effectivePage - 1) * effectivePageSize + 1}–${Math.min(effectivePage * effectivePageSize, sorted.length)} of ${sorted.length}`}
+               ? t('images.pagination.zeroItems', { defaultValue: '0 items' })
+               : t('images.pagination.range', {
+                   start: (effectivePage - 1) * effectivePageSize + 1,
+                   end: Math.min(effectivePage * effectivePageSize, sorted.length),
+                   total: sorted.length,
+                   defaultValue: '{{start}}–{{end}} of {{total}}',
+                 })}
           </div>
           <div className="flex items-center gap-2 text-xs">
             <select
@@ -1659,9 +1802,9 @@ export const ImagesTab = forwardRef<
               value={String(effectivePageSize)}
               onChange={event => changePageSize(Number(event.target.value) as 25 | 50 | 100)}
             >
-              <option value="25">25 / page</option>
-              <option value="50">50 / page</option>
-              <option value="100">100 / page</option>
+              <option value="25">{t('images.pagination.perPage', { count: 25, defaultValue: '{{count}} / page' })}</option>
+              <option value="50">{t('images.pagination.perPage', { count: 50, defaultValue: '{{count}} / page' })}</option>
+              <option value="100">{t('images.pagination.perPage', { count: 100, defaultValue: '{{count}} / page' })}</option>
             </select>
             <Button
               variant="ghost"
@@ -1669,7 +1812,7 @@ export const ImagesTab = forwardRef<
               className="h-7 min-w-0 px-0.5"
               onClick={() => changePage(Math.max(1, effectivePage - 1))}
               disabled={effectivePage <= 1}
-              aria-label="Previous images page"
+              aria-label={t('images.pagination.previous', { defaultValue: 'Previous images page' })}
             >
               <ChevronLeft className="h-3.5 w-3.5" />
             </Button>
@@ -1682,7 +1825,7 @@ export const ImagesTab = forwardRef<
               className="h-7 min-w-0 px-0.5"
               onClick={() => changePage(Math.min(totalPages, effectivePage + 1))}
               disabled={effectivePage >= totalPages}
-              aria-label="Next images page"
+              aria-label={t('images.pagination.next', { defaultValue: 'Next images page' })}
             >
               <ChevronRight className="h-3.5 w-3.5" />
             </Button>
@@ -1693,18 +1836,25 @@ export const ImagesTab = forwardRef<
       <AlertDialog open={batchDeleteOpen} onOpenChange={setBatchDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Remove selected unused images?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {t('images.dialogs.removeSelectedTitle', {
+                defaultValue: 'Remove selected unused images?',
+              })}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              Selected: {selectedIds.length}. Images in use are not selectable.
+              {t('images.dialogs.removeSelectedDescription', {
+                count: selectedIds.length,
+                defaultValue: 'Selected: {{count}}. Images in use are not selectable.',
+              })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t('common:cancel', { defaultValue: 'Cancel' })}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => void removeSelectedUnused()}
             >
-              Remove
+              {t('images.actions.remove', { defaultValue: 'Remove' })}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1713,14 +1863,18 @@ export const ImagesTab = forwardRef<
       <AlertDialog open={pruneConfirmOpen} onOpenChange={setPruneConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Prune unused images?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {t('images.dialogs.pruneTitle', { defaultValue: 'Prune unused images?' })}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              This will remove all dangling images not referenced by any container. This action
-              cannot be undone.
+              {t('images.dialogs.pruneDescription', {
+                defaultValue:
+                  'This will remove all dangling images not referenced by any container. This action cannot be undone.',
+              })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t('common:cancel', { defaultValue: 'Cancel' })}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => {
@@ -1728,7 +1882,7 @@ export const ImagesTab = forwardRef<
                 void pruneImages()
               }}
             >
-              Prune
+              {t('images.actions.prune', { defaultValue: 'Prune' })}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1749,15 +1903,17 @@ export const ImagesTab = forwardRef<
       >
         <DialogContent className="max-w-2xl overflow-hidden">
           <DialogHeader>
-            <DialogTitle>Pull image</DialogTitle>
+            <DialogTitle>{t('images.pull.title', { defaultValue: 'Pull image' })}</DialogTitle>
             <DialogDescription>
-              Pull directly from the selected registry. Search/reference is optional.
+              {t('images.pull.description', {
+                defaultValue: 'Pull directly from the selected registry. Search/reference is optional.',
+              })}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3">
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">Registry</label>
+               <label className="text-sm font-medium">{t('images.columns.registry', { defaultValue: 'Registry' })}</label>
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                 <select
                   className="h-9 w-full rounded-md border bg-background px-3 text-sm"
@@ -1782,10 +1938,11 @@ export const ImagesTab = forwardRef<
                 >
                   {checkingRegistry ? (
                     <>
-                      <Loader2 className="mr-1 h-4 w-4 animate-spin" /> Checking...
+                      <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                      {t('images.pull.checking', { defaultValue: 'Checking...' })}
                     </>
                   ) : (
-                    'Check reachable'
+                    t('images.pull.checkReachable', { defaultValue: 'Check reachable' })
                   )}
                 </Button>
               </div>
@@ -1793,9 +1950,11 @@ export const ImagesTab = forwardRef<
                 <div className="flex flex-wrap items-center gap-2 text-xs">
                   <Badge variant={registryStatus.available ? 'secondary' : 'destructive'}>
                     {registryStatus.available
-                      ? 'Reachable from target server'
-                      : 'Not reachable from target server'}
-                  </Badge>
+                       ? t('images.pull.reachable', { defaultValue: 'Reachable from target server' })
+                       : t('images.pull.notReachable', {
+                           defaultValue: 'Not reachable from target server',
+                         })}
+                   </Badge>
                   {registryStatus.reason && (
                     <span className="break-all text-muted-foreground">{registryStatus.reason}</span>
                   )}
@@ -1805,26 +1964,28 @@ export const ImagesTab = forwardRef<
 
             <div className="space-y-1.5">
               <div className="flex items-center gap-2">
-                <label className="text-sm font-medium">Image</label>
+                 <label className="text-sm font-medium">{t('images.pull.imageLabel', { defaultValue: 'Image' })}</label>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <button
                       type="button"
                       className="inline-flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                      aria-label="Image input help"
+                       aria-label={t('images.pull.imageHelpAria', { defaultValue: 'Image input help' })}
                     >
                       <CircleHelp className="h-3.5 w-3.5" />
                     </button>
                   </TooltipTrigger>
                   <TooltipContent side="top" sideOffset={6} className="max-w-[260px] leading-5">
-                    Use name:tag when you know the exact reference, for example wordpress:latest.
-                    Leave tag empty only when you want the registry default.
-                  </TooltipContent>
+                     {t('images.pull.imageHelp', {
+                       defaultValue:
+                         'Use name:tag when you know the exact reference, for example wordpress:latest. Leave tag empty only when you want the registry default.',
+                     })}
+                   </TooltipContent>
                 </Tooltip>
               </div>
               <input
                 type="text"
-                placeholder="wordpress:latest"
+                 placeholder={t('images.pull.imagePlaceholder', { defaultValue: 'wordpress:latest' })}
                 className="h-9 w-full rounded-md border bg-background px-3 text-sm"
                 value={pullImageInput}
                 onChange={event => {
@@ -1839,8 +2000,9 @@ export const ImagesTab = forwardRef<
                   className="h-auto px-0"
                   onClick={openOfficialSearch}
                 >
-                  <ExternalLink className="mr-1 h-4 w-4" /> Online search
-                </Button>
+                   <ExternalLink className="mr-1 h-4 w-4" />
+                   {t('images.pull.onlineSearch', { defaultValue: 'Online search' })}
+                 </Button>
               </div>
               {referenceKeyword && !pullSuggestionsDismissed && (
                 <div className="max-h-[220px] overflow-auto rounded-md border">
@@ -1856,26 +2018,31 @@ export const ImagesTab = forwardRef<
                           <div className="min-w-0">
                             <div className="flex min-w-0 items-center gap-2 text-sm font-medium">
                               <Badge variant="outline" className="text-[10px] font-normal">
-                                LOCAL
+                                 {t('images.pull.localBadge', { defaultValue: 'LOCAL' })}
                               </Badge>
                               <span className="truncate">{item.displayRef}</span>
                             </div>
                             <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
                               <span className="truncate">
-                                Organization: {item.organizationLabel}
+                                 {t('images.pull.organization', {
+                                   value: item.organizationLabel,
+                                   defaultValue: 'Organization: {{value}}',
+                                 })}
                               </span>
                               <span className="hidden sm:inline">·</span>
                               <span>{item.usageLabel}</span>
                             </div>
                           </div>
-                          <span className="text-xs text-primary">Use</span>
+                           <span className="text-xs text-primary">
+                             {t('images.pull.use', { defaultValue: 'Use' })}
+                           </span>
                         </button>
                       ))}
                     </div>
                   ) : (
-                    <div className="px-3 py-2 text-xs text-muted-foreground">
-                      No precise local matches
-                    </div>
+                     <div className="px-3 py-2 text-xs text-muted-foreground">
+                       {t('images.pull.noLocalMatches', { defaultValue: 'No precise local matches' })}
+                     </div>
                   )}
                 </div>
               )}
@@ -1884,21 +2051,23 @@ export const ImagesTab = forwardRef<
             <div className="space-y-2">
               <div className="rounded-md border bg-muted/20 p-3 max-h-[200px] overflow-auto">
                 <pre className="break-all text-xs font-mono whitespace-pre-wrap">
-                  {pullLog || 'Pull logs will appear here.'}
-                </pre>
+                   {pullLog || t('images.pull.logsPlaceholder', { defaultValue: 'Pull logs will appear here.' })}
+                 </pre>
               </div>
             </div>
           </div>
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setPullDialogOpen(false)}>
-              Close
+              {t('common:close', { defaultValue: 'Close' })}
             </Button>
             <Button
               onClick={() => void pullSelectedImage()}
               disabled={pulling || !resolvedPullImage.trim()}
             >
-              {pulling ? 'Pulling...' : 'Pull'}
+              {pulling
+                ? t('images.pull.pulling', { defaultValue: 'Pulling...' })
+                : t('images.actions.pull', { defaultValue: 'Pull' })}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1916,12 +2085,19 @@ export const ImagesTab = forwardRef<
         <DialogContent className="max-w-2xl overflow-hidden">
           <DialogHeader>
             <DialogTitle>
-              {selectedPullOperation ? 'Image pull details' : 'Image pull activity'}
+              {selectedPullOperation
+                ? t('images.history.detailTitle', { defaultValue: 'Image pull details' })
+                : t('images.history.title', { defaultValue: 'Image pull activity' })}
             </DialogTitle>
             <DialogDescription>
               {selectedPullOperation
-                ? selectedPullOperation.image_name || 'Selected image pull operation'
-                : 'Review currently running pulls and recent completed history.'}
+                ? selectedPullOperation.image_name ||
+                  t('images.history.selectedOperation', {
+                    defaultValue: 'Selected image pull operation',
+                  })
+                : t('images.history.description', {
+                    defaultValue: 'Review currently running pulls and recent completed history.',
+                  })}
             </DialogDescription>
           </DialogHeader>
           {selectedPullOperation ? (
@@ -1933,7 +2109,8 @@ export const ImagesTab = forwardRef<
                   className="h-8 px-2"
                   onClick={() => setSelectedPullOperation(null)}
                 >
-                  <ChevronLeft className="mr-1 h-4 w-4" /> Back to list
+                  <ChevronLeft className="mr-1 h-4 w-4" />
+                  {t('images.history.backToList', { defaultValue: 'Back to list' })}
                 </Button>
                 {canCancelPullOperation(selectedPullOperation) ? (
                   <Button
@@ -1947,7 +2124,7 @@ export const ImagesTab = forwardRef<
                     {pullOperationActionId === selectedPullOperation.id ? (
                       <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
                     ) : null}
-                    Cancel queued pull
+                    {t('images.history.cancelQueuedPull', { defaultValue: 'Cancel queued pull' })}
                   </Button>
                 ) : null}
               </div>
@@ -1955,8 +2132,18 @@ export const ImagesTab = forwardRef<
                 <Badge variant={pullOperationTone(selectedPullOperation)}>
                   {pullOperationLabel(selectedPullOperation)}
                 </Badge>
-                <span>Started {formatPullOperationTimestamp(selectedPullOperation.created)}</span>
-                <span>Updated {formatPullOperationTimestamp(selectedPullOperation.updated)}</span>
+                 <span>
+                   {t('images.history.started', {
+                     value: formatPullOperationTimestamp(selectedPullOperation.created),
+                     defaultValue: 'Started {{value}}',
+                   })}
+                 </span>
+                 <span>
+                   {t('images.history.updated', {
+                     value: formatPullOperationTimestamp(selectedPullOperation.updated),
+                     defaultValue: 'Updated {{value}}',
+                   })}
+                 </span>
               </div>
               <p className="text-sm text-muted-foreground">
                 {pullOperationStatusHint(selectedPullOperation)}
@@ -1972,8 +2159,9 @@ export const ImagesTab = forwardRef<
               )}
               <ScrollArea className="h-[320px] rounded-md border bg-muted/30 p-3">
                 <pre className="whitespace-pre-wrap break-all font-mono text-xs leading-5">
-                  {selectedPullOperation.output || 'No output available.'}
-                </pre>
+                   {selectedPullOperation.output ||
+                     t('images.history.noOutput', { defaultValue: 'No output available.' })}
+                 </pre>
               </ScrollArea>
             </div>
           ) : (
@@ -1983,15 +2171,21 @@ export const ImagesTab = forwardRef<
               className="min-h-0 flex flex-1 flex-col"
             >
               <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="pulling">Pending</TabsTrigger>
-                <TabsTrigger value="recents">History</TabsTrigger>
+                <TabsTrigger value="pulling">
+                  {t('images.history.pendingTab', { defaultValue: 'Pending' })}
+                </TabsTrigger>
+                <TabsTrigger value="recents">
+                  {t('images.history.historyTab', { defaultValue: 'History' })}
+                </TabsTrigger>
               </TabsList>
 
               <TabsContent value="pulling" className="mt-4 min-h-0 flex-1">
                 <ScrollArea className="h-[360px] pr-3">
                   <div className="space-y-4 pr-2">
                     {activePullOperations.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">No active pull operations.</p>
+                      <p className="text-sm text-muted-foreground">
+                        {t('images.history.noActive', { defaultValue: 'No active pull operations.' })}
+                      </p>
                     ) : (
                       <>
                         {executingPullOperations.length > 0 ? (
@@ -2059,8 +2253,8 @@ export const ImagesTab = forwardRef<
                                     {pullOperationActionId === operation.id ? (
                                       <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
                                     ) : null}
-                                    Cancel
-                                  </Button>
+                                     {t('common:cancel', { defaultValue: 'Cancel' })}
+                                   </Button>
                                 </div>
                               </div>
                             ))}
@@ -2082,14 +2276,16 @@ export const ImagesTab = forwardRef<
                       className="h-8 px-2 text-xs"
                       onClick={() => setClearPullHistoryOpen(true)}
                     >
-                      Clear all
-                    </Button>
+                       {t('images.history.clearAll', { defaultValue: 'Clear all' })}
+                     </Button>
                   ) : null}
                 </div>
                 <ScrollArea className="h-[320px] pr-3">
                   <div className="space-y-2 pr-2">
                     {recentCompletedPulls.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">No recent pull history.</p>
+                      <p className="text-sm text-muted-foreground">
+                        {t('images.history.noRecent', { defaultValue: 'No recent pull history.' })}
+                      </p>
                     ) : (
                       recentCompletedPulls.map(operation => (
                         <div
@@ -2106,7 +2302,10 @@ export const ImagesTab = forwardRef<
                             </div>
                             <div className="mt-1 line-clamp-2 text-xs text-muted-foreground">
                               {operation.failure_reason ||
-                                `Updated ${formatPullOperationTimestamp(operation.updated)}`}
+                                 t('images.history.updated', {
+                                   value: formatPullOperationTimestamp(operation.updated),
+                                   defaultValue: 'Updated {{value}}',
+                                 })}
                             </div>
                           </button>
                           <div className="flex shrink-0 items-center gap-2 self-center">
@@ -2124,8 +2323,8 @@ export const ImagesTab = forwardRef<
                                   openPullDialog(operation.image_name)
                                 }}
                               >
-                                Retry pull
-                              </Button>
+                                 {t('images.history.retryPull', { defaultValue: 'Retry pull' })}
+                               </Button>
                             ) : null}
                             <Button
                               type="button"
@@ -2135,7 +2334,9 @@ export const ImagesTab = forwardRef<
                               disabled={pullOperationActionId === operation.id}
                               onClick={() => void deletePullOperationRecord(operation)}
                               aria-label={`Delete pull record for ${operation.image_name}`}
-                              title="Delete pull record"
+                               title={t('images.history.deletePullRecord', {
+                                 defaultValue: 'Delete pull record',
+                               })}
                             >
                               {pullOperationActionId === operation.id ? (
                                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -2158,13 +2359,20 @@ export const ImagesTab = forwardRef<
       <AlertDialog open={clearPullHistoryOpen} onOpenChange={setClearPullHistoryOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Clear recent pull history?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {t('images.history.clearTitle', { defaultValue: 'Clear recent pull history?' })}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              This deletes pull records for this server only. It does not remove any images.
+              {t('images.history.clearDescription', {
+                defaultValue:
+                  'This deletes pull records for this server only. It does not remove any images.',
+              })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={clearingPullHistory}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={clearingPullHistory}>
+              {t('common:cancel', { defaultValue: 'Cancel' })}
+            </AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={event => {
@@ -2172,7 +2380,9 @@ export const ImagesTab = forwardRef<
                 void clearPullOperationHistory()
               }}
             >
-              {clearingPullHistory ? 'Clearing...' : 'Clear all'}
+              {clearingPullHistory
+                ? t('images.history.clearing', { defaultValue: 'Clearing...' })
+                : t('images.history.clearAll', { defaultValue: 'Clear all' })}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -2182,11 +2392,13 @@ export const ImagesTab = forwardRef<
         open={!!inspectDialogImage}
         onOpenChange={open => !open && setInspectDialogImage(null)}
         title={`Image Inspect: ${inspectDialogImage ? imageRef(inspectDialogImage) || inspectDialogImage.Repository || inspectDialogImage.ID.slice(0, 12) : ''}`}
-        description="Structured docker inspect output for this image."
+        description={t('images.inspect.description', {
+          defaultValue: 'Structured docker inspect output for this image.',
+        })}
         content={inspectDialogImage ? inspectMap[inspectDialogImage.ID] || '' : ''}
         loading={!!(inspectDialogImage && inspectLoadingMap[inspectDialogImage.ID])}
-        loadingText="Loading inspect..."
-        emptyText="(no output)"
+        loadingText={t('images.loading.inspect', { defaultValue: 'Loading inspect...' })}
+        emptyText={t('images.inspect.empty', { defaultValue: '(no output)' })}
         onRefresh={
           inspectDialogImage
             ? () => {
@@ -2202,9 +2414,11 @@ export const ImagesTab = forwardRef<
         refreshDisabled={!inspectDialogImage}
         downloadBaseName={`${inspectDialogImage ? (imageRef(inspectDialogImage) || inspectDialogImage.Repository || 'image').replace(/[^a-zA-Z0-9._-]+/g, '-') : 'image'}-inspect`}
         downloadExtension="json"
-        copySuccessText="Inspect copied"
-        copyFailureText="Failed to copy inspect"
-        downloadFailureText="Failed to download inspect"
+        copySuccessText={t('images.inspect.copySuccess', { defaultValue: 'Inspect copied' })}
+        copyFailureText={t('images.inspect.copyFailure', { defaultValue: 'Failed to copy inspect' })}
+        downloadFailureText={t('images.inspect.downloadFailure', {
+          defaultValue: 'Failed to download inspect',
+        })}
       />
     </div>
   )

@@ -1,5 +1,6 @@
 import { Fragment, useState, useEffect, useMemo, useCallback } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { pb } from '@/lib/pb'
 import { dockerApiPath } from '@/lib/docker-api'
 import {
@@ -286,6 +287,7 @@ export function ComposeTab({
   onOpenContainerFilter?: (containerName: string) => void
   onOpenContainerNames?: (containerNames: string[]) => void
 }) {
+  const { t } = useTranslation('docker')
   const queryClient = useQueryClient()
   const [filter, setFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
@@ -445,7 +447,12 @@ export function ComposeTab({
         setProjectContainers(grouped)
         setProjectContainersHydrated(true)
       } catch (err) {
-        setActionError(getApiErrorMessage(err, 'Failed to load compose containers'))
+          setActionError(
+            getApiErrorMessage(
+              err,
+              t('compose.errors.loadContainers', { defaultValue: 'Failed to load compose containers' })
+            )
+          )
       } finally {
         setProjectContainersLoading(state => {
           const next = { ...state }
@@ -473,7 +480,14 @@ export function ComposeTab({
           [projectName]: parseComposePs(String(res.output || '')),
         }))
       } catch (err) {
-        setActionError(getApiErrorMessage(err, 'Failed to load compose project details'))
+        setActionError(
+          getApiErrorMessage(
+            err,
+            t('compose.errors.loadProjectDetails', {
+              defaultValue: 'Failed to load compose project details',
+            })
+          )
+        )
       } finally {
         setProjectPsLoading(state => ({ ...state, [projectName]: false }))
       }
@@ -522,7 +536,12 @@ export function ComposeTab({
         method: 'POST',
         body: request.body || { projectDir: request.projectDir },
       })
-      setOperationOutput(String(res.output || 'Operation completed with no output.'))
+      setOperationOutput(
+        String(
+          res.output ||
+            t('compose.operation.noOutput', { defaultValue: 'Operation completed with no output.' })
+        )
+      )
       setProjectContainers({})
       setProjectContainersLoading({})
       setProjectPs({})
@@ -531,7 +550,15 @@ export function ComposeTab({
       await queryClient.invalidateQueries({ queryKey: ['docker', 'compose', serverId] })
     } catch (err) {
       setOperationFailed(true)
-      setOperationOutput(getApiErrorMessage(err, `${request.label} failed`))
+      setOperationOutput(
+        getApiErrorMessage(
+          err,
+          t('compose.operation.failed', {
+            label: request.label,
+            defaultValue: '{{label}} failed',
+          })
+        )
+      )
     } finally {
       setOperationLoading(false)
     }
@@ -560,9 +587,11 @@ export function ComposeTab({
         setTextDialogContent(
           getApiErrorMessage(
             err,
-            request.kind === 'logs' ? 'Failed to load logs' : 'Failed to load config'
+              request.kind === 'logs'
+                ? t('compose.errors.loadLogs', { defaultValue: 'Failed to load logs' })
+                : t('compose.errors.loadConfig', { defaultValue: 'Failed to load config' })
+            )
           )
-        )
       } finally {
         setTextDialogLoading(false)
       }
@@ -668,7 +697,12 @@ export function ComposeTab({
     </button>
   )
 
-  const loadError = error ? getApiErrorMessage(error, 'Failed to load compose projects') : null
+  const loadError = error
+    ? getApiErrorMessage(
+        error,
+        t('compose.errors.loadProjects', { defaultValue: 'Failed to load compose projects' })
+      )
+    : null
   const visibleError = loadError || actionError
   const dependencyIssue = getDockerDependencyIssue(error ?? visibleError)
 
@@ -702,10 +736,12 @@ export function ComposeTab({
           <input
             value={filter}
             onChange={e => setFilter(e.target.value)}
-            placeholder="Search projects"
+            placeholder={t('compose.searchPlaceholder', { defaultValue: 'Search projects' })}
             className="h-8 w-full min-w-0 rounded-md border bg-background px-3 text-sm sm:mr-[5ch] sm:w-[20ch]"
           />
-          <span className="text-xs text-muted-foreground">{sorted.length} total</span>
+          <span className="text-xs text-muted-foreground">
+            {t('compose.total', { count: sorted.length, defaultValue: '{{count}} total' })}
+          </span>
           <div className="flex items-center gap-0.5 text-xs">
             <Button
               variant="ghost"
@@ -713,7 +749,7 @@ export function ComposeTab({
               className="h-7 min-w-0 px-0.5"
               onClick={() => changePage(Math.max(1, effectivePage - 1))}
               disabled={effectivePage <= 1}
-              aria-label="Previous compose page"
+                aria-label={t('compose.pagination.previous', { defaultValue: 'Previous compose page' })}
             >
               <ChevronLeft className="h-3.5 w-3.5" />
             </Button>
@@ -726,7 +762,7 @@ export function ComposeTab({
               className="h-7 min-w-0 px-0.5"
               onClick={() => changePage(Math.min(totalPages, effectivePage + 1))}
               disabled={effectivePage >= totalPages}
-              aria-label="Next compose page"
+                aria-label={t('compose.pagination.next', { defaultValue: 'Next compose page' })}
             >
               <ChevronRight className="h-3.5 w-3.5" />
             </Button>
@@ -737,8 +773,8 @@ export function ComposeTab({
                 variant="outline"
                 size="icon"
                 className="h-8 w-8"
-                aria-label="Compose display settings"
-                title="Compose display settings"
+                aria-label={t('compose.settings.button', { defaultValue: 'Compose display settings' })}
+                title={t('compose.settings.button', { defaultValue: 'Compose display settings' })}
               >
                 <Settings2 className="h-4 w-4" />
               </Button>
@@ -748,10 +784,16 @@ export function ComposeTab({
                 value={String(effectivePageSize)}
                 onValueChange={value => changePageSize(Number(value) as 25 | 50 | 100)}
               >
-                <DropdownMenuRadioItem value="25">25 / page</DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="50">50 / page</DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="100">100 / page</DropdownMenuRadioItem>
-              </DropdownMenuRadioGroup>
+                  <DropdownMenuRadioItem value="25">
+                    {t('compose.settings.perPage', { count: 25, defaultValue: '{{count}} / page' })}
+                  </DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="50">
+                    {t('compose.settings.perPage', { count: 50, defaultValue: '{{count}} / page' })}
+                  </DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="100">
+                    {t('compose.settings.perPage', { count: 100, defaultValue: '{{count}} / page' })}
+                  </DropdownMenuRadioItem>
+                </DropdownMenuRadioGroup>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -759,8 +801,22 @@ export function ComposeTab({
 
       {hasActiveFilters && (
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 rounded-lg border border-dashed bg-muted/10 px-3 py-2">
-          {filter.trim() ? <Badge variant="outline">Search: {filter.trim()}</Badge> : null}
-          {statusFilter !== 'all' ? <Badge variant="outline">Status: {statusFilter}</Badge> : null}
+          {filter.trim() ? (
+            <Badge variant="outline">
+              {t('compose.filters.searchBadge', {
+                value: filter.trim(),
+                defaultValue: 'Search: {{value}}',
+              })}
+            </Badge>
+          ) : null}
+          {statusFilter !== 'all' ? (
+            <Badge variant="outline">
+              {t('compose.filters.statusBadge', {
+                value: statusFilter,
+                defaultValue: 'Status: {{value}}',
+              })}
+            </Badge>
+          ) : null}
           <Button
             variant="outline"
             size="sm"
@@ -770,7 +826,7 @@ export function ComposeTab({
               onStatusFilterChange?.('all')
             }}
           >
-            Clear filters
+            {t('compose.filters.clear', { defaultValue: 'Clear filters' })}
           </Button>
         </div>
       )}
@@ -778,8 +834,12 @@ export function ComposeTab({
       {(hasProjectContainerLoading || operationLoading) && !embeddedInWorkspace && (
         <div className="flex shrink-0 flex-wrap items-center gap-2 rounded-lg border border-dashed bg-muted/10 px-3 py-2">
           {hasProjectContainerLoading ? (
-            <Badge variant="outline">Loading project containers...</Badge>
-          ) : null}
+              <Badge variant="outline">
+                {t('compose.loading.projectContainers', {
+                  defaultValue: 'Loading project containers...',
+                })}
+              </Badge>
+            ) : null}
           {operationLoading && operationRequest ? (
             <Badge variant="outline" className="inline-flex items-center gap-1">
               <Loader2 className="h-3 w-3 animate-spin" />
@@ -796,12 +856,14 @@ export function ComposeTab({
               <TableRow>
                 <TableHead className="min-w-[220px] pl-4 pr-2">
                   <div className="flex items-center">
-                    <SortHead label="Project" keyName="project" />
+                    <SortHead label={t('compose.columns.project', { defaultValue: 'Project' })} keyName="project" />
                   </div>
                 </TableHead>
                 <TableHead className="min-w-[140px]">
                   <div className="flex items-center gap-1">
-                    <span className="text-xs font-medium text-foreground">Status</span>
+                    <span className="text-xs font-medium text-foreground">
+                      {t('compose.columns.status', { defaultValue: 'Status' })}
+                    </span>
                     {!embeddedInWorkspace ? (
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -813,11 +875,14 @@ export function ComposeTab({
                               statusFilter !== 'all' &&
                                 'bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary'
                             )}
-                            aria-label="Filter compose status"
+                            aria-label={t('compose.filters.statusAria', { defaultValue: 'Filter compose status' })}
                             title={
                               statusFilter === 'all'
-                                ? 'Filter compose status'
-                                : `Compose status: ${statusFilter}`
+                                ? t('compose.filters.statusAria', { defaultValue: 'Filter compose status' })
+                                : t('compose.filters.statusTitle', {
+                                    value: statusFilter,
+                                    defaultValue: 'Compose status: {{value}}',
+                                  })
                             }
                           >
                             <Filter className="h-3.5 w-3.5" />
@@ -831,7 +896,9 @@ export function ComposeTab({
                               onStatusFilterChange?.(value)
                             }}
                           >
-                            <DropdownMenuRadioItem value="all">All status</DropdownMenuRadioItem>
+                            <DropdownMenuRadioItem value="all">
+                              {t('compose.filters.allStatus', { defaultValue: 'All status' })}
+                            </DropdownMenuRadioItem>
                             {statusCounts.map(({ status, count }) => (
                               <DropdownMenuRadioItem key={status} value={status}>
                                 {status} ({count})
@@ -848,13 +915,13 @@ export function ComposeTab({
                   </div>
                 </TableHead>
                 <TableHead className="w-[160px] min-w-[160px] text-left text-xs font-medium text-foreground">
-                  Containers
+                  {t('compose.columns.containers', { defaultValue: 'Containers' })}
                 </TableHead>
                 <TableHead className="min-w-[240px] text-xs font-medium text-foreground">
-                  Config
+                  {t('compose.columns.config', { defaultValue: 'Config' })}
                 </TableHead>
                 <TableHead className="w-[52px] text-center text-xs font-medium text-foreground">
-                  Actions
+                  {t('compose.columns.actions', { defaultValue: 'Actions' })}
                 </TableHead>
               </TableRow>
             </TableHeader>
@@ -864,7 +931,7 @@ export function ComposeTab({
                   <TableCell colSpan={5} className="text-center text-muted-foreground">
                     <span className="inline-flex items-center gap-2">
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      Loading...
+                      {t('common:loading', { defaultValue: 'Loading...' })}
                     </span>
                   </TableCell>
                 </TableRow>
@@ -940,7 +1007,11 @@ export function ComposeTab({
                               }
                             >
                               <span className="truncate">
-                                {containers.length} container{containers.length > 1 ? 's' : ''}
+                                {t('compose.containerCount', {
+                                  count: containers.length,
+                                  defaultValue_one: '{{count}} container',
+                                  defaultValue_other: '{{count}} containers',
+                                })}
                               </span>
                               <ExternalLink className="ml-1 h-3 w-3" />
                             </button>
@@ -990,7 +1061,8 @@ export function ComposeTab({
                                 )
                               }
                             >
-                              <Download className="mr-2 h-4 w-4" /> Pull
+                              <Download className="mr-2 h-4 w-4" />
+                              {t('compose.actions.pull', { defaultValue: 'Pull' })}
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               disabled={operationLoading}
@@ -1008,7 +1080,8 @@ export function ComposeTab({
                                 )
                               }
                             >
-                              <ArrowUp className="mr-2 h-4 w-4" /> Up
+                              <ArrowUp className="mr-2 h-4 w-4" />
+                              {t('compose.actions.up', { defaultValue: 'Up' })}
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               disabled={operationLoading}
@@ -1026,7 +1099,8 @@ export function ComposeTab({
                                 )
                               }
                             >
-                              <Play className="mr-2 h-4 w-4" /> Start
+                              <Play className="mr-2 h-4 w-4" />
+                              {t('compose.actions.start', { defaultValue: 'Start' })}
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               disabled={operationLoading}
@@ -1044,7 +1118,8 @@ export function ComposeTab({
                                 )
                               }
                             >
-                              <Square className="mr-2 h-4 w-4" /> Stop
+                              <Square className="mr-2 h-4 w-4" />
+                              {t('compose.actions.stop', { defaultValue: 'Stop' })}
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               disabled={operationLoading}
@@ -1062,7 +1137,8 @@ export function ComposeTab({
                                 )
                               }
                             >
-                              <RotateCw className="mr-2 h-4 w-4" /> Restart
+                              <RotateCw className="mr-2 h-4 w-4" />
+                              {t('compose.actions.restart', { defaultValue: 'Restart' })}
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               disabled={operationLoading}
@@ -1080,12 +1156,14 @@ export function ComposeTab({
                                 )
                               }
                             >
-                              <ArrowDown className="mr-2 h-4 w-4" /> Down
+                              <ArrowDown className="mr-2 h-4 w-4" />
+                              {t('compose.actions.down', { defaultValue: 'Down' })}
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               onSelect={() => setTimeout(() => openLogs(project.Name, dir), 0)}
                             >
-                              <FileText className="mr-2 h-4 w-4" /> Logs
+                              <FileText className="mr-2 h-4 w-4" />
+                              {t('compose.actions.logs', { defaultValue: 'Logs' })}
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               onSelect={() =>
@@ -1095,7 +1173,8 @@ export function ComposeTab({
                                 )
                               }
                             >
-                              <Settings2 className="mr-2 h-4 w-4" /> View Config
+                              <Settings2 className="mr-2 h-4 w-4" />
+                              {t('compose.actions.viewConfig', { defaultValue: 'View Config' })}
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               disabled={operationLoading}
@@ -1115,7 +1194,8 @@ export function ComposeTab({
                               }
                               className="text-destructive"
                             >
-                              <Trash2 className="mr-2 h-4 w-4" /> Down + Remove
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              {t('compose.actions.downRemove', { defaultValue: 'Down + Remove' })}
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -1127,23 +1207,31 @@ export function ComposeTab({
                           <div className="space-y-4 rounded-lg border bg-background p-4 shadow-sm">
                             <div>
                               <div className="mb-2 text-xs font-medium text-muted-foreground">
-                                Compose Services
+                                {t('compose.expanded.servicesTitle', { defaultValue: 'Compose Services' })}
                               </div>
                               {projectPsLoading[project.Name] ? (
                                 <div className="text-xs text-muted-foreground">
-                                  Loading project status...
+                                  {t('compose.loading.projectStatus', {
+                                    defaultValue: 'Loading project status...',
+                                  })}
                                 </div>
                               ) : psRows.length > 0 ? (
                                 <div className="overflow-x-auto rounded-md border">
                                   <table className="min-w-full text-xs">
                                     <thead className="bg-muted/30 text-muted-foreground">
                                       <tr>
-                                        <th className="px-3 py-2 text-left font-medium">Service</th>
                                         <th className="px-3 py-2 text-left font-medium">
-                                          Container
+                                          {t('compose.expanded.service', { defaultValue: 'Service' })}
                                         </th>
-                                        <th className="px-3 py-2 text-left font-medium">State</th>
-                                        <th className="px-3 py-2 text-left font-medium">Ports</th>
+                                        <th className="px-3 py-2 text-left font-medium">
+                                          {t('compose.expanded.container', { defaultValue: 'Container' })}
+                                        </th>
+                                        <th className="px-3 py-2 text-left font-medium">
+                                          {t('compose.expanded.state', { defaultValue: 'State' })}
+                                        </th>
+                                        <th className="px-3 py-2 text-left font-medium">
+                                          {t('compose.expanded.ports', { defaultValue: 'Ports' })}
+                                        </th>
                                       </tr>
                                     </thead>
                                     <tbody>
@@ -1192,7 +1280,9 @@ export function ComposeTab({
                                 </div>
                               ) : (
                                 <div className="text-xs text-muted-foreground">
-                                  No services found for this project.
+                                  {t('compose.empty.servicesForProject', {
+                                    defaultValue: 'No services found for this project.',
+                                  })}
                                 </div>
                               )}
                             </div>
@@ -1206,7 +1296,7 @@ export function ComposeTab({
               {!loading && sorted.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center text-muted-foreground">
-                    No compose projects found
+                    {t('compose.empty.projects', { defaultValue: 'No compose projects found' })}
                   </TableCell>
                 </TableRow>
               )}
@@ -1224,17 +1314,32 @@ export function ComposeTab({
         title={
           textDialogRequest?.kind === 'config'
             ? `Compose Config: ${textDialogRequest.configPath || textDialogRequest.projectName || ''}`
-            : `Compose Logs: ${textDialogRequest?.projectName || ''}`
+            : t('compose.dialogs.logsTitle', {
+                name: textDialogRequest?.projectName || '',
+                defaultValue: 'Compose Logs: {{name}}',
+              })
         }
         description={
           textDialogRequest?.kind === 'config'
-            ? 'docker-compose.yml content for this compose project.'
-            : 'Recent docker compose logs for this project.'
+            ? t('compose.dialogs.configDescription', {
+                defaultValue: 'docker-compose.yml content for this compose project.',
+              })
+            : t('compose.dialogs.logsDescription', {
+                defaultValue: 'Recent docker compose logs for this project.',
+              })
         }
         content={textDialogContent}
         loading={textDialogLoading}
-        loadingText={textDialogRequest?.kind === 'config' ? 'Loading config...' : 'Loading logs...'}
-        emptyText={textDialogRequest?.kind === 'config' ? '(empty file)' : '(no output)'}
+        loadingText={
+          textDialogRequest?.kind === 'config'
+            ? t('compose.dialogs.loadingConfig', { defaultValue: 'Loading config...' })
+            : t('compose.dialogs.loadingLogs', { defaultValue: 'Loading logs...' })
+        }
+        emptyText={
+          textDialogRequest?.kind === 'config'
+            ? t('compose.dialogs.emptyConfig', { defaultValue: '(empty file)' })
+            : t('compose.dialogs.emptyOutput', { defaultValue: '(no output)' })
+        }
         onRefresh={textDialogRequest ? () => void loadTextDialog(textDialogRequest) : undefined}
         refreshDisabled={!textDialogRequest}
         downloadBaseName={
@@ -1243,14 +1348,22 @@ export function ComposeTab({
             : `${textDialogRequest?.projectName || 'compose'}-logs`
         }
         downloadExtension={textDialogRequest?.kind === 'config' ? 'yml' : 'log'}
-        copySuccessText={textDialogRequest?.kind === 'config' ? 'Config copied' : 'Logs copied'}
+        copySuccessText={
+          textDialogRequest?.kind === 'config'
+            ? t('compose.dialogs.copyConfigSuccess', { defaultValue: 'Config copied' })
+            : t('compose.dialogs.copyLogsSuccess', { defaultValue: 'Logs copied' })
+        }
         copyFailureText={
           textDialogRequest?.kind === 'config' ? 'Failed to copy config' : 'Failed to copy logs'
         }
         downloadFailureText={
           textDialogRequest?.kind === 'config'
-            ? 'Failed to download config'
-            : 'Failed to download logs'
+            ? t('compose.dialogs.downloadConfigFailure', {
+                defaultValue: 'Failed to download config',
+              })
+            : t('compose.dialogs.downloadLogsFailure', {
+                defaultValue: 'Failed to download logs',
+              })
         }
       />
 
@@ -1260,15 +1373,22 @@ export function ComposeTab({
         title={
           operationRequest
             ? `Compose ${operationRequest.label}: ${operationRequest.projectName}`
-            : 'Compose Operation'
+            : t('compose.operation.dialogTitleFallback', { defaultValue: 'Compose Operation' })
         }
         description={
           operationRequest
             ? operationLoading
-              ? 'This compose operation may take a while. The row status and this dialog will update when it finishes.'
+              ? t('compose.operation.runningDescription', {
+                  defaultValue:
+                    'This compose operation may take a while. The row status and this dialog will update when it finishes.',
+                })
               : operationFailed
-                ? 'The operation failed. Review the output below.'
-                : 'The operation finished. Review the output below.'
+                ? t('compose.operation.failedDescription', {
+                    defaultValue: 'The operation failed. Review the output below.',
+                  })
+                : t('compose.operation.finishedDescription', {
+                    defaultValue: 'The operation finished. Review the output below.',
+                  })
             : undefined
         }
         content={operationOutput}
@@ -1276,12 +1396,16 @@ export function ComposeTab({
         loadingText={
           operationRequest
             ? `${operationRequest.label} ${operationRequest.projectName}...`
-            : 'Running compose operation...'
+            : t('compose.operation.runningFallback', {
+                defaultValue: 'Running compose operation...',
+              })
         }
         emptyText={
           operationFailed
-            ? '(operation failed without output)'
-            : '(operation completed with no output)'
+            ? t('compose.operation.failedEmpty', { defaultValue: '(operation failed without output)' })
+            : t('compose.operation.completedEmpty', {
+                defaultValue: '(operation completed with no output)',
+              })
         }
         downloadBaseName={
           operationRequest
@@ -1289,9 +1413,13 @@ export function ComposeTab({
             : 'compose-operation'
         }
         downloadExtension="log"
-        copySuccessText="Operation output copied"
-        copyFailureText="Failed to copy operation output"
-        downloadFailureText="Failed to download operation output"
+        copySuccessText={t('compose.operation.copySuccess', { defaultValue: 'Operation output copied' })}
+        copyFailureText={t('compose.operation.copyFailure', {
+          defaultValue: 'Failed to copy operation output',
+        })}
+        downloadFailureText={t('compose.operation.downloadFailure', {
+          defaultValue: 'Failed to download operation output',
+        })}
       />
     </div>
   )

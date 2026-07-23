@@ -5,6 +5,10 @@ import { OrchestrationSection } from './OrchestrationSection'
 
 const loadLibraryAppFilesMock = vi.fn()
 
+function interpolate(defaultValue: string, values?: Record<string, unknown>) {
+  return defaultValue.replace(/\{\{(\w+)\}\}/g, (_, key) => String(values?.[key] ?? ''))
+}
+
 vi.mock('@/lib/iac-api', () => ({
   iacLoadLibraryAppFiles: (...args: unknown[]) => loadLibraryAppFilesMock(...args),
 }))
@@ -15,6 +19,17 @@ vi.mock('@/lib/pb', () => ({
       getFullList: vi.fn().mockResolvedValue([]),
     }),
   },
+}))
+
+vi.mock('react-i18next', () => ({
+  initReactI18next: {
+    type: '3rdParty',
+    init: () => undefined,
+  },
+  useTranslation: () => ({
+    t: (key: string, options?: Record<string, unknown>) =>
+      options?.defaultValue ? interpolate(String(options.defaultValue), options) : key,
+  }),
 }))
 
 describe('OrchestrationSection', () => {

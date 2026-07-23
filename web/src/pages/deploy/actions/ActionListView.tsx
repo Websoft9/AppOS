@@ -10,6 +10,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -237,6 +238,7 @@ export function ActionListView<TOperation extends ActionListItem>({
   onOpenOperation,
   renderActionMenu,
 }: ActionListViewProps<TOperation>) {
+  const { t } = useTranslation('deploy')
   const [showCreatedColumn, setShowCreatedColumn] = useState(false)
 
   return (
@@ -244,22 +246,20 @@ export function ActionListView<TOperation extends ActionListItem>({
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center">
           <div className="text-sm text-muted-foreground">
-            Total: <span className="font-semibold text-foreground">{summary.total}</span>, Active (
-            <span className="font-semibold text-sky-600 dark:text-sky-400">{summary.active}</span>
-            ), Completed (
-            <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-              {summary.completed}
-            </span>
-            ), Failed (
-            <span className="font-semibold text-rose-600 dark:text-rose-400">{summary.failed}</span>
-            )
+            {t('list.summary', {
+              defaultValue: 'Total: {{total}}, Active ({{active}}), Completed ({{completed}}), Failed ({{failed}})',
+              total: summary.total,
+              active: summary.active,
+              completed: summary.completed,
+              failed: summary.failed,
+            })}
           </div>
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={search}
               onChange={event => onSearchChange(event.target.value)}
-              placeholder="Search activity..."
+              placeholder={t('list.searchPlaceholder', { defaultValue: 'Search activity...' })}
               className="w-full min-w-[220px] pl-9 lg:w-[280px]"
             />
           </div>
@@ -272,7 +272,7 @@ export function ActionListView<TOperation extends ActionListItem>({
               className="h-7 w-7 rounded-full"
               disabled={page <= 1}
               onClick={onPreviousPage}
-              aria-label="Previous page"
+              aria-label={t('list.previousPage', { defaultValue: 'Previous page' })}
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
@@ -285,7 +285,7 @@ export function ActionListView<TOperation extends ActionListItem>({
               className="h-7 w-7 rounded-full"
               disabled={page >= totalPages}
               onClick={onNextPage}
-              aria-label="Next page"
+              aria-label={t('list.nextPage', { defaultValue: 'Next page' })}
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
@@ -296,27 +296,29 @@ export function ActionListView<TOperation extends ActionListItem>({
                 variant="ghost"
                 size="icon"
                 className="h-8 w-8 rounded-full"
-                aria-label="List settings"
+                aria-label={t('list.settings', { defaultValue: 'List settings' })}
               >
                 <Settings2 className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-40">
-              <DropdownMenuLabel>Columns</DropdownMenuLabel>
+              <DropdownMenuLabel>{t('list.columns', { defaultValue: 'Columns' })}</DropdownMenuLabel>
               <DropdownMenuCheckboxItem
                 checked={showCreatedColumn}
                 onCheckedChange={checked => setShowCreatedColumn(Boolean(checked))}
               >
-                Created
+                {t('list.created', { defaultValue: 'Created' })}
               </DropdownMenuCheckboxItem>
-              <DropdownMenuLabel>Items per page</DropdownMenuLabel>
+              <DropdownMenuLabel>
+                {t('list.itemsPerPage', { defaultValue: 'Items per page' })}
+              </DropdownMenuLabel>
               <DropdownMenuRadioGroup
                 value={String(pageSize)}
                 onValueChange={value => onPageSizeChange(Number(value))}
               >
                 {pageSizeOptions.map(option => (
                   <DropdownMenuRadioItem key={option} value={String(option)}>
-                    {option} / page
+                    {t('list.perPage', { defaultValue: '{{count}} / page', count: option })}
                   </DropdownMenuRadioItem>
                 ))}
               </DropdownMenuRadioGroup>
@@ -330,12 +332,17 @@ export function ActionListView<TOperation extends ActionListItem>({
               onClick={onDeleteSelected}
             >
               <Trash2 className="h-4 w-4" />
-              Delete Selected ({selectedCount})
+              {t('list.deleteSelected', {
+                defaultValue: 'Delete Selected ({{count}})',
+                count: selectedCount,
+              })}
             </Button>
           ) : null}
           {selectedActiveCount > 0 ? (
             <span className="text-xs text-muted-foreground">
-              Executing activity items cannot be deleted.
+              {t('list.activeNotDeletable', {
+                defaultValue: 'Executing activity items cannot be deleted.',
+              })}
             </span>
           ) : null}
         </div>
@@ -356,15 +363,20 @@ export function ActionListView<TOperation extends ActionListItem>({
               </button>
             </Badge>
           ))}
-          <Button variant="ghost" size="sm" onClick={onClearAllFilters}>
-            Clear filters
-          </Button>
+           <Button variant="ghost" size="sm" onClick={onClearAllFilters}>
+            {t('list.clearFilters', { defaultValue: 'Clear filters' })}
+           </Button>
         </div>
       ) : null}
 
       {selectedCount > 0 ? (
         <div className="text-sm text-muted-foreground">
-          {selectedCount} action{selectedCount === 1 ? '' : 's'} selected.
+          {selectedCount === 1
+            ? t('list.selected', { defaultValue: '{{count}} action selected.', count: selectedCount })
+            : t('list.selectedPlural', {
+                defaultValue: '{{count}} actions selected.',
+                count: selectedCount,
+              })}
         </div>
       ) : null}
 
@@ -375,13 +387,15 @@ export function ActionListView<TOperation extends ActionListItem>({
               <TableHead className="w-10">
                 <Checkbox
                   checked={allPageSelected ? true : somePageSelected ? 'indeterminate' : false}
-                  aria-label="Select visible activity items"
+                  aria-label={t('list.selectVisible', {
+                    defaultValue: 'Select visible activity items',
+                  })}
                   onCheckedChange={checked => onTogglePageSelection(Boolean(checked))}
                 />
               </TableHead>
               <TableHead>
                 <SortableHeader
-                  label="App Name"
+                  label={t('list.headers.appName', { defaultValue: 'App Name' })}
                   field="compose_project_name"
                   current={sortField}
                   dir={sortDir}
@@ -390,7 +404,7 @@ export function ActionListView<TOperation extends ActionListItem>({
               </TableHead>
               <TableHead>
                 <FilterHeader
-                  label="Source"
+                  label={t('list.headers.source', { defaultValue: 'Source' })}
                   options={filterOptions.source}
                   excluded={excludeSource}
                   onChange={onSourceFilterChange}
@@ -398,7 +412,7 @@ export function ActionListView<TOperation extends ActionListItem>({
               </TableHead>
               <TableHead>
                 <FilterHeader
-                  label="Status"
+                  label={t('list.headers.status', { defaultValue: 'Status' })}
                   options={filterOptions.status}
                   excluded={excludeStatus}
                   onChange={onStatusFilterChange}
@@ -406,17 +420,17 @@ export function ActionListView<TOperation extends ActionListItem>({
               </TableHead>
               <TableHead>
                 <FilterHeader
-                  label="Server"
+                  label={t('list.headers.server', { defaultValue: 'Server' })}
                   options={filterOptions.server}
                   excluded={excludeServer}
                   onChange={onServerFilterChange}
                 />
               </TableHead>
-              <TableHead>Total duration</TableHead>
+              <TableHead>{t('list.headers.totalDuration', { defaultValue: 'Total duration' })}</TableHead>
               {showCreatedColumn ? (
                 <TableHead>
                   <SortableHeader
-                    label="Created"
+                    label={t('list.created', { defaultValue: 'Created' })}
                     field="created"
                     current={sortField}
                     dir={sortDir}
@@ -425,25 +439,27 @@ export function ActionListView<TOperation extends ActionListItem>({
                 </TableHead>
               ) : null}
               <TableHead>
-                <SortableHeader
-                  label="Started"
-                  field="started_at"
+                  <SortableHeader
+                    label={t('list.headers.started', { defaultValue: 'Started' })}
+                    field="started_at"
                   current={sortField}
                   dir={sortDir}
                   onSort={onSort}
                 />
               </TableHead>
               <TableHead>
-                <SortableHeader
-                  label="Finished"
-                  field="finished_at"
+                  <SortableHeader
+                    label={t('list.headers.finished', { defaultValue: 'Finished' })}
+                    field="finished_at"
                   current={sortField}
                   dir={sortDir}
                   onSort={onSort}
                 />
               </TableHead>
-              <TableHead>User</TableHead>
-              <TableHead className="w-[84px] text-right">Action</TableHead>
+              <TableHead>{t('list.headers.user', { defaultValue: 'User' })}</TableHead>
+              <TableHead className="w-[84px] text-right">
+                {t('list.headers.action', { defaultValue: 'Action' })}
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -453,7 +469,7 @@ export function ActionListView<TOperation extends ActionListItem>({
                   colSpan={showCreatedColumn ? 11 : 10}
                   className="py-8 text-center text-muted-foreground"
                 >
-                  Loading activity...
+                  {t('list.loading', { defaultValue: 'Loading activity...' })}
                 </TableCell>
               </TableRow>
             ) : pagedItems.length === 0 ? (
@@ -462,7 +478,7 @@ export function ActionListView<TOperation extends ActionListItem>({
                   colSpan={showCreatedColumn ? 11 : 10}
                   className="py-8 text-center text-muted-foreground"
                 >
-                  No action records found.
+                  {t('list.empty', { defaultValue: 'No action records found.' })}
                 </TableCell>
               </TableRow>
             ) : (
@@ -474,7 +490,10 @@ export function ActionListView<TOperation extends ActionListItem>({
                   <TableCell>
                     <Checkbox
                       checked={selectedIds.has(item.id)}
-                      aria-label={`Select ${item.compose_project_name || item.id}`}
+                      aria-label={t('list.selectItem', {
+                        defaultValue: 'Select {{name}}',
+                        name: item.compose_project_name || item.id,
+                      })}
                       onCheckedChange={checked =>
                         onToggleOperationSelection(item.id, Boolean(checked))
                       }
