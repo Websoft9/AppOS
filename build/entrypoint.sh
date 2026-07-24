@@ -34,8 +34,12 @@ mkdir -p \
     "$DATA_DIR/templates/custom/apps" \
     "$DATA_DIR/templates/official/apps"
 
-# Ensure proper permissions
-chmod -R 755 "$DATA_DIR"
+# Best-effort permissions fixup.
+# Some bind mounts or rootless-backed filesystems reject chmod/chown operations.
+# Startup should continue as long as the directory tree is usable.
+if ! chmod -R 755 "$DATA_DIR" 2>/dev/null; then
+  echo "==> Warning: unable to chmod $DATA_DIR; continuing with existing mount permissions"
+fi
 
 # Create directories
 mkdir -p /etc/traefik/dynamic
@@ -96,7 +100,9 @@ superuser_email: '$(yaml_quote "$SUPERUSER_EMAIL")'
 superuser_password: '$(yaml_quote "$SUPERUSER_PASSWORD")'
 EOF
 
-chmod 600 "$APPOS_CONFIG_FILE"
+if ! chmod 600 "$APPOS_CONFIG_FILE" 2>/dev/null; then
+  echo "==> Warning: unable to chmod $APPOS_CONFIG_FILE; continuing with existing file permissions"
+fi
 echo "==> Runtime config written to $APPOS_CONFIG_FILE"
 
 echo "==> Starting services via runit..."
