@@ -199,9 +199,7 @@ function formatCardSourceLabel(app: AppInstance): string {
 }
 
 function appServerLabel(app: AppInstance): string {
-  return (
-    app.server_name?.trim() || app.server_id || i18n.t('apps:labels.serverLocal', 'Local')
-  )
+  return app.server_name?.trim() || app.server_id || i18n.t('apps:labels.serverLocal', 'Local')
 }
 
 function AppAvatar({
@@ -627,11 +625,11 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
 
   function renderAppsSurface() {
     if (loading) {
-        return (
-          <div className="rounded-2xl bg-background/80 p-6 text-sm text-muted-foreground shadow-sm ring-1 ring-border/60">
+      return (
+        <div className="rounded-2xl bg-background/80 p-6 text-sm text-muted-foreground shadow-sm ring-1 ring-border/60">
           {t('loading.list', { defaultValue: 'Loading apps...' })}
-          </div>
-        )
+        </div>
+      )
     }
 
     if (view === 'grid') {
@@ -696,7 +694,7 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
                   <div className="rounded-2xl bg-muted/55 px-3 py-3 ring-1 ring-border/70 dark:bg-muted/35 dark:ring-border/60">
                     <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-2 text-xs text-muted-foreground">
                       <span>Server</span>
-                      
+
                       <span className="truncate text-right text-foreground">
                         {appServerLabel(app)}
                       </span>
@@ -713,18 +711,18 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
                 <div className="relative mt-auto flex items-end justify-between gap-3 border-t border-border/75 pt-3">
                   {app.last_operation ? (
                     <div className="min-w-0 flex-1 text-[11px] text-muted-foreground">
-                        <div className="truncate text-[10px] uppercase tracking-[0.12em] text-muted-foreground/80">
-                          {t('labels.latestAction', { defaultValue: 'Latest action' })}
-                        </div>
+                      <div className="truncate text-[10px] uppercase tracking-[0.12em] text-muted-foreground/80">
+                        {t('labels.latestAction', { defaultValue: 'Latest action' })}
+                      </div>
                       <div className="truncate font-mono text-[11px] text-muted-foreground">
                         {app.last_operation}
                       </div>
                     </div>
                   ) : (
-                      <div className="text-[11px] text-muted-foreground">
-                        {t('labels.noActionRecorded', { defaultValue: 'No action recorded yet' })}
-                      </div>
-                    )}
+                    <div className="text-[11px] text-muted-foreground">
+                      {t('labels.noActionRecorded', { defaultValue: 'No action recorded yet' })}
+                    </div>
+                  )}
                   <div
                     className="flex items-center gap-1"
                     onClick={event => event.stopPropagation()}
@@ -746,7 +744,7 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
             <TableRow>
               <TableHead className="pl-6">
                 <SortableHeader
-                    label={t('labels.name', { defaultValue: 'Name' })}
+                  label={t('labels.name', { defaultValue: 'Name' })}
                   field="name"
                   current={sortField}
                   dir={sortDir}
@@ -847,7 +845,7 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
           <h1 className="text-2xl font-bold">My Apps</h1>
-          
+
           <p className="text-sm text-muted-foreground">
             {t('pages.listDescription', {
               defaultValue: 'Unified entry to manage your installed & shared apps.',
@@ -878,7 +876,7 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
         </Alert>
       ) : null}
       {catalogAppKey ? (
-          <Alert>
+        <Alert>
           <AlertTitle>{t('storeFilter.title', { defaultValue: 'Store Filter Active' })}</AlertTitle>
           <AlertDescription className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <span>

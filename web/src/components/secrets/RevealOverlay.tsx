@@ -107,11 +107,9 @@ export function RevealOverlay({
   return (
     <Dialog open={open} onOpenChange={next => !next && onClose()}>
       <DialogContent className="sm:max-w-xl">
-          <DialogHeader>
+        <DialogHeader>
           <DialogTitle>{t('reveal.title')}</DialogTitle>
-          <DialogDescription>
-            {t('reveal.description')}
-          </DialogDescription>
+          <DialogDescription>{t('reveal.description')}</DialogDescription>
         </DialogHeader>
 
         {fieldLabels && payload ? (

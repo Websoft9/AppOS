@@ -82,9 +82,9 @@ function ForgotPasswordPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-              <label htmlFor="email" className="block text-sm font-medium mb-1 text-foreground">
-                {t('forgotPassword.email')}
-              </label>
+            <label htmlFor="email" className="block text-sm font-medium mb-1 text-foreground">
+              {t('forgotPassword.email')}
+            </label>
             <input
               type="email"
               id="email"

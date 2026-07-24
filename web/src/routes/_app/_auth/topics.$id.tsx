@@ -419,7 +419,7 @@ function TopicDetailPage() {
       })
       setQrDataUrl(dataUrl)
     } catch {
-        setError(t('detail.errors.generateQr'))
+      setError(t('detail.errors.generateQr'))
     } finally {
       setQrGenerating(false)
     }
@@ -441,7 +441,9 @@ function TopicDetailPage() {
     e.target.value = ''
     if (file.size > importPolicy.maxDescriptionImportBytes) {
       setFormError(
-        t('detail.errors.fileTooLarge', { size: Math.floor(importPolicy.maxDescriptionImportBytes / 1024) })
+        t('detail.errors.fileTooLarge', {
+          size: Math.floor(importPolicy.maxDescriptionImportBytes / 1024),
+        })
       )
       return
     }
@@ -549,8 +551,8 @@ function TopicDetailPage() {
       <div className="space-y-2">
         <h1 className="text-2xl font-bold tracking-tight">{topic.title}</h1>
         <p className="text-sm text-muted-foreground">
-          {authorName(topic)} &middot; {t('detail.created', { time: formatDate(topic.created) })} &middot;{' '}
-          {t('detail.updated', { time: formatDate(topic.updated) })}
+          {authorName(topic)} &middot; {t('detail.created', { time: formatDate(topic.created) })}{' '}
+          &middot; {t('detail.updated', { time: formatDate(topic.updated) })}
         </p>
       </div>
 
@@ -569,7 +571,9 @@ function TopicDetailPage() {
 
       {/* Comments section */}
       <div className="space-y-4">
-        <h2 className="text-lg font-semibold">{t('detail.commentsTitle', { count: comments.length })}</h2>
+        <h2 className="text-lg font-semibold">
+          {t('detail.commentsTitle', { count: comments.length })}
+        </h2>
 
         {comments.length === 0 ? (
           <p className="text-sm text-muted-foreground">{t('detail.noComments')}</p>
@@ -612,7 +616,7 @@ function TopicDetailPage() {
                     />
                     <div className="flex justify-end gap-2">
                       <Button variant="outline" size="sm" onClick={cancelEditComment}>
-                         {t('common:cancel')}
+                        {t('common:cancel')}
                       </Button>
                       <Button
                         size="sm"
@@ -639,7 +643,7 @@ function TopicDetailPage() {
             <MarkdownEditor
               value={commentBody}
               onChange={setCommentBody}
-               placeholder={t('detail.commentPlaceholder')}
+              placeholder={t('detail.commentPlaceholder')}
             />
             <div className="flex justify-end">
               <Button type="submit" disabled={postingComment || !commentBody.trim()}>
@@ -649,9 +653,7 @@ function TopicDetailPage() {
             </div>
           </form>
         ) : (
-          <p className="text-sm text-muted-foreground">
-            {t('detail.closedNoComments')}
-          </p>
+          <p className="text-sm text-muted-foreground">{t('detail.closedNoComments')}</p>
         )}
 
         {/* Bottom spacing so the comment form is never hidden behind the fold */}
@@ -692,14 +694,14 @@ function TopicDetailPage() {
                     />
                     <span className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
                       <Upload className="h-3.5 w-3.5" />{' '}
-                       {importPolicy.textOnly ? t('detail.uploadTextFile') : t('detail.uploadFile')}
+                      {importPolicy.textOnly ? t('detail.uploadTextFile') : t('detail.uploadFile')}
                     </span>
                   </label>
                 </div>
                 <MarkdownEditor
                   value={formDesc}
                   onChange={setFormDesc}
-                   placeholder={t('detail.markdownPlaceholder')}
+                  placeholder={t('detail.markdownPlaceholder')}
                 />
               </div>
               {formError && <p className="text-sm text-destructive">{formError}</p>}
@@ -741,9 +743,7 @@ function TopicDetailPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{t('detail.dialogs.shareTitle')}</DialogTitle>
-            <DialogDescription>
-              {t('detail.dialogs.shareDescription')}
-            </DialogDescription>
+            <DialogDescription>{t('detail.dialogs.shareDescription')}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
@@ -772,7 +772,7 @@ function TopicDetailPage() {
                     variant="outline"
                     size="icon"
                     onClick={handleCopyShareUrl}
-                     title={t('detail.dialogs.copy')}
+                    title={t('detail.dialogs.copy')}
                   >
                     {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                   </Button>
@@ -782,7 +782,7 @@ function TopicDetailPage() {
                     size="icon"
                     onClick={handleGenerateQr}
                     disabled={qrGenerating}
-                     title={t('detail.dialogs.qrCode')}
+                    title={t('detail.dialogs.qrCode')}
                   >
                     {qrGenerating ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -790,7 +790,13 @@ function TopicDetailPage() {
                       <QrCode className="h-4 w-4" />
                     )}
                   </Button>
-                  <Button type="button" variant="outline" size="icon" asChild title={t('detail.dialogs.open')}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    asChild
+                    title={t('detail.dialogs.open')}
+                  >
                     <a href={shareUrl} target="_blank" rel="noopener noreferrer">
                       <ExternalLink className="h-4 w-4" />
                     </a>
@@ -800,7 +806,11 @@ function TopicDetailPage() {
                 {qrDataUrl && (
                   <div className="space-y-2">
                     <div className="w-fit rounded-md border border-border p-2 bg-background">
-                      <img src={qrDataUrl} alt={t('detail.dialogs.shareQrCode')} className="h-40 w-40" />
+                      <img
+                        src={qrDataUrl}
+                        alt={t('detail.dialogs.shareQrCode')}
+                        className="h-40 w-40"
+                      />
                     </div>
                     <Button variant="outline" size="sm" onClick={handleDownloadQr}>
                       <Download className="h-4 w-4 mr-1" /> {t('detail.dialogs.downloadQr')}

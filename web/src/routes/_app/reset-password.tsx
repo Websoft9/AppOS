@@ -22,9 +22,7 @@ function ResetPasswordPage() {
           <h2 className="text-2xl font-bold mb-4 text-card-foreground">
             {t('resetPassword.invalidLinkTitle')}
           </h2>
-          <p className="text-muted-foreground mb-6">
-            {t('resetPassword.invalidLinkDescription')}
-          </p>
+          <p className="text-muted-foreground mb-6">{t('resetPassword.invalidLinkDescription')}</p>
           <Link to="/forgot-password" className="text-primary hover:underline">
             {t('resetPassword.requestNewLink')}
           </Link>
@@ -99,9 +97,9 @@ function ResetPasswordPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-              <label htmlFor="password" className="block text-sm font-medium mb-1 text-foreground">
-                {t('resetPassword.newPassword')}
-              </label>
+            <label htmlFor="password" className="block text-sm font-medium mb-1 text-foreground">
+              {t('resetPassword.newPassword')}
+            </label>
             <input
               type="password"
               id="password"

@@ -284,7 +284,7 @@ function BundledComponentsDetailContent({
 
   if (loading) {
     return (
-        <div className="flex flex-col items-center justify-center py-12 text-center">
+      <div className="flex flex-col items-center justify-center py-12 text-center">
         <p className="text-muted-foreground">
           {t('platformRuntime.components.loading', 'Loading built-in components...')}
         </p>
@@ -294,7 +294,7 @@ function BundledComponentsDetailContent({
 
   if (components.length === 0) {
     return (
-        <div className="flex flex-col items-center justify-center py-12 text-center">
+      <div className="flex flex-col items-center justify-center py-12 text-center">
         <p className="text-muted-foreground">
           {t('platformRuntime.components.empty', 'No built-in components were detected.')}
         </p>
@@ -318,8 +318,8 @@ function BundledComponentsDetailContent({
           <TableRow key={component.id} className="border-b-0 hover:bg-transparent">
             <TableCell className="font-medium text-foreground">
               <div>
-                  <div>{component.name || component.id}</div>
-                  {component.role ? (
+                <div>{component.name || component.id}</div>
+                {component.role ? (
                   <div className="text-xs font-normal text-muted-foreground">{component.role}</div>
                 ) : null}
                 {component.notes ? (
@@ -473,7 +473,7 @@ export function PlatformRuntimePage() {
         <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <div className="rounded-lg border bg-background px-4 py-3">
             <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-               {t('platformRuntime.hostFacts.kernelRelease', 'Kernel Release')}
+              {t('platformRuntime.hostFacts.kernelRelease', 'Kernel Release')}
             </div>
             <div className="mt-2 text-sm font-medium text-foreground">
               {runtimeValue(runtimeController.hostKernelFacts.kernel_release)}
@@ -481,7 +481,7 @@ export function PlatformRuntimePage() {
           </div>
           <div className="rounded-lg border bg-background px-4 py-3">
             <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-               {t('platformRuntime.hostFacts.architecture', 'Architecture')}
+              {t('platformRuntime.hostFacts.architecture', 'Architecture')}
             </div>
             <div className="mt-2 text-sm font-medium text-foreground">
               {runtimeValue(runtimeController.hostKernelFacts.architecture)}
@@ -489,7 +489,7 @@ export function PlatformRuntimePage() {
           </div>
           <div className="rounded-lg border bg-background px-4 py-3">
             <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-               {t('platformRuntime.hostFacts.visibleCpuTopology', 'Visible CPU Topology')}
+              {t('platformRuntime.hostFacts.visibleCpuTopology', 'Visible CPU Topology')}
             </div>
             <div className="mt-2 text-sm font-medium text-foreground">
               {formatVisibleCPUTopology(runtimeController.hostKernelFacts)}
@@ -497,7 +497,7 @@ export function PlatformRuntimePage() {
           </div>
           <div className="rounded-lg border bg-background px-4 py-3">
             <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-               {t('platformRuntime.hostFacts.effectiveCpuSet', 'Effective CPU Set')}
+              {t('platformRuntime.hostFacts.effectiveCpuSet', 'Effective CPU Set')}
             </div>
             <div className="mt-2 text-sm font-medium text-foreground">
               {runtimeValue(runtimeController.runtimeLimits.cpuset_effective)}
@@ -505,7 +505,7 @@ export function PlatformRuntimePage() {
           </div>
           <div className="rounded-lg border bg-background px-4 py-3">
             <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-               {t('platformRuntime.hostFacts.cpuQuota', 'CPU Quota')}
+              {t('platformRuntime.hostFacts.cpuQuota', 'CPU Quota')}
             </div>
             <div className="mt-2 text-sm font-medium text-foreground">
               {formatCPUQuota(runtimeController.runtimeLimits)}
@@ -513,7 +513,7 @@ export function PlatformRuntimePage() {
           </div>
           <div className="rounded-lg border bg-background px-4 py-3">
             <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-               {t('platformRuntime.hostFacts.memoryLimit', 'Memory Limit')}
+              {t('platformRuntime.hostFacts.memoryLimit', 'Memory Limit')}
             </div>
             <div className="mt-2 text-sm font-medium text-foreground">
               {formatRuntimeLimitBytes(runtimeController.runtimeLimits.memory_limit_bytes)}

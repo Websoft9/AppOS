@@ -413,9 +413,7 @@ export function DeployCreateBreadcrumb() {
         className="inline-flex min-w-0 items-center gap-1.5 truncate transition-colors hover:text-foreground"
       >
         <Rocket className="h-4 w-4 shrink-0" />
-        <span className="truncate">
-          {i18n.t('deploy:breadcrumb.deploy', 'Deploy')}
-        </span>
+        <span className="truncate">{i18n.t('deploy:breadcrumb.deploy', 'Deploy')}</span>
       </Link>
       <ChevronRight className="h-3.5 w-3.5 shrink-0" />
       <span className="truncate font-medium text-foreground">

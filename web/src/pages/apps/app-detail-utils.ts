@@ -22,7 +22,9 @@ export function formatActionType(value?: string): string {
     case 'rollback':
       return i18n.t('apps:detail.compose.rollback', 'Rollback')
     default:
-      return value ? value.charAt(0).toUpperCase() + value.slice(1) : i18n.t('apps:labels.latestAction', 'Action')
+      return value
+        ? value.charAt(0).toUpperCase() + value.slice(1)
+        : i18n.t('apps:labels.latestAction', 'Action')
   }
 }
 

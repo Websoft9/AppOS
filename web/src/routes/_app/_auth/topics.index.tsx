@@ -538,7 +538,9 @@ function TopicsListPage() {
         </div>
         {filteredRows.length > 0 && (
           <div className="ml-auto flex items-center gap-3 text-sm text-muted-foreground">
-            <span className="whitespace-nowrap">{t('list.totalItems', { count: filteredRows.length })}</span>
+            <span className="whitespace-nowrap">
+              {t('list.totalItems', { count: filteredRows.length })}
+            </span>
             <div className="flex items-center gap-1">
               <button
                 type="button"
@@ -570,9 +572,7 @@ function TopicsListPage() {
       {filteredRows.length === 0 && !search && statusFilter === 'all' ? (
         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground border rounded-lg">
           <p className="text-lg font-medium">{t('list.empty.title')}</p>
-          <p className="text-sm mt-1">
-            {t('list.empty.description')}
-          </p>
+          <p className="text-sm mt-1">{t('list.empty.description')}</p>
           <Button className="mt-4" onClick={openCreate}>
             {t('list.dialog.newTitle')}
           </Button>
@@ -607,7 +607,7 @@ function TopicsListPage() {
                     className="flex items-center gap-1 hover:text-foreground"
                     onClick={() => toggleSort('status')}
                   >
-                     {t('list.table.status')}
+                    {t('list.table.status')}
                     {sortField === 'status' &&
                       (sortDir === 'asc' ? (
                         <ArrowUp className="h-3 w-3" />
@@ -618,14 +618,14 @@ function TopicsListPage() {
                   {renderStatusFilterMenu()}
                 </div>
               </TableHead>
-               <TableHead>{t('list.table.author')}</TableHead>
+              <TableHead>{t('list.table.author')}</TableHead>
               <TableHead>
                 <button
                   type="button"
                   className="flex items-center gap-1 hover:text-foreground"
                   onClick={() => toggleSort('created')}
                 >
-                   {t('list.table.created')}
+                  {t('list.table.created')}
                   {sortField === 'created' &&
                     (sortDir === 'asc' ? (
                       <ArrowUp className="h-3 w-3" />
@@ -640,7 +640,7 @@ function TopicsListPage() {
                   className="flex items-center gap-1 hover:text-foreground"
                   onClick={() => toggleSort('updated')}
                 >
-                   {t('list.table.updated')}
+                  {t('list.table.updated')}
                   {sortField === 'updated' &&
                     (sortDir === 'asc' ? (
                       <ArrowUp className="h-3 w-3" />
@@ -649,8 +649,8 @@ function TopicsListPage() {
                     ))}
                 </button>
               </TableHead>
-               <TableHead>{t('list.table.comments')}</TableHead>
-               <TableHead className="w-[100px] text-right">{t('list.table.actions')}</TableHead>
+              <TableHead>{t('list.table.comments')}</TableHead>
+              <TableHead className="w-[100px] text-right">{t('list.table.actions')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -670,11 +670,11 @@ function TopicsListPage() {
                 <TableCell>
                   {row.closed ? (
                     <Badge variant="secondary" className="text-xs font-normal">
-                       <Lock className="h-3 w-3 mr-0.5" /> {t('list.closed')}
+                      <Lock className="h-3 w-3 mr-0.5" /> {t('list.closed')}
                     </Badge>
                   ) : (
                     <Badge variant="outline" className="text-xs font-normal">
-                       {t('list.open')}
+                      {t('list.open')}
                     </Badge>
                   )}
                 </TableCell>
@@ -690,7 +690,7 @@ function TopicsListPage() {
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8"
-                           title={t('list.moreActions')}
+                          title={t('list.moreActions')}
                         >
                           <MoreVertical className="h-4 w-4" />
                         </Button>
@@ -747,7 +747,9 @@ function TopicsListPage() {
         <DialogContent className="sm:max-w-4xl">
           <form onSubmit={handleSubmit}>
             <DialogHeader>
-              <DialogTitle>{editingTopic ? t('list.dialog.editTitle') : t('list.dialog.newTitle')}</DialogTitle>
+              <DialogTitle>
+                {editingTopic ? t('list.dialog.editTitle') : t('list.dialog.newTitle')}
+              </DialogTitle>
               <DialogDescription>
                 {editingTopic ? t('list.dialog.editDescription') : t('list.dialog.newDescription')}
               </DialogDescription>
@@ -781,7 +783,7 @@ function TopicsListPage() {
                 <MarkdownEditor
                   value={formDesc}
                   onChange={setFormDesc}
-                   placeholder={t('list.dialog.markdownPlaceholder')}
+                  placeholder={t('list.dialog.markdownPlaceholder')}
                 />
               </div>
               {formError && <p className="text-sm text-destructive">{formError}</p>}
@@ -857,13 +859,11 @@ function TopicsListPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{t('list.shareDialog.title')}</DialogTitle>
-            <DialogDescription>
-              {t('list.shareDialog.description')}
-            </DialogDescription>
+            <DialogDescription>{t('list.shareDialog.description')}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-                <Label htmlFor="share-mins">{t('list.shareDialog.validity')}</Label>
+              <Label htmlFor="share-mins">{t('list.shareDialog.validity')}</Label>
               <Input
                 id="share-mins"
                 type="number"
@@ -906,7 +906,13 @@ function TopicsListPage() {
                       <QrCode className="h-4 w-4" />
                     )}
                   </Button>
-                  <Button type="button" variant="outline" size="icon" asChild title={t('list.shareDialog.open')}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    asChild
+                    title={t('list.shareDialog.open')}
+                  >
                     <a href={shareUrl} target="_blank" rel="noopener noreferrer">
                       <ExternalLink className="h-4 w-4" />
                     </a>
@@ -916,7 +922,11 @@ function TopicsListPage() {
                 {qrDataUrl && (
                   <div className="space-y-2">
                     <div className="w-fit rounded-md border border-border p-2 bg-background">
-                      <img src={qrDataUrl} alt={t('list.shareDialog.shareQrCode')} className="h-40 w-40" />
+                      <img
+                        src={qrDataUrl}
+                        alt={t('list.shareDialog.shareQrCode')}
+                        className="h-40 w-40"
+                      />
                     </div>
                     <Button variant="outline" size="sm" onClick={handleDownloadQr}>
                       <Download className="h-4 w-4 mr-1" /> {t('list.shareDialog.downloadQr')}

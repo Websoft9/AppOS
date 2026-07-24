@@ -491,7 +491,7 @@ function latestSeriesSummary(series: MonitorSeries): string {
     const latestUsed = latestValue(used?.points ?? [])
     const latestFree = latestValue(free?.points ?? [])
     if (latestUsed !== null || latestFree !== null) {
-        return `${latestUsed === null ? '—' : formatBytes(latestUsed)} ${i18n.t('system:platformStatus.shared.used', { defaultValue: 'used' })}${latestFree === null ? '' : ` / ${formatBytes(latestFree)} ${i18n.t('system:platformStatus.shared.free', { defaultValue: 'free' })}`}`
+      return `${latestUsed === null ? '—' : formatBytes(latestUsed)} ${i18n.t('system:platformStatus.shared.used', { defaultValue: 'used' })}${latestFree === null ? '' : ` / ${formatBytes(latestFree)} ${i18n.t('system:platformStatus.shared.free', { defaultValue: 'free' })}`}`
     }
   }
 
@@ -499,7 +499,7 @@ function latestSeriesSummary(series: MonitorSeries): string {
     const latestInbound = latestValue(inbound?.points ?? [])
     const latestOutbound = latestValue(outbound?.points ?? [])
     if (latestInbound !== null || latestOutbound !== null) {
-        return `${latestInbound === null ? '—' : `${formatBytes(latestInbound)}/s`} ${i18n.t('system:platformStatus.shared.in', { defaultValue: 'in' })}${latestOutbound === null ? '' : ` / ${formatBytes(latestOutbound)}/s ${i18n.t('system:platformStatus.shared.out', { defaultValue: 'out' })}`}`
+      return `${latestInbound === null ? '—' : `${formatBytes(latestInbound)}/s`} ${i18n.t('system:platformStatus.shared.in', { defaultValue: 'in' })}${latestOutbound === null ? '' : ` / ${formatBytes(latestOutbound)}/s ${i18n.t('system:platformStatus.shared.out', { defaultValue: 'out' })}`}`
     }
   }
 
@@ -507,7 +507,7 @@ function latestSeriesSummary(series: MonitorSeries): string {
     const latestInbound = latestValue(inbound?.points ?? [])
     const latestOutbound = latestValue(outbound?.points ?? [])
     if (latestInbound !== null || latestOutbound !== null) {
-        return `${latestInbound === null ? '—' : formatBytes(latestInbound)} ${i18n.t('system:platformStatus.shared.in', { defaultValue: 'in' })}${latestOutbound === null ? '' : ` / ${formatBytes(latestOutbound)} ${i18n.t('system:platformStatus.shared.out', { defaultValue: 'out' })}`}`
+      return `${latestInbound === null ? '—' : formatBytes(latestInbound)} ${i18n.t('system:platformStatus.shared.in', { defaultValue: 'in' })}${latestOutbound === null ? '' : ` / ${formatBytes(latestOutbound)} ${i18n.t('system:platformStatus.shared.out', { defaultValue: 'out' })}`}`
     }
   }
 
@@ -515,7 +515,7 @@ function latestSeriesSummary(series: MonitorSeries): string {
     const latestRead = latestValue(read?.points ?? [])
     const latestWrite = latestValue(write?.points ?? [])
     if (latestRead !== null || latestWrite !== null) {
-        return `${latestRead === null ? '—' : `${formatBytes(latestRead)}/s`} ${i18n.t('system:platformStatus.shared.read', { defaultValue: 'read' })}${latestWrite === null ? '' : ` / ${formatBytes(latestWrite)}/s ${i18n.t('system:platformStatus.shared.write', { defaultValue: 'write' })}`}`
+      return `${latestRead === null ? '—' : `${formatBytes(latestRead)}/s`} ${i18n.t('system:platformStatus.shared.read', { defaultValue: 'read' })}${latestWrite === null ? '' : ` / ${formatBytes(latestWrite)}/s ${i18n.t('system:platformStatus.shared.write', { defaultValue: 'write' })}`}`
     }
   }
 
@@ -653,28 +653,44 @@ function derivePlatformAvailability(
 
   const capabilityDefinitions = [
     {
-      label: i18n.t('system:platformStatus.capabilities.consoleAccess', { defaultValue: 'Console Access' }),
+      label: i18n.t('system:platformStatus.capabilities.consoleAccess', {
+        defaultValue: 'Console Access',
+      }),
       targetIds: ['appos-core'],
       serviceNames: [],
-      fallbackReason: i18n.t('system:platformStatus.capabilityReasons.consoleAccessOk', { defaultValue: 'Core runtime signals are responding normally.' }),
+      fallbackReason: i18n.t('system:platformStatus.capabilityReasons.consoleAccessOk', {
+        defaultValue: 'Core runtime signals are responding normally.',
+      }),
     },
     {
-      label: i18n.t('system:platformStatus.capabilities.applicationManagement', { defaultValue: 'Application Management' }),
+      label: i18n.t('system:platformStatus.capabilities.applicationManagement', {
+        defaultValue: 'Application Management',
+      }),
       targetIds: ['appos-core'],
       serviceNames: ['redis'],
-      fallbackReason: i18n.t('system:platformStatus.capabilityReasons.applicationManagementOk', { defaultValue: 'Core management services are available.' }),
+      fallbackReason: i18n.t('system:platformStatus.capabilityReasons.applicationManagementOk', {
+        defaultValue: 'Core management services are available.',
+      }),
     },
     {
-      label: i18n.t('system:platformStatus.capabilities.backgroundJobs', { defaultValue: 'Background Jobs' }),
+      label: i18n.t('system:platformStatus.capabilities.backgroundJobs', {
+        defaultValue: 'Background Jobs',
+      }),
       targetIds: ['worker', 'scheduler'],
       serviceNames: [],
-      fallbackReason: i18n.t('system:platformStatus.capabilityReasons.backgroundJobsOk', { defaultValue: 'Worker and scheduler signals are healthy.' }),
+      fallbackReason: i18n.t('system:platformStatus.capabilityReasons.backgroundJobsOk', {
+        defaultValue: 'Worker and scheduler signals are healthy.',
+      }),
     },
     {
-      label: i18n.t('system:platformStatus.capabilities.monitoring', { defaultValue: 'Monitoring' }),
+      label: i18n.t('system:platformStatus.capabilities.monitoring', {
+        defaultValue: 'Monitoring',
+      }),
       targetIds: ['appos-core'],
       serviceNames: ['victoria-metrics'],
-      fallbackReason: i18n.t('system:platformStatus.capabilityReasons.monitoringOk', { defaultValue: 'Monitoring storage and the AppOS self-collector are available.' }),
+      fallbackReason: i18n.t('system:platformStatus.capabilityReasons.monitoringOk', {
+        defaultValue: 'Monitoring storage and the AppOS self-collector are available.',
+      }),
     },
   ]
 
@@ -747,7 +763,8 @@ function derivePlatformAvailability(
         })
       : overallLevel === 'unavailable'
         ? i18n.t('system:platformStatus.availabilityDescriptions.unavailable', {
-            defaultValue: 'Core management is unavailable. Immediate operator attention is required.',
+            defaultValue:
+              'Core management is unavailable. Immediate operator attention is required.',
           })
         : i18n.t('system:platformStatus.availabilityDescriptions.degraded', {
             defaultValue:
@@ -1060,7 +1077,9 @@ export function PlatformStatusPage() {
         <CardHeader>
           <div className="flex items-start justify-between gap-3">
             <div>
-              <CardTitle>{t('platformStatus.availability.title', 'Platform Availability')}</CardTitle>
+              <CardTitle>
+                {t('platformStatus.availability.title', 'Platform Availability')}
+              </CardTitle>
               <CardDescription>{availability.description}</CardDescription>
             </div>
             <Badge variant={availabilityBadgeVariant(availability.level)}>
@@ -1096,15 +1115,15 @@ export function PlatformStatusPage() {
           </div>
           <div className="space-y-4 rounded-lg border bg-muted/10 p-4">
             <div>
-               <div className="text-sm font-medium text-foreground">
-                 {t('platformStatus.availability.primaryReason', 'Primary reason')}
-               </div>
+              <div className="text-sm font-medium text-foreground">
+                {t('platformStatus.availability.primaryReason', 'Primary reason')}
+              </div>
               <p className="mt-2 text-sm text-muted-foreground">{availability.primaryReason}</p>
             </div>
             <div>
-               <div className="text-sm font-medium text-foreground">
-                 {t('platformStatus.availability.lastChecked', 'Last checked')}
-               </div>
+              <div className="text-sm font-medium text-foreground">
+                {t('platformStatus.availability.lastChecked', 'Last checked')}
+              </div>
               <p className="mt-2 text-sm text-muted-foreground">{availability.lastChecked}</p>
             </div>
           </div>
@@ -1216,10 +1235,10 @@ export function PlatformStatusPage() {
                             />
                             <button
                               type="button"
-                               aria-label={t(
-                                 'platformStatus.performance.customRange.openStartPicker',
-                                 'Open start date picker'
-                               )}
+                              aria-label={t(
+                                'platformStatus.performance.customRange.openStartPicker',
+                                'Open start date picker'
+                              )}
                               className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
                               onClick={() => openNativePicker(startInputRef.current)}
                             >
@@ -1251,10 +1270,10 @@ export function PlatformStatusPage() {
                             />
                             <button
                               type="button"
-                               aria-label={t(
-                                 'platformStatus.performance.customRange.openEndPicker',
-                                 'Open end date picker'
-                               )}
+                              aria-label={t(
+                                'platformStatus.performance.customRange.openEndPicker',
+                                'Open end date picker'
+                              )}
                               className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
                               onClick={() => openNativePicker(endInputRef.current)}
                             >
@@ -1364,7 +1383,7 @@ export function PlatformStatusPage() {
           ) : overview.platformItems.length === 0 ? (
             <div className="rounded-lg border border-dashed px-4 py-6 text-sm text-muted-foreground">
               {t('platformStatus.targets.empty', 'Platform self-observation has not reported yet.')}
-              </div>
+            </div>
           ) : (
             <div className="grid gap-4 xl:grid-cols-3">
               {overview.platformItems.map(item => {

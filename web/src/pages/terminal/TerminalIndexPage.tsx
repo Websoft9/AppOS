@@ -175,7 +175,9 @@ function ServerCard({
               <span className="text-xs text-muted-foreground truncate">{server.host}</span>
             )}
             {isConnected && sessionCount != null && sessionCount === 1 && (
-               <span className="text-xs text-muted-foreground truncate">{t('hub.activeSession')}</span>
+              <span className="text-xs text-muted-foreground truncate">
+                {t('hub.activeSession')}
+              </span>
             )}
             {lastSessionMin != null && (
               <span className="text-xs text-muted-foreground flex items-center gap-1">
@@ -385,18 +387,18 @@ function ServersPanel({
             {servers.length === 0 ? (
               <div className="rounded-lg border border-dashed p-8 text-center space-y-2">
                 <Server className="h-8 w-8 mx-auto text-muted-foreground" />
-                 <p className="text-sm font-medium">{t('hub.empty.noServersTitle')}</p>
-                 <p className="text-xs text-muted-foreground">
-                   {t('hub.empty.noServersDescription')}
-                 </p>
+                <p className="text-sm font-medium">{t('hub.empty.noServersTitle')}</p>
+                <p className="text-xs text-muted-foreground">
+                  {t('hub.empty.noServersDescription')}
+                </p>
               </div>
             ) : onlineServers.length === 0 ? (
               <div className="rounded-lg border border-dashed p-8 text-center space-y-2">
                 <Server className="h-8 w-8 mx-auto text-muted-foreground" />
-                 <p className="text-sm font-medium">{t('hub.empty.noOnlineTitle')}</p>
-                 <p className="text-xs text-muted-foreground">
-                   {t('hub.empty.noOnlineDescription')}
-                 </p>
+                <p className="text-sm font-medium">{t('hub.empty.noOnlineTitle')}</p>
+                <p className="text-xs text-muted-foreground">
+                  {t('hub.empty.noOnlineDescription')}
+                </p>
               </div>
             ) : (
               <div className="space-y-2">
@@ -474,10 +476,10 @@ function ServersPanel({
             ) : (
               <div className="rounded-lg border border-dashed p-8 text-center space-y-2">
                 <Clock className="h-8 w-8 mx-auto text-muted-foreground" />
-                 <p className="text-sm font-medium">{t('hub.empty.noActiveTitle')}</p>
-                 <p className="text-xs text-muted-foreground">
-                   {t('hub.empty.noActiveDescription')}
-                 </p>
+                <p className="text-sm font-medium">{t('hub.empty.noActiveTitle')}</p>
+                <p className="text-xs text-muted-foreground">
+                  {t('hub.empty.noActiveDescription')}
+                </p>
               </div>
             )}
           </div>
@@ -740,9 +742,7 @@ export function TerminalIndexPage() {
         <div className="flex items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">{t('server.title')}</h1>
-            <p className="text-muted-foreground mt-1">
-              {t('hub.description')}
-            </p>
+            <p className="text-muted-foreground mt-1">{t('hub.description')}</p>
           </div>
           <div className="flex items-center gap-2">
             <Button

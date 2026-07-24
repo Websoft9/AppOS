@@ -1447,12 +1447,14 @@ export function ContainersTab({
                 <input
                   value={searchQuery ?? ''}
                   onChange={event => onSearchQueryChange?.(event.target.value)}
-                  placeholder={t('containers.searchPlaceholder', { defaultValue: 'Search containers' })}
+                  placeholder={t('containers.searchPlaceholder', {
+                    defaultValue: 'Search containers',
+                  })}
                   className="h-8 w-full min-w-0 rounded-md border bg-background px-3 text-sm sm:mr-[5ch] sm:w-[20ch]"
                 />
-                  <span className="text-xs text-muted-foreground">
-                    {t('containers.total', { count: totalItems, defaultValue: '{{count}} total' })}
-                  </span>
+                <span className="text-xs text-muted-foreground">
+                  {t('containers.total', { count: totalItems, defaultValue: '{{count}} total' })}
+                </span>
                 <div className="flex items-center gap-0.5 text-xs">
                   <Button
                     variant="ghost"
@@ -1690,7 +1692,10 @@ export function ContainersTab({
                 <TableRow>
                   <TableHead className="w-[32%] min-w-[260px] pl-4 pr-2">
                     <div className="flex items-center">
-                      <SortHead label={t('containers.columns.name', { defaultValue: 'Name' })} keyName="name" />
+                      <SortHead
+                        label={t('containers.columns.name', { defaultValue: 'Name' })}
+                        keyName="name"
+                      />
                     </div>
                   </TableHead>
                   <TableHead className="w-[16%] min-w-[160px]">
@@ -1784,7 +1789,10 @@ export function ContainersTab({
                   )}
                   {visibleColumns.created && (
                     <TableHead className="min-w-[160px]">
-                      <SortHead label={t('containers.columns.created', { defaultValue: 'Created' })} keyName="created" />
+                      <SortHead
+                        label={t('containers.columns.created', { defaultValue: 'Created' })}
+                        keyName="created"
+                      />
                     </TableHead>
                   )}
                   {visibleColumns.compose && (
@@ -1843,12 +1851,18 @@ export function ContainersTab({
                   )}
                   {visibleColumns.cpu && (
                     <TableHead className="w-[88px] min-w-[88px]">
-                      <SortHead label={t('containers.columns.cpu', { defaultValue: 'CPU' })} keyName="cpu" />
+                      <SortHead
+                        label={t('containers.columns.cpu', { defaultValue: 'CPU' })}
+                        keyName="cpu"
+                      />
                     </TableHead>
                   )}
                   {visibleColumns.mem && (
                     <TableHead className="w-[110px] min-w-[110px]">
-                      <SortHead label={t('containers.columns.memory', { defaultValue: 'Memory' })} keyName="mem" />
+                      <SortHead
+                        label={t('containers.columns.memory', { defaultValue: 'Memory' })}
+                        keyName="mem"
+                      />
                     </TableHead>
                   )}
                   {visibleColumns.network && (
@@ -1948,11 +1962,11 @@ export function ContainersTab({
                                 event.stopPropagation()
                                 void fetchOutput(c, 'logs')
                               }}
-                               aria-label={t('containers.quick.logsAria', {
-                                  name: shortName(c.Names),
-                                  defaultValue: 'Open logs for {{name}}',
-                                })}
-                               title={t('containers.quick.logs', { defaultValue: 'Logs' })}
+                              aria-label={t('containers.quick.logsAria', {
+                                name: shortName(c.Names),
+                                defaultValue: 'Open logs for {{name}}',
+                              })}
+                              title={t('containers.quick.logs', { defaultValue: 'Logs' })}
                             >
                               <FileText className="h-3 w-3" />
                             </Button>
@@ -1965,11 +1979,11 @@ export function ContainersTab({
                                 event.stopPropagation()
                                 setStatsContainer(c)
                               }}
-                               aria-label={t('containers.quick.monitorAria', {
-                                  name: shortName(c.Names),
-                                  defaultValue: 'Open monitor for {{name}}',
-                                })}
-                               title={t('containers.quick.monitor', { defaultValue: 'Monitor' })}
+                              aria-label={t('containers.quick.monitorAria', {
+                                name: shortName(c.Names),
+                                defaultValue: 'Open monitor for {{name}}',
+                              })}
+                              title={t('containers.quick.monitor', { defaultValue: 'Monitor' })}
                             >
                               <Activity className="h-3 w-3" />
                             </Button>
@@ -1983,17 +1997,17 @@ export function ContainersTab({
                                 onOpenTerminal?.(c.ID)
                               }}
                               disabled={c.State !== 'running' || !onOpenTerminal}
-                               aria-label={t('containers.quick.execAria', {
-                                  name: shortName(c.Names),
-                                  defaultValue: 'Open exec for {{name}}',
-                                })}
-                               title={
-                                 c.State === 'running'
-                                   ? t('containers.quick.exec', { defaultValue: 'Exec' })
-                                   : t('containers.quick.execUnavailable', {
-                                       defaultValue: 'Exec unavailable',
-                                     })
-                               }
+                              aria-label={t('containers.quick.execAria', {
+                                name: shortName(c.Names),
+                                defaultValue: 'Open exec for {{name}}',
+                              })}
+                              title={
+                                c.State === 'running'
+                                  ? t('containers.quick.exec', { defaultValue: 'Exec' })
+                                  : t('containers.quick.execUnavailable', {
+                                      defaultValue: 'Exec unavailable',
+                                    })
+                              }
                             >
                               <TerminalSquare className="h-3 w-3" />
                             </Button>
@@ -2015,13 +2029,13 @@ export function ContainersTab({
                                   onClick={() => onOpenVolumeFilter?.(linkedVolumes)}
                                 >
                                   <span className="truncate">
-                                     {t('containers.volumeCount', {
-                                        count: linkedVolumes.length,
-                                        value: linkedVolumes.length,
-                                        defaultValue_one: '{{count}} volume',
-                                        defaultValue_other: '{{count}} volumes',
-                                      })}
-                                   </span>
+                                    {t('containers.volumeCount', {
+                                      count: linkedVolumes.length,
+                                      value: linkedVolumes.length,
+                                      defaultValue_one: '{{count}} volume',
+                                      defaultValue_other: '{{count}} volumes',
+                                    })}
+                                  </span>
                                   <ExternalLink className="ml-1 h-3 w-3" />
                                 </button>
                               ) : (
@@ -2087,7 +2101,7 @@ export function ContainersTab({
                             <div className="flex h-8 items-center">
                               {!inspect && detailsLoadingMap[c.ID] ? (
                                 <span className="inline-flex h-8 items-center text-muted-foreground">
-                                   {t('common:loading', { defaultValue: 'Loading...' })}
+                                  {t('common:loading', { defaultValue: 'Loading...' })}
                                 </span>
                               ) : uniqueLinkedNetworks.length > 0 ? (
                                 <button
@@ -2121,14 +2135,14 @@ export function ContainersTab({
                                 variant="ghost"
                                 size="icon"
                                 className="h-7 w-7"
-                                 aria-label={t('containers.moreActions', {
-                                    name: shortName(c.Names),
-                                    defaultValue: 'More actions for {{name}}',
-                                  })}
-                                  title={t('containers.moreActions', {
-                                    name: shortName(c.Names),
-                                    defaultValue: 'More actions for {{name}}',
-                                  })}
+                                aria-label={t('containers.moreActions', {
+                                  name: shortName(c.Names),
+                                  defaultValue: 'More actions for {{name}}',
+                                })}
+                                title={t('containers.moreActions', {
+                                  name: shortName(c.Names),
+                                  defaultValue: 'More actions for {{name}}',
+                                })}
                                 onClick={event => event.stopPropagation()}
                               >
                                 <MoreVertical className="h-4 w-4" />
@@ -2152,8 +2166,8 @@ export function ContainersTab({
                                   window.setTimeout(() => setStatsContainer(c), 0)
                                 }}
                               >
-                                  <Activity className="h-4 w-4 mr-2" />
-                                  {t('containers.actions.stats', { defaultValue: 'Stats' })}
+                                <Activity className="h-4 w-4 mr-2" />
+                                {t('containers.actions.stats', { defaultValue: 'Stats' })}
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 onSelect={event => {
@@ -2161,8 +2175,8 @@ export function ContainersTab({
                                   window.setTimeout(() => void fetchOutput(c, 'logs'), 0)
                                 }}
                               >
-                                  <FileText className="h-4 w-4 mr-2" />
-                                  {t('containers.actions.logs', { defaultValue: 'Logs' })}
+                                <FileText className="h-4 w-4 mr-2" />
+                                {t('containers.actions.logs', { defaultValue: 'Logs' })}
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 onSelect={event => {
@@ -2170,8 +2184,8 @@ export function ContainersTab({
                                   window.setTimeout(() => void fetchOutput(c, 'inspect'), 0)
                                 }}
                               >
-                                  <FileText className="h-4 w-4 mr-2" />
-                                  {t('containers.actions.inspect', { defaultValue: 'Inspect' })}
+                                <FileText className="h-4 w-4 mr-2" />
+                                {t('containers.actions.inspect', { defaultValue: 'Inspect' })}
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
@@ -2181,8 +2195,8 @@ export function ContainersTab({
                                 }}
                                 disabled={(c.State || '').toLowerCase() === 'running'}
                               >
-                                  <Play className="h-4 w-4 mr-2" />
-                                  {t('containers.actions.start', { defaultValue: 'Start' })}
+                                <Play className="h-4 w-4 mr-2" />
+                                {t('containers.actions.start', { defaultValue: 'Start' })}
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 onSelect={event => {
@@ -2193,8 +2207,8 @@ export function ContainersTab({
                                   )
                                 }}
                               >
-                                  <Square className="h-4 w-4 mr-2" />
-                                  {t('containers.actions.stop', { defaultValue: 'Stop' })}
+                                <Square className="h-4 w-4 mr-2" />
+                                {t('containers.actions.stop', { defaultValue: 'Stop' })}
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 onSelect={event => {
@@ -2205,8 +2219,8 @@ export function ContainersTab({
                                   )
                                 }}
                               >
-                                  <RotateCw className="h-4 w-4 mr-2" />
-                                  {t('containers.actions.restart', { defaultValue: 'Restart' })}
+                                <RotateCw className="h-4 w-4 mr-2" />
+                                {t('containers.actions.restart', { defaultValue: 'Restart' })}
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
@@ -2224,8 +2238,8 @@ export function ContainersTab({
                                 }}
                                 className="text-destructive"
                               >
-                                  <Trash2 className="h-4 w-4 mr-2" />
-                                  {t('containers.actions.remove', { defaultValue: 'Remove' })}
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                {t('containers.actions.remove', { defaultValue: 'Remove' })}
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -2236,7 +2250,9 @@ export function ContainersTab({
                           <TableCell colSpan={tableColSpan} className="bg-muted/20 px-3 py-3">
                             <div className="space-y-3 rounded-lg bg-background/80 p-3">
                               <div className="text-sm font-medium">
-                                {t('containers.details.title', { defaultValue: 'Container Details' })}
+                                {t('containers.details.title', {
+                                  defaultValue: 'Container Details',
+                                })}
                               </div>
                               {detailsLoadingMap[c.ID] ? (
                                 <div className="inline-flex items-center gap-2 text-xs text-muted-foreground">
@@ -2266,7 +2282,9 @@ export function ContainersTab({
                                       </div>
                                       <div className="space-y-1">
                                         <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                                          {t('containers.details.fields.id', { defaultValue: 'ID' })}
+                                          {t('containers.details.fields.id', {
+                                            defaultValue: 'ID',
+                                          })}
                                         </div>
                                         <button
                                           type="button"
@@ -2341,10 +2359,7 @@ export function ContainersTab({
                                           })}
                                         </div>
                                         <div>
-                                          {statusBadge(
-                                            c.State,
-                                            formatContainerStateLabel(c.State)
-                                          )}
+                                          {statusBadge(c.State, formatContainerStateLabel(c.State))}
                                         </div>
                                       </div>
                                       <div className="space-y-1">
@@ -2369,7 +2384,9 @@ export function ContainersTab({
                                       </div>
                                       <div className="space-y-1">
                                         <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                                          {t('containers.details.fields.ip', { defaultValue: 'IP' })}
+                                          {t('containers.details.fields.ip', {
+                                            defaultValue: 'IP',
+                                          })}
                                         </div>
                                         <button
                                           type="button"
@@ -2474,7 +2491,9 @@ export function ContainersTab({
                                                 })}
                                               </th>
                                               <th className="px-3 py-2 text-left font-medium">
-                                                {t('containers.details.fields.ip', { defaultValue: 'IP' })}
+                                                {t('containers.details.fields.ip', {
+                                                  defaultValue: 'IP',
+                                                })}
                                               </th>
                                               <th className="px-3 py-2 text-left font-medium">
                                                 {t('containers.details.networks.gateway', {
@@ -2756,8 +2775,7 @@ export function ContainersTab({
             <DialogDescription>
               {t('containers.stats.dialogDescription', {
                 range: telemetryWindowDescription.toLowerCase(),
-                defaultValue:
-                  'Direct Docker snapshot with canonical monitor trends for {{range}}',
+                defaultValue: 'Direct Docker snapshot with canonical monitor trends for {{range}}',
               })}
             </DialogDescription>
           </DialogHeader>
@@ -2793,7 +2811,9 @@ export function ContainersTab({
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div className="space-y-1">
                       <div className="text-sm font-semibold">
-                        {t('containers.stats.realtimeSnapshot', { defaultValue: 'Realtime Snapshot' })}
+                        {t('containers.stats.realtimeSnapshot', {
+                          defaultValue: 'Realtime Snapshot',
+                        })}
                       </div>
                       <div className="text-xs text-muted-foreground">
                         {t('containers.stats.realtimeDescription', {
@@ -2881,9 +2901,13 @@ export function ContainersTab({
                   </div>
                   <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                     <Badge variant="outline">
-                      {t('containers.stats.snapshotBadge', { defaultValue: 'Docker stats snapshot' })}
+                      {t('containers.stats.snapshotBadge', {
+                        defaultValue: 'Docker stats snapshot',
+                      })}
                     </Badge>
-                    <span>{t('containers.stats.observedNow', { defaultValue: 'Observed now' })}</span>
+                    <span>
+                      {t('containers.stats.observedNow', { defaultValue: 'Observed now' })}
+                    </span>
                     {statsLive ? (
                       <span>
                         {t('containers.stats.refreshingEvery2s', {

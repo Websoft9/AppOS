@@ -97,9 +97,7 @@ function SetupPage() {
           <p className="font-mono text-sm bg-muted p-2 rounded mb-4 text-foreground">
             {credentialsRef.current.email}
           </p>
-          <p className="text-muted-foreground">
-            {t('setup.autoLogin', { count: countdown })}
-          </p>
+          <p className="text-muted-foreground">{t('setup.autoLogin', { count: countdown })}</p>
         </div>
       </div>
     )
@@ -111,9 +109,7 @@ function SetupPage() {
         <h2 className="text-2xl font-bold text-center mb-2 text-card-foreground">
           {t('setup.title')}
         </h2>
-        <p className="text-center text-sm text-muted-foreground mb-6">
-          {t('setup.description')}
-        </p>
+        <p className="text-center text-sm text-muted-foreground mb-6">{t('setup.description')}</p>
 
         {error && (
           <div className="mb-4 p-3 bg-destructive/10 border border-destructive/50 text-destructive rounded">
@@ -123,9 +119,9 @@ function SetupPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-              <label htmlFor="email" className="block text-sm font-medium mb-1 text-foreground">
-                {t('setup.adminEmail')}
-              </label>
+            <label htmlFor="email" className="block text-sm font-medium mb-1 text-foreground">
+              {t('setup.adminEmail')}
+            </label>
             <input
               type="email"
               id="email"
@@ -137,9 +133,9 @@ function SetupPage() {
             />
           </div>
           <div>
-              <label htmlFor="password" className="block text-sm font-medium mb-1 text-foreground">
-                {t('setup.password')}
-              </label>
+            <label htmlFor="password" className="block text-sm font-medium mb-1 text-foreground">
+              {t('setup.password')}
+            </label>
             <input
               type="password"
               id="password"

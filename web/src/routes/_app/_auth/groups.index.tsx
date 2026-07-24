@@ -354,9 +354,7 @@ function GroupsListPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">{t('list.title')}</h1>
-          <p className="text-muted-foreground mt-1">
-            {t('list.description')}
-          </p>
+          <p className="text-muted-foreground mt-1">{t('list.description')}</p>
         </div>
         <div className="flex items-center gap-2">
           <Button
@@ -393,7 +391,9 @@ function GroupsListPage() {
         </div>
         {filteredRows.length > 0 && (
           <div className="ml-auto flex items-center gap-3 text-sm text-muted-foreground">
-            <span className="whitespace-nowrap">{t('list.totalItems', { count: filteredRows.length })}</span>
+            <span className="whitespace-nowrap">
+              {t('list.totalItems', { count: filteredRows.length })}
+            </span>
             <div className="flex items-center gap-1">
               <button
                 type="button"
@@ -425,9 +425,7 @@ function GroupsListPage() {
       {filteredRows.length === 0 && !search && typeFilter === 'all' ? (
         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground border rounded-lg">
           <p className="text-lg font-medium">{t('list.empty.title')}</p>
-          <p className="text-sm mt-1">
-            {t('list.empty.description')}
-          </p>
+          <p className="text-sm mt-1">{t('list.empty.description')}</p>
           <Button className="mt-4" onClick={openCreate}>
             {t('list.new')}
           </Button>
@@ -548,7 +546,7 @@ function GroupsListPage() {
                     ))}
                 </button>
               </TableHead>
-               <TableHead className="w-[100px] text-right">{t('list.table.actions')}</TableHead>
+              <TableHead className="w-[100px] text-right">{t('list.table.actions')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -577,7 +575,12 @@ function GroupsListPage() {
                 <TableCell className="text-right">
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8" title={t('list.moreActions')}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        title={t('list.moreActions')}
+                      >
                         <MoreVertical className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
@@ -607,7 +610,9 @@ function GroupsListPage() {
         <DialogContent className="sm:max-w-4xl">
           <form onSubmit={handleSubmit}>
             <DialogHeader>
-              <DialogTitle>{editingGroup ? t('list.dialog.editTitle') : t('list.dialog.newTitle')}</DialogTitle>
+              <DialogTitle>
+                {editingGroup ? t('list.dialog.editTitle') : t('list.dialog.newTitle')}
+              </DialogTitle>
               <DialogDescription>
                 {editingGroup ? t('list.dialog.editDescription') : t('list.dialog.newDescription')}
               </DialogDescription>

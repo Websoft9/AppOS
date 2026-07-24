@@ -196,7 +196,7 @@ function phaseBadge(phase: CronLogItem['phase'], t: TFunction) {
   return (
     <Badge variant="outline" className="text-xs gap-1">
       <Clock className="h-3 w-3" />
-        {t('crons.status.phaseStart')}
+      {t('crons.status.phaseStart')}
     </Badge>
   )
 }
@@ -340,19 +340,19 @@ function CronLogDrawer({ jobId, open, onOpenChange, onSummaryLoaded }: CronLogDr
           >
             <div>
               <p className="text-muted-foreground text-xs uppercase tracking-wide mb-0.5">
-                 {t('crons.logs.lastStatus')}
+                {t('crons.logs.lastStatus')}
               </p>
               <div>{lastStatusBadge(data.lastStatus, t)}</div>
             </div>
             <div>
               <p className="text-muted-foreground text-xs uppercase tracking-wide mb-0.5">
-                 {t('crons.logs.lastRun')}
+                {t('crons.logs.lastRun')}
               </p>
               <p className="font-medium break-words">{formatDate(data.lastRun)}</p>
             </div>
             <div>
               <p className="text-muted-foreground text-xs uppercase tracking-wide mb-0.5">
-                 {t('crons.logs.duration')}
+                {t('crons.logs.duration')}
               </p>
               <p className="font-medium whitespace-nowrap">
                 {data.lastDurationMs != null ? `${data.lastDurationMs} ms` : '—'}
@@ -366,7 +366,7 @@ function CronLogDrawer({ jobId, open, onOpenChange, onSummaryLoaded }: CronLogDr
           {loading && !data && (
             <div className="flex items-center justify-center h-40 text-muted-foreground">
               <Loader2 className="h-5 w-5 animate-spin mr-2" />
-               {t('crons.logs.loading')}
+              {t('crons.logs.loading')}
             </div>
           )}
 
@@ -383,10 +383,8 @@ function CronLogDrawer({ jobId, open, onOpenChange, onSummaryLoaded }: CronLogDr
                 cronDrawerGutter
               )}
             >
-               <p className="text-muted-foreground">{t('crons.logs.empty')}</p>
-               <p className="text-xs text-muted-foreground mt-1">
-                 {t('crons.logs.emptyHint')}
-               </p>
+              <p className="text-muted-foreground">{t('crons.logs.empty')}</p>
+              <p className="text-xs text-muted-foreground mt-1">{t('crons.logs.emptyHint')}</p>
             </div>
           )}
 
@@ -421,10 +419,10 @@ function CronLogDrawer({ jobId, open, onOpenChange, onSummaryLoaded }: CronLogDr
                           <TableCell className="text-xs text-muted-foreground font-mono whitespace-nowrap">
                             {formatDate(item.created)}
                           </TableCell>
-                           <TableCell>{levelBadge(item.level, t)}</TableCell>
-                           <TableCell>{phaseBadge(item.phase, t)}</TableCell>
+                          <TableCell>{levelBadge(item.level, t)}</TableCell>
+                          <TableCell>{phaseBadge(item.phase, t)}</TableCell>
                           <TableCell className="text-xs text-muted-foreground">
-                             {item.trigger || t('crons.status.none')}
+                            {item.trigger || t('crons.status.none')}
                           </TableCell>
                           <TableCell className="text-sm truncate max-w-[200px]">
                             <div className="flex items-center gap-1">
@@ -448,13 +446,17 @@ function CronLogDrawer({ jobId, open, onOpenChange, onSummaryLoaded }: CronLogDr
                               <div className="text-xs space-y-1 font-mono">
                                 {item.runId && (
                                   <p>
-                                     <span className="text-muted-foreground">{t('crons.logs.table.runId')} </span>
+                                    <span className="text-muted-foreground">
+                                      {t('crons.logs.table.runId')}{' '}
+                                    </span>
                                     {item.runId}
                                   </p>
                                 )}
                                 {item.error != null && (
                                   <p>
-                                     <span className="text-muted-foreground">{t('crons.logs.table.error')}</span>
+                                    <span className="text-muted-foreground">
+                                      {t('crons.logs.table.error')}
+                                    </span>
                                     <span className="text-destructive">{String(item.error)}</span>
                                   </p>
                                 )}
@@ -665,9 +667,7 @@ export function SystemCronsContent() {
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">{t('crons.title')}</h1>
-          <p className="mt-1 text-muted-foreground">
-            {t('crons.description')}
-          </p>
+          <p className="mt-1 text-muted-foreground">{t('crons.description')}</p>
         </div>
         <Button
           variant="outline"
@@ -706,7 +706,7 @@ export function SystemCronsContent() {
               onClick={() => setSuccess(null)}
             >
               <X className="h-4 w-4" />
-               <span className="sr-only">{t('crons.dismissSuccess')}</span>
+              <span className="sr-only">{t('crons.dismissSuccess')}</span>
             </Button>
           </div>
         </Alert>
@@ -734,7 +734,7 @@ export function SystemCronsContent() {
             <TableRow>
               <TableHead>
                 <SortBtn
-                   label={t('crons.table.jobId')}
+                  label={t('crons.table.jobId')}
                   field="id"
                   sort={sortKey}
                   dir={sortDir}
@@ -743,18 +743,20 @@ export function SystemCronsContent() {
               </TableHead>
               <TableHead>
                 <SortBtn
-                   label={t('crons.table.schedule')}
+                  label={t('crons.table.schedule')}
                   field="expression"
                   sort={sortKey}
                   dir={sortDir}
                   onSort={handleSort}
                 />
               </TableHead>
-               <TableHead className="w-[110px]">{t('crons.table.type')}</TableHead>
-               <TableHead className="w-[110px]">{t('crons.table.effectiveInterval')}</TableHead>
-               <TableHead className="w-[100px]">{t('crons.table.lastStatus')}</TableHead>
-               <TableHead className="w-[150px] hidden md:table-cell">{t('crons.table.lastRun')}</TableHead>
-               <TableHead className="w-[60px]">{t('crons.table.action')}</TableHead>
+              <TableHead className="w-[110px]">{t('crons.table.type')}</TableHead>
+              <TableHead className="w-[110px]">{t('crons.table.effectiveInterval')}</TableHead>
+              <TableHead className="w-[100px]">{t('crons.table.lastStatus')}</TableHead>
+              <TableHead className="w-[150px] hidden md:table-cell">
+                {t('crons.table.lastRun')}
+              </TableHead>
+              <TableHead className="w-[60px]">{t('crons.table.action')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -767,7 +769,11 @@ export function SystemCronsContent() {
                   {job.expression}
                 </TableCell>
                 <TableCell>
-                  <Badge variant="outline">{getCronJobType(job.id) === 'Core' ? t('crons.type.core') : t('crons.type.platform')}</Badge>
+                  <Badge variant="outline">
+                    {getCronJobType(job.id) === 'Core'
+                      ? t('crons.type.core')
+                      : t('crons.type.platform')}
+                  </Badge>
                 </TableCell>
                 <TableCell className="text-xs text-muted-foreground">
                   {getEffectiveIntervalLabel(job, monitorScheduling)}
@@ -775,21 +781,26 @@ export function SystemCronsContent() {
                 <TableCell>
                   {(() => {
                     const s = logSummaries.get(job.id)
-                    if (!s) return <span className="text-xs text-muted-foreground">{t('crons.status.none')}</span>
+                    if (!s)
+                      return (
+                        <span className="text-xs text-muted-foreground">
+                          {t('crons.status.none')}
+                        </span>
+                      )
                     return lastStatusBadge(s.lastStatus, t)
                   })()}
                 </TableCell>
                 <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
                   {logSummaries.get(job.id)?.lastRun
-                     ? formatDate(logSummaries.get(job.id)!.lastRun)
-                     : t('crons.status.none')}
+                    ? formatDate(logSummaries.get(job.id)!.lastRun)
+                    : t('crons.status.none')}
                 </TableCell>
                 <TableCell>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" size="icon" className="h-7 w-7">
                         <MoreVertical className="h-4 w-4" />
-                         <span className="sr-only">Actions</span>
+                        <span className="sr-only">Actions</span>
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">

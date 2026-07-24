@@ -7,9 +7,7 @@ function EnvVarsPlaceholderPage() {
   return (
     <div className="p-4">
       <h1 className="text-xl font-semibold">{t('pages.environment')}</h1>
-      <p className="mt-2 text-sm text-muted-foreground">
-        {t('placeholders.futureEpic')}
-      </p>
+      <p className="mt-2 text-sm text-muted-foreground">{t('placeholders.futureEpic')}</p>
     </div>
   )
 }

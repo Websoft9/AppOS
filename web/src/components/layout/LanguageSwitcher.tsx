@@ -43,12 +43,12 @@ export function LanguageSwitcher() {
           <span className="hidden sm:inline">{LANG_LABELS[lang]}</span>
         </Button>
       </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="min-w-[100px]">
-          <DropdownMenuRadioGroup value={lang} onValueChange={handleChange}>
-            <DropdownMenuRadioItem value="en">{t('shell.english')}</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="zh">中文</DropdownMenuRadioItem>
-          </DropdownMenuRadioGroup>
-        </DropdownMenuContent>
+      <DropdownMenuContent align="end" className="min-w-[100px]">
+        <DropdownMenuRadioGroup value={lang} onValueChange={handleChange}>
+          <DropdownMenuRadioItem value="en">{t('shell.english')}</DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="zh">中文</DropdownMenuRadioItem>
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
     </DropdownMenu>
   )
 }

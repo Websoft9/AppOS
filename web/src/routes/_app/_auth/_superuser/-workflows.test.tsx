@@ -294,7 +294,9 @@ describe('WorkflowsPage', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
-    expect(await screen.findByText(/unexpected end of the stream|end of the stream/i)).toBeInTheDocument()
+    expect(
+      await screen.findByText(/unexpected end of the stream|end of the stream/i)
+    ).toBeInTheDocument()
     expect(sendMock).not.toHaveBeenCalledWith(
       '/api/workflows',
       expect.objectContaining({ method: 'POST' })

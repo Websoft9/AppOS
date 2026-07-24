@@ -124,12 +124,12 @@ export function WorkflowsPage() {
   useEffect(() => {
     if (!setHeaderRightStartContent) return undefined
     setHeaderRightStartContent(
-        <IconBreadcrumb
-          icon={<Workflow className="h-4 w-4" />}
-          parentLabel={t('workflows.breadcrumb.parentLabel')}
-          parentHref="/status"
-          currentPage={t('workflows.breadcrumb.currentPage')}
-        />
+      <IconBreadcrumb
+        icon={<Workflow className="h-4 w-4" />}
+        parentLabel={t('workflows.breadcrumb.parentLabel')}
+        parentHref="/status"
+        currentPage={t('workflows.breadcrumb.currentPage')}
+      />
     )
     return () => setHeaderRightStartContent(null)
   }, [setHeaderRightStartContent])
@@ -216,9 +216,7 @@ export function WorkflowsPage() {
       }
       setForm(current => ({ ...current, definition_yaml: nextYAML }))
     } catch (err) {
-        setEditorError(
-        err instanceof Error ? err.message : t('workflows.errors.generateYaml')
-      )
+      setEditorError(err instanceof Error ? err.message : t('workflows.errors.generateYaml'))
     } finally {
       setGeneratingDraft(false)
     }
@@ -403,9 +401,7 @@ export function WorkflowsPage() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">{t('workflows.page.title')}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {t('workflows.page.description')}
-          </p>
+          <p className="mt-1 text-sm text-muted-foreground">{t('workflows.page.description')}</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => void load()}>
@@ -418,15 +414,15 @@ export function WorkflowsPage() {
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         <Card>
-            <CardHeader>
-              <CardTitle>{t('workflows.summary.total')}</CardTitle>
-            </CardHeader>
+          <CardHeader>
+            <CardTitle>{t('workflows.summary.total')}</CardTitle>
+          </CardHeader>
           <CardContent className="text-2xl font-semibold">{summary.total}</CardContent>
         </Card>
         <Card>
-            <CardHeader>
-              <CardTitle>{t('workflows.summary.enabled')}</CardTitle>
-            </CardHeader>
+          <CardHeader>
+            <CardTitle>{t('workflows.summary.enabled')}</CardTitle>
+          </CardHeader>
           <CardContent className="text-2xl font-semibold">{summary.enabled}</CardContent>
         </Card>
       </div>
@@ -533,7 +529,9 @@ export function WorkflowsPage() {
                             {t('workflows.menu.run')}
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => void toggleEnabled(item)}>
-                            {item.is_enabled ? t('workflows.menu.disable') : t('workflows.menu.enable')}
+                            {item.is_enabled
+                              ? t('workflows.menu.disable')
+                              : t('workflows.menu.enable')}
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
@@ -677,13 +675,13 @@ export function WorkflowsPage() {
                   }))
                 }}
               >
-                  <SelectTrigger aria-label={t('workflows.editor.targetServer')}>
-                    <SelectValue placeholder={t('workflows.editor.selectServer')} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={unassignedServerValue}>
-                      {t('workflows.editor.unassigned')}
-                    </SelectItem>
+                <SelectTrigger aria-label={t('workflows.editor.targetServer')}>
+                  <SelectValue placeholder={t('workflows.editor.selectServer')} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={unassignedServerValue}>
+                    {t('workflows.editor.unassigned')}
+                  </SelectItem>
                   {serverOptions.map(server => (
                     <SelectItem key={server.id} value={server.id}>
                       {server.name}
@@ -762,9 +760,7 @@ export function WorkflowsPage() {
       <Sheet open={detailOpen} onOpenChange={setDetailOpen}>
         <SheetContent className="overflow-y-auto p-6" style={getDrawerTierStyle('lg')}>
           <SheetTitle>{detailItem?.name || t('workflows.detail.titleFallback')}</SheetTitle>
-          <SheetDescription>
-            {t('workflows.detail.description')}
-          </SheetDescription>
+          <SheetDescription>{t('workflows.detail.description')}</SheetDescription>
           {detailItem ? (
             <div className="mt-6 space-y-6">
               <div className="grid gap-4 md:grid-cols-2">
@@ -774,7 +770,8 @@ export function WorkflowsPage() {
                   </CardHeader>
                   <CardContent className="space-y-2 text-sm">
                     <div>
-                      <span className="font-medium">{t('workflows.detail.name')}:</span> {detailItem.name}
+                      <span className="font-medium">{t('workflows.detail.name')}:</span>{' '}
+                      {detailItem.name}
                     </div>
                     <div>
                       <span className="font-medium">{t('workflows.detail.descriptionLabel')}:</span>{' '}
@@ -789,7 +786,8 @@ export function WorkflowsPage() {
                       {formatTriggerTypes(detailItem.trigger_types_json, t)}
                     </div>
                     <div>
-                      <span className="font-medium">{t('workflows.detail.nodes')}:</span> {detailItem.node_count}
+                      <span className="font-medium">{t('workflows.detail.nodes')}:</span>{' '}
+                      {detailItem.node_count}
                     </div>
                   </CardContent>
                 </Card>
@@ -924,79 +922,81 @@ export function WorkflowsPage() {
                           {t('workflows.runs.requester')}
                         </div>
                         <div className="mt-1 text-sm">
-                            {selectedRun.requested_by_email ||
-                              selectedRun.requested_by ||
-                              t('workflows.values.none')}
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                            {t('workflows.runs.targetServer')}
-                          </div>
-                          <div className="mt-1 text-sm">
-                            {serverLabel(selectedRun.resolved_server_id, servers, t)}
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                            {t('workflows.runs.started')}
-                          </div>
-                          <div className="mt-1 text-sm">
-                            {formatDate(selectedRun.started_at || selectedRun.created, t)}
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                            {t('workflows.runs.ended')}
-                          </div>
-                          <div className="mt-1 text-sm">{formatDate(selectedRun.ended_at, t)}</div>
+                          {selectedRun.requested_by_email ||
+                            selectedRun.requested_by ||
+                            t('workflows.values.none')}
                         </div>
                       </div>
+                      <div>
+                        <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                          {t('workflows.runs.targetServer')}
+                        </div>
+                        <div className="mt-1 text-sm">
+                          {serverLabel(selectedRun.resolved_server_id, servers, t)}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                          {t('workflows.runs.started')}
+                        </div>
+                        <div className="mt-1 text-sm">
+                          {formatDate(selectedRun.started_at || selectedRun.created, t)}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                          {t('workflows.runs.ended')}
+                        </div>
+                        <div className="mt-1 text-sm">{formatDate(selectedRun.ended_at, t)}</div>
+                      </div>
+                    </div>
 
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>{t('workflows.runs.node')}</TableHead>
-                            <TableHead>{t('workflows.runs.type')}</TableHead>
-                            <TableHead>{t('workflows.runs.status')}</TableHead>
-                            <TableHead>{t('workflows.runs.output')}</TableHead>
-                            <TableHead className="text-right">{t('workflows.runs.actions')}</TableHead>
-                          </TableRow>
-                        </TableHeader>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>{t('workflows.runs.node')}</TableHead>
+                          <TableHead>{t('workflows.runs.type')}</TableHead>
+                          <TableHead>{t('workflows.runs.status')}</TableHead>
+                          <TableHead>{t('workflows.runs.output')}</TableHead>
+                          <TableHead className="text-right">
+                            {t('workflows.runs.actions')}
+                          </TableHead>
+                        </TableRow>
+                      </TableHeader>
                       <TableBody>
                         {nodeRuns.map(node => (
                           <TableRow key={node.id}>
                             <TableCell>{node.display_name}</TableCell>
                             <TableCell>{node.node_type}</TableCell>
                             <TableCell>
-                                <RunStatusBadge status={node.status} t={t} />
+                              <RunStatusBadge status={node.status} t={t} />
                             </TableCell>
                             <TableCell>
-                                <pre className="max-w-[420px] overflow-auto whitespace-pre-wrap rounded bg-muted/40 p-2 text-xs">
-                                  {node.execution_log ||
-                                    node.output_json ||
-                                    node.error_message ||
-                                    t('workflows.values.none')}
-                                </pre>
-                              </TableCell>
-                              <TableCell className="text-right">
-                                {node.status === 'manual_gate' ? (
-                                  <div className="flex justify-end gap-2">
-                                    <Button size="sm" onClick={() => void decideNode(node, true)}>
-                                      {t('workflows.runs.approve')}
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      variant="destructive"
-                                      onClick={() => void decideNode(node, false)}
-                                    >
-                                      {t('workflows.runs.reject')}
-                                    </Button>
-                                  </div>
-                                ) : (
-                                  t('workflows.values.none')
-                                )}
-                              </TableCell>
+                              <pre className="max-w-[420px] overflow-auto whitespace-pre-wrap rounded bg-muted/40 p-2 text-xs">
+                                {node.execution_log ||
+                                  node.output_json ||
+                                  node.error_message ||
+                                  t('workflows.values.none')}
+                              </pre>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {node.status === 'manual_gate' ? (
+                                <div className="flex justify-end gap-2">
+                                  <Button size="sm" onClick={() => void decideNode(node, true)}>
+                                    {t('workflows.runs.approve')}
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="destructive"
+                                    onClick={() => void decideNode(node, false)}
+                                  >
+                                    {t('workflows.runs.reject')}
+                                  </Button>
+                                </div>
+                              ) : (
+                                t('workflows.values.none')
+                              )}
+                            </TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -1017,9 +1017,7 @@ export function WorkflowsPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{t('workflows.runDialog.title')}</DialogTitle>
-            <DialogDescription>
-              {t('workflows.runDialog.description')}
-            </DialogDescription>
+            <DialogDescription>{t('workflows.runDialog.description')}</DialogDescription>
           </DialogHeader>
           <label className="block text-sm font-medium">
             {t('workflows.runDialog.parameters')}
@@ -1060,7 +1058,9 @@ nodes:
 `
 }
 
-function workflowTemplates(t: (key: string) => string): Array<{ id: string; name: string; description: string; yaml: string }> {
+function workflowTemplates(
+  t: (key: string) => string
+): Array<{ id: string; name: string; description: string; yaml: string }> {
   return [
     {
       id: 'server-health-check',
@@ -1116,7 +1116,9 @@ nodes:
   ]
 }
 
-function workflowNodeExamples(t: (key: string) => string): Array<{ type: string; description: string; yaml: string }> {
+function workflowNodeExamples(
+  t: (key: string) => string
+): Array<{ type: string; description: string; yaml: string }> {
   return [
     {
       type: 'shell',
@@ -1163,7 +1165,7 @@ function validateWorkflowYAML(
   try {
     const parsed = jsYaml.load(value)
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-        return { valid: false, message: t('workflows.errors.yamlObject') }
+      return { valid: false, message: t('workflows.errors.yamlObject') }
     }
     const record = parsed as Record<string, unknown>
     const name = String(record.name ?? '').trim()
@@ -1176,18 +1178,18 @@ function validateWorkflowYAML(
     return { valid: true }
   } catch (error) {
     if (error instanceof jsYaml.YAMLException) {
-        if (error.mark?.line !== undefined) {
-          return {
-            valid: false,
-            message: t('workflows.errors.yamlLine', {
-              reason: error.reason || error.message,
-              line: error.mark.line + 1,
-            }),
-          }
+      if (error.mark?.line !== undefined) {
+        return {
+          valid: false,
+          message: t('workflows.errors.yamlLine', {
+            reason: error.reason || error.message,
+            line: error.mark.line + 1,
+          }),
         }
-        return { valid: false, message: error.reason || error.message }
       }
-      return { valid: false, message: t('workflows.errors.invalidYaml') }
+      return { valid: false, message: error.reason || error.message }
+    }
+    return { valid: false, message: t('workflows.errors.invalidYaml') }
   }
 }
 
@@ -1381,13 +1383,7 @@ function formatTriggerTypes(raw: string, t: (key: string) => string) {
   }
 }
 
-function RunStatusBadge({
-  status,
-  t,
-}: {
-  status: string
-  t: (key: string) => string
-}) {
+function RunStatusBadge({ status, t }: { status: string; t: (key: string) => string }) {
   if (status === 'succeeded') {
     return (
       <Badge className="gap-1">

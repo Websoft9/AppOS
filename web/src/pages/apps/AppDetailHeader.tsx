@@ -38,10 +38,10 @@ export function AppDetailBreadcrumb({ appName }: { appName: string }) {
         to="/apps"
         search={{ catalogAppKey: undefined }}
         className="inline-flex min-w-0 items-center gap-1.5 truncate transition-colors hover:text-foreground"
-        >
-          <Boxes className="h-4 w-4 shrink-0" />
-          <span className="truncate">{t('breadcrumbs.myApps', { defaultValue: 'My Apps' })}</span>
-        </Link>
+      >
+        <Boxes className="h-4 w-4 shrink-0" />
+        <span className="truncate">{t('breadcrumbs.myApps', { defaultValue: 'My Apps' })}</span>
+      </Link>
       <ChevronRight className="h-3.5 w-3.5 shrink-0" />
       <span className="truncate font-medium text-foreground">{appName}</span>
     </nav>

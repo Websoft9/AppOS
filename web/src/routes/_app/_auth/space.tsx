@@ -842,7 +842,11 @@ function FilesPage() {
       setSelectedIds(new Set())
       fetchAll()
     } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : t('alerts.bulkDeleteFailed', { defaultValue: 'Failed to delete some items' }))
+      alert(
+        e instanceof Error
+          ? e.message
+          : t('alerts.bulkDeleteFailed', { defaultValue: 'Failed to delete some items' })
+      )
     } finally {
       setBulkDeleting(false)
     }
@@ -857,7 +861,11 @@ function FilesPage() {
       setSelectedIds(new Set())
       fetchAll()
     } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : t('alerts.bulkRestoreFailed', { defaultValue: 'Failed to restore some items' }))
+      alert(
+        e instanceof Error
+          ? e.message
+          : t('alerts.bulkRestoreFailed', { defaultValue: 'Failed to restore some items' })
+      )
     }
   }
 
@@ -876,7 +884,11 @@ function FilesPage() {
       setBulkMoveOpen(false)
       fetchAll()
     } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : t('alerts.bulkMoveFailed', { defaultValue: 'Failed to move some items' }))
+      alert(
+        e instanceof Error
+          ? e.message
+          : t('alerts.bulkMoveFailed', { defaultValue: 'Failed to move some items' })
+      )
     } finally {
       setBulkMoving(false)
     }
@@ -924,7 +936,11 @@ function FilesPage() {
       if (isSessionExpiredError(e)) {
         return
       }
-      alert(e instanceof Error ? e.message : t('alerts.duplicateFailed', { defaultValue: 'Failed to duplicate file' }))
+      alert(
+        e instanceof Error
+          ? e.message
+          : t('alerts.duplicateFailed', { defaultValue: 'Failed to duplicate file' })
+      )
     }
   }
 
@@ -1306,7 +1322,11 @@ function FilesPage() {
       await pb.collection('user_files').update(item.id, { is_deleted: false })
       fetchAll()
     } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : t('alerts.restoreFailed', { defaultValue: 'Failed to restore' }))
+      alert(
+        e instanceof Error
+          ? e.message
+          : t('alerts.restoreFailed', { defaultValue: 'Failed to restore' })
+      )
     }
   }
 
@@ -1323,7 +1343,11 @@ function FilesPage() {
       setEmptyTrashOpen(false)
       fetchAll()
     } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : t('alerts.emptyTrashFailed', { defaultValue: 'Failed to empty trash' }))
+      alert(
+        e instanceof Error
+          ? e.message
+          : t('alerts.emptyTrashFailed', { defaultValue: 'Failed to empty trash' })
+      )
     } finally {
       setEmptyingTrash(false)
     }
@@ -1372,7 +1396,9 @@ function FilesPage() {
       if (isSessionExpiredError(e)) {
         return
       }
-      alert(e instanceof Error ? e.message : t('alerts.shareFailed', { defaultValue: 'Share failed' }))
+      alert(
+        e instanceof Error ? e.message : t('alerts.shareFailed', { defaultValue: 'Share failed' })
+      )
     } finally {
       setSharing(false)
     }
@@ -1396,7 +1422,9 @@ function FilesPage() {
       if (isSessionExpiredError(e)) {
         return
       }
-      alert(e instanceof Error ? e.message : t('alerts.revokeFailed', { defaultValue: 'Revoke failed' }))
+      alert(
+        e instanceof Error ? e.message : t('alerts.revokeFailed', { defaultValue: 'Revoke failed' })
+      )
     }
   }
 
@@ -1451,7 +1479,7 @@ function FilesPage() {
               variant="outline"
               size="icon"
               onClick={() => setStatsOpen(true)}
-                aria-label={t('stats.openAria', { defaultValue: 'Open space stats' })}
+              aria-label={t('stats.openAria', { defaultValue: 'Open space stats' })}
             >
               <ChartColumn className="h-4 w-4" />
             </Button>
@@ -1516,10 +1544,10 @@ function FilesPage() {
           {/* Search */}
           <div className="relative min-w-[12rem] flex-1 sm:flex-none sm:w-44">
             <Search className="h-4 w-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-             <Input
-               className="pl-8 h-8 text-sm w-full"
-               placeholder={t('common:search')}
-               value={search}
+            <Input
+              className="pl-8 h-8 text-sm w-full"
+              placeholder={t('common:search')}
+              value={search}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
             />
           </div>
@@ -1662,9 +1690,9 @@ function FilesPage() {
 
         {loading && (
           <div className="flex items-center gap-2 text-muted-foreground py-2">
-             <Loader2 className="h-4 w-4 animate-spin" /> {t('page.loading')}
-           </div>
-         )}
+            <Loader2 className="h-4 w-4 animate-spin" /> {t('page.loading')}
+          </div>
+        )}
         {error && <p className="text-destructive text-sm">{error}</p>}
 
         {!loading && viewItems.length === 0 && !error && (
@@ -1684,7 +1712,8 @@ function FilesPage() {
                         defaultValue: 'No items match "{{query}}".',
                       })
                     : t('empty.folder', {
-                        defaultValue: 'This folder is empty. Create a subfolder or upload your first file.',
+                        defaultValue:
+                          'This folder is empty. Create a subfolder or upload your first file.',
                       })}
               </p>
             </CardContent>
@@ -1766,17 +1795,17 @@ function FilesPage() {
                               className="h-4 w-4 cursor-pointer"
                               checked={isAllPageSelected()}
                               onChange={toggleSelectPage}
-                               title={t('selection.selectAllPage', {
-                                 defaultValue: 'Select all on this page',
-                               })}
-                             />
+                              title={t('selection.selectAllPage', {
+                                defaultValue: 'Select all on this page',
+                              })}
+                            />
                             <button
                               className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground/80 transition-colors hover:text-foreground"
                               onClick={() => toggleSort('name')}
                             >
-                            {t('columns.name', { defaultValue: 'Name' })}{' '}
-                            <SortIcon field="name" sortBy={sortBy} sortDir={sortDir} />
-                          </button>
+                              {t('columns.name', { defaultValue: 'Name' })}{' '}
+                              <SortIcon field="name" sortBy={sortBy} sortDir={sortDir} />
+                            </button>
                           </div>
                         </TableHead>
                         <TableHead className="min-w-[140px]">
@@ -1947,7 +1976,9 @@ function FilesPage() {
                                       {item.share_token && !isExpired(item.share_expires_at) && (
                                         <>
                                           <dt className="text-muted-foreground font-medium">
-                                            {t('item.sharedUntil', { defaultValue: 'Shared until' })}
+                                            {t('item.sharedUntil', {
+                                              defaultValue: 'Shared until',
+                                            })}
                                           </dt>
                                           <dd>{formatDate(item.share_expires_at)}</dd>
                                         </>
@@ -2103,15 +2134,21 @@ function FilesPage() {
           </DialogHeader>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="rounded-lg border bg-muted/20 px-4 py-3">
-               <div className="text-xs text-muted-foreground">{t('stats.folders', { defaultValue: 'Folders' })}</div>
+              <div className="text-xs text-muted-foreground">
+                {t('stats.folders', { defaultValue: 'Folders' })}
+              </div>
               <div className="mt-1 text-2xl font-semibold text-foreground">{allFolders.length}</div>
             </div>
             <div className="rounded-lg border bg-muted/20 px-4 py-3">
-               <div className="text-xs text-muted-foreground">{t('stats.files', { defaultValue: 'Files' })}</div>
+              <div className="text-xs text-muted-foreground">
+                {t('stats.files', { defaultValue: 'Files' })}
+              </div>
               <div className="mt-1 text-2xl font-semibold text-foreground">{allFiles.length}</div>
             </div>
             <div className="rounded-lg border bg-muted/20 px-4 py-3">
-               <div className="text-xs text-muted-foreground">{t('stats.itemsUsed', { defaultValue: 'Items Used' })}</div>
+              <div className="text-xs text-muted-foreground">
+                {t('stats.itemsUsed', { defaultValue: 'Items Used' })}
+              </div>
               <div className="mt-1 text-2xl font-semibold text-foreground">
                 {items.filter(i => !i.is_deleted).length}
                 {quota ? (
@@ -2120,21 +2157,25 @@ function FilesPage() {
               </div>
             </div>
             <div className="rounded-lg border bg-muted/20 px-4 py-3">
-               <div className="text-xs text-muted-foreground">{t('stats.maxFileSize', { defaultValue: 'Max File Size' })}</div>
+              <div className="text-xs text-muted-foreground">
+                {t('stats.maxFileSize', { defaultValue: 'Max File Size' })}
+              </div>
               <div className="mt-1 text-2xl font-semibold text-foreground">
                 {quota ? formatBytes(quota.max_size_mb) : '—'}
               </div>
             </div>
             <div className="rounded-lg border bg-muted/20 px-4 py-3 sm:col-span-2">
-               <div className="text-xs text-muted-foreground">{t('trash.title', { defaultValue: 'Trash' })}</div>
-               <div className="mt-1 text-sm text-foreground">
-                 {t('trash.currentCount', {
-                   count: trashCount,
-                   defaultValue_one: '{{count}} item currently in trash.',
-                   defaultValue_other: '{{count}} items currently in trash.',
-                 })}
-               </div>
-             </div>
+              <div className="text-xs text-muted-foreground">
+                {t('trash.title', { defaultValue: 'Trash' })}
+              </div>
+              <div className="mt-1 text-sm text-foreground">
+                {t('trash.currentCount', {
+                  count: trashCount,
+                  defaultValue_one: '{{count}} item currently in trash.',
+                  defaultValue_other: '{{count}} items currently in trash.',
+                })}
+              </div>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
@@ -2156,7 +2197,7 @@ function FilesPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
-             <Label>{t('dialogs.bulkMove.targetFolder', { defaultValue: 'Target folder' })}</Label>
+            <Label>{t('dialogs.bulkMove.targetFolder', { defaultValue: 'Target folder' })}</Label>
             <select
               className="mt-1 w-full h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm"
               value={bulkMoveFolderId}
@@ -2228,7 +2269,9 @@ function FilesPage() {
       <Dialog open={folderOpen} onOpenChange={setFolderOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{t('dialogs.newFolder.title', { defaultValue: 'New Folder' })}</DialogTitle>
+            <DialogTitle>
+              {t('dialogs.newFolder.title', { defaultValue: 'New Folder' })}
+            </DialogTitle>
             <DialogDescription>
               {t('dialogs.newFolder.description', {
                 defaultValue: 'Create a new folder to organise your files.',
@@ -2241,7 +2284,9 @@ function FilesPage() {
               <Input
                 className="mt-1"
                 value={folderName}
-                placeholder={t('dialogs.newFolder.namePlaceholder', { defaultValue: 'e.g. scripts' })}
+                placeholder={t('dialogs.newFolder.namePlaceholder', {
+                  defaultValue: 'e.g. scripts',
+                })}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFolderName(e.target.value)}
               />
               {quota?.reserved_folder_names?.length && !folderParent && (
@@ -2256,7 +2301,9 @@ function FilesPage() {
             {allFolders.length > 0 && (
               <div>
                 <Label>
-                  {t('dialogs.newFolder.parentFolder', { defaultValue: 'Parent folder (optional)' })}
+                  {t('dialogs.newFolder.parentFolder', {
+                    defaultValue: 'Parent folder (optional)',
+                  })}
                 </Label>
                 <select
                   className="mt-1 w-full h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm"
@@ -2292,7 +2339,9 @@ function FilesPage() {
       <Dialog open={newFileOpen} onOpenChange={setNewFileOpen}>
         <DialogContent className="sm:max-w-3xl w-full">
           <DialogHeader>
-            <DialogTitle>{t('dialogs.newFile.title', { defaultValue: 'New Text File' })}</DialogTitle>
+            <DialogTitle>
+              {t('dialogs.newFile.title', { defaultValue: 'New Text File' })}
+            </DialogTitle>
             <DialogDescription>
               {t('dialogs.newFile.description', {
                 defaultValue: 'Create a new text or code file online.',
@@ -2405,7 +2454,9 @@ function FilesPage() {
               <>
                 {uploadFiles.length === 1 && (
                   <div>
-                    <Label>{t('dialogs.upload.displayName', { defaultValue: 'Display name' })}</Label>
+                    <Label>
+                      {t('dialogs.upload.displayName', { defaultValue: 'Display name' })}
+                    </Label>
                     <Input
                       className="mt-1"
                       value={uploadName}
@@ -2427,7 +2478,9 @@ function FilesPage() {
                       setUploadParent(e.target.value)
                     }
                   >
-                    <option value="">{t('dialogs.rootOption', { defaultValue: '/ (root)' })}</option>
+                    <option value="">
+                      {t('dialogs.rootOption', { defaultValue: '/ (root)' })}
+                    </option>
                     {allFolders.map(f => (
                       <option key={f.id} value={f.id}>
                         {buildPath(f, items)}
@@ -2460,7 +2513,9 @@ function FilesPage() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{t('dialogs.fetch.title', { defaultValue: 'Fetch File from URL' })}</DialogTitle>
+            <DialogTitle>
+              {t('dialogs.fetch.title', { defaultValue: 'Fetch File from URL' })}
+            </DialogTitle>
             <DialogDescription>
               {t('dialogs.fetch.description', {
                 defaultValue:
@@ -2497,14 +2552,18 @@ function FilesPage() {
               </Label>
               <Input
                 className="mt-1"
-                placeholder={t('dialogs.fetch.namePlaceholder', { defaultValue: 'e.g. report.pdf' })}
+                placeholder={t('dialogs.fetch.namePlaceholder', {
+                  defaultValue: 'e.g. report.pdf',
+                })}
                 value={fetchName}
                 disabled={fetching}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFetchName(e.target.value)}
               />
             </div>
             <div>
-              <Label>{t('dialogs.fetch.destinationFolder', { defaultValue: 'Destination folder' })}</Label>
+              <Label>
+                {t('dialogs.fetch.destinationFolder', { defaultValue: 'Destination folder' })}
+              </Label>
               <select
                 className="mt-1 w-full h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm"
                 value={fetchParent}
@@ -2528,9 +2587,11 @@ function FilesPage() {
                   ? ` Allowlist: ${quota.upload_allow_exts.join(', ')}.`
                   : quota.upload_deny_exts?.length > 0
                     ? ` Blocked: ${quota.upload_deny_exts.join(', ')}.`
-                     : t('dialogs.fetch.anyExtensionAllowed', { defaultValue: ' Any extension allowed.' })}
-               </p>
-             )}
+                    : t('dialogs.fetch.anyExtensionAllowed', {
+                        defaultValue: ' Any extension allowed.',
+                      })}
+              </p>
+            )}
             {fetchError && <p className="text-destructive text-sm">{fetchError}</p>}
           </div>
           <DialogFooter>
@@ -2579,11 +2640,11 @@ function FilesPage() {
                   size="icon"
                   className="h-8 w-8"
                   onClick={() => setPreviewFullscreen(f => !f)}
-                    title={
-                      previewFullscreen
-                        ? t('preview.exitFullscreen', { defaultValue: 'Exit fullscreen' })
-                        : t('preview.fullscreen', { defaultValue: 'Fullscreen' })
-                    }
+                  title={
+                    previewFullscreen
+                      ? t('preview.exitFullscreen', { defaultValue: 'Exit fullscreen' })
+                      : t('preview.fullscreen', { defaultValue: 'Fullscreen' })
+                  }
                 >
                   {previewFullscreen ? (
                     <Minimize2 className="h-4 w-4" />
@@ -2784,7 +2845,9 @@ function FilesPage() {
       <AlertDialog open={emptyTrashOpen} onOpenChange={setEmptyTrashOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t('trash.emptyTitle', { defaultValue: 'Empty Trash?' })}</AlertDialogTitle>
+            <AlertDialogTitle>
+              {t('trash.emptyTitle', { defaultValue: 'Empty Trash?' })}
+            </AlertDialogTitle>
             <AlertDialogDescription>
               {t('trash.emptyDescription', {
                 count: trashCount,

@@ -191,11 +191,11 @@ export function SecretVisibilityField({
         onClick={() => setOpen(current => !current)}
         aria-expanded={open}
       >
-          <span className="space-y-0.5">
-            <span className="block text-sm font-medium text-foreground">{t('visibility.title')}</span>
-            <span className="block text-xs text-muted-foreground">
-              {open ? t('visibility.description') : selectedSummary}
-            </span>
+        <span className="space-y-0.5">
+          <span className="block text-sm font-medium text-foreground">{t('visibility.title')}</span>
+          <span className="block text-xs text-muted-foreground">
+            {open ? t('visibility.description') : selectedSummary}
+          </span>
           {!open && collapsedHint ? (
             <span className="block text-[11px] text-muted-foreground/90">{collapsedHint}</span>
           ) : null}

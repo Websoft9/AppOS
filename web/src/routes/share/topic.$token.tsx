@@ -53,7 +53,10 @@ function formatAuthor(createdBy: string) {
   return createdBy.slice(0, 8) + '…'
 }
 
-function timeRemaining(expiresAt: string, t: (key: string, values?: Record<string, unknown>) => string) {
+function timeRemaining(
+  expiresAt: string,
+  t: (key: string, values?: Record<string, unknown>) => string
+) {
   const diff = new Date(expiresAt).getTime() - Date.now()
   if (diff <= 0) return t('shared.expires.expired')
   const mins = Math.ceil(diff / 60000)
@@ -87,10 +90,7 @@ function SharedTopicPage() {
       setTopic(res)
       setError('')
     } catch (err: any) {
-      const msg =
-        err?.response?.data?.message ||
-        err?.data?.message ||
-        t('shared.invalidLink')
+      const msg = err?.response?.data?.message || err?.data?.message || t('shared.invalidLink')
       setError(msg)
     } finally {
       setLoading(false)
@@ -234,9 +234,7 @@ function SharedTopicPage() {
                   </div>
                 </form>
               ) : (
-                <p className="text-sm text-muted-foreground">
-                  {t('shared.closedNoComments')}
-                </p>
+                <p className="text-sm text-muted-foreground">{t('shared.closedNoComments')}</p>
               )}
             </div>
           </>

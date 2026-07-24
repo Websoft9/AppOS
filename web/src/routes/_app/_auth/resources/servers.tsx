@@ -2130,9 +2130,9 @@ export function ServersPage() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>
-                {powerAction === 'restart'
-                  ? t('servers.dialogs.power.restartTitle', { defaultValue: 'Restart Server' })
-                  : t('servers.dialogs.power.shutdownTitle', { defaultValue: 'Shutdown Server' })}
+              {powerAction === 'restart'
+                ? t('servers.dialogs.power.restartTitle', { defaultValue: 'Restart Server' })
+                : t('servers.dialogs.power.shutdownTitle', { defaultValue: 'Shutdown Server' })}
             </DialogTitle>
             <DialogDescription>
               {powerTarget
@@ -2151,8 +2151,8 @@ export function ServersPage() {
                 htmlFor="power-delay-minutes"
                 className="text-sm font-medium text-foreground whitespace-nowrap"
               >
-                 {t('servers.dialogs.power.delayLabel', { defaultValue: 'Delay (min)' })}
-               </label>
+                {t('servers.dialogs.power.delayLabel', { defaultValue: 'Delay (min)' })}
+              </label>
               <input
                 id="power-delay-minutes"
                 type="number"
@@ -2169,13 +2169,13 @@ export function ServersPage() {
                 }}
               />
               <span className="text-xs text-muted-foreground">
-                 {powerDelayMinutes === 0
-                   ? t('servers.dialogs.power.immediate', { defaultValue: 'Immediate' })
-                   : t('servers.dialogs.power.delayFromNow', {
-                       count: powerDelayMinutes,
-                       defaultValue: '{{count}} min from now',
-                     })}
-               </span>
+                {powerDelayMinutes === 0
+                  ? t('servers.dialogs.power.immediate', { defaultValue: 'Immediate' })
+                  : t('servers.dialogs.power.delayFromNow', {
+                      count: powerDelayMinutes,
+                      defaultValue: '{{count}} min from now',
+                    })}
+              </span>
             </div>
           )}
           {powerError && <div className="text-sm text-destructive">{powerError}</div>}
@@ -2185,7 +2185,7 @@ export function ServersPage() {
               onClick={() => setPowerDialogOpen(false)}
               disabled={powerSubmitting}
             >
-               {t('common:cancel', { defaultValue: 'Cancel' })}
+              {t('common:cancel', { defaultValue: 'Cancel' })}
             </Button>
             <Button
               onClick={() => {
@@ -2194,7 +2194,7 @@ export function ServersPage() {
               disabled={powerSubmitting}
             >
               {powerSubmitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-               {t('common:confirm', { defaultValue: 'Confirm' })}
+              {t('common:confirm', { defaultValue: 'Confirm' })}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -2243,8 +2243,8 @@ export function ServersPage() {
                   htmlFor="server-secret-edit-name"
                   className="text-sm font-medium text-foreground"
                 >
-                   {t('servers.fields.name', { defaultValue: 'Name' })}{' '}
-                   <span className="text-destructive">*</span>
+                  {t('servers.fields.name', { defaultValue: 'Name' })}{' '}
+                  <span className="text-destructive">*</span>
                 </label>
                 <input
                   id="server-secret-edit-name"
@@ -2272,8 +2272,8 @@ export function ServersPage() {
                   htmlFor="server-secret-edit-description"
                   className="text-sm font-medium text-foreground"
                 >
-                   {t('servers.fields.description', { defaultValue: 'Description' })}
-                 </label>
+                  {t('servers.fields.description', { defaultValue: 'Description' })}
+                </label>
                 <input
                   id="server-secret-edit-description"
                   type="text"
@@ -2291,7 +2291,7 @@ export function ServersPage() {
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => closeSecretEditor(false)}>
-               {t('common:cancel', { defaultValue: 'Cancel' })}
+              {t('common:cancel', { defaultValue: 'Cancel' })}
             </Button>
             <Button
               type="button"
@@ -2301,7 +2301,7 @@ export function ServersPage() {
               disabled={secretEditLoading || secretEditSaving}
             >
               {secretEditSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-               {t('servers.secret.save', { defaultValue: 'Save Credential' })}
+              {t('servers.secret.save', { defaultValue: 'Save Credential' })}
             </Button>
           </DialogFooter>
         </DialogContent>

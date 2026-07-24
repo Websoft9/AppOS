@@ -65,10 +65,13 @@ vi.mock('react-i18next', () => ({
         'detail.runtime.logs': 'Logs',
         'detail.runtime.exec': 'Exec',
         'detail.runtime.files': 'Files',
-        'detail.runtime.unavailableInventory': 'Current Docker runtime inventory is unavailable because the server is unreachable.',
-        'detail.runtime.noContainers': 'No matching containers were found for this app in the current Docker inventory.',
+        'detail.runtime.unavailableInventory':
+          'Current Docker runtime inventory is unavailable because the server is unreachable.',
+        'detail.runtime.noContainers':
+          'No matching containers were found for this app in the current Docker inventory.',
         'detail.runtime.nextStepTitle': 'Next Step',
-        'detail.runtime.nextStepDescription': 'Use server or Docker workspaces only when the summary above is not enough.',
+        'detail.runtime.nextStepDescription':
+          'Use server or Docker workspaces only when the summary above is not enough.',
         'detail.secondary.openObservability': 'Open Observability',
         'detail.secondary.openCompose': 'Open Compose',
         'detail.secondary.openServerWorkspace': 'Open Server Workspace',
@@ -80,9 +83,11 @@ vi.mock('react-i18next', () => ({
         'detail.compose.openInIac': 'Open in IaC',
         'detail.compose.iacPath': 'IaC Path:',
         'detail.compose.projectDir': 'Project Dir:',
-        'detail.compose.validateBeforeSave': 'Validate the current draft before saving. Save remains disabled until the current content passes validation.',
+        'detail.compose.validateBeforeSave':
+          'Validate the current draft before saving. Save remains disabled until the current content passes validation.',
         'detail.compose.environmentFileTitle': 'Environment File',
-        'detail.compose.environmentFileDescription': 'Edit the app-local .env file beside the compose asset when present.',
+        'detail.compose.environmentFileDescription':
+          'Edit the app-local .env file beside the compose asset when present.',
         'detail.compose.reloadEnv': 'Reload Env',
         'detail.compose.saveEnv': 'Save Env',
         'detail.compose.envPath': 'Env Path:',
@@ -90,7 +95,8 @@ vi.mock('react-i18next', () => ({
         'detail.compose.envLoaded': 'loaded',
         'detail.compose.envLoading': 'loading',
         'detail.compose.envNotLoaded': 'not loaded',
-        'detail.compose.envUnavailable': 'Env editing is unavailable because the compose asset path is not resolved yet.',
+        'detail.compose.envUnavailable':
+          'Env editing is unavailable because the compose asset path is not resolved yet.',
         'detail.compose.draftDiff': 'Draft Diff',
         'detail.observability.metricsTitle': 'Metrics',
         'detail.observability.signalsTitle': 'Signals',
@@ -110,8 +116,10 @@ vi.mock('react-i18next', () => ({
         'detail.observability.serverConnection': 'Server connection:',
         'detail.observability.online': 'Online',
         'detail.observability.lastExposureVerification': 'Last exposure verification:',
-        'detail.observability.heartbeat': 'Heartbeat is projected from app runtime and exposure health signals. The canonical product-facing state is `instance_state`.',
-        'detail.observability.monitorEmpty': 'No monitoring projection is available yet for {{name}}. Current runtime status is {{status}}.',
+        'detail.observability.heartbeat':
+          'Heartbeat is projected from app runtime and exposure health signals. The canonical product-facing state is `instance_state`.',
+        'detail.observability.monitorEmpty':
+          'No monitoring projection is available yet for {{name}}. Current runtime status is {{status}}.',
         'detail.observability.logsTitle': 'Logs',
         'detail.observability.noLogs': 'No logs yet.',
         'detail.data.action': 'Action',
@@ -1985,7 +1993,9 @@ describe('AppDetailPage', () => {
       '/iac?path=apps%2Finstalled%2Fdemo-app%2Fdocker-compose.yml'
     )
     await waitFor(() => {
-      const envEditor = screen.getAllByRole('textbox').find(node => node.textContent === 'APP_ENV=demo\n')
+      const envEditor = screen
+        .getAllByRole('textbox')
+        .find(node => node.textContent === 'APP_ENV=demo\n')
       expect(envEditor).toBeTruthy()
     })
   })

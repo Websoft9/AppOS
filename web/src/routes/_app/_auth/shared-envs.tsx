@@ -440,12 +440,15 @@ function SharedEnvsPage() {
       <div className="flex items-center justify-between">
         <div className="space-y-2">
           <h1 className="text-2xl font-bold tracking-tight">{t('title')}</h1>
-          <p className="text-muted-foreground mt-1">
-            {t('description')}
-          </p>
+          <p className="text-muted-foreground mt-1">{t('description')}</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" title={t('refresh')} onClick={() => void fetchAll()}>
+          <Button
+            variant="outline"
+            size="icon"
+            title={t('refresh')}
+            onClick={() => void fetchAll()}
+          >
             <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
           </Button>
           <Button onClick={openCreate}>{t('new')}</Button>
@@ -507,7 +510,7 @@ function SharedEnvsPage() {
               <TableHead>{t('table.variables')}</TableHead>
               <TableHead>
                 <SortableHeader
-                   label={t('table.created')}
+                  label={t('table.created')}
                   field="created"
                   current={sortField}
                   dir={sortDir}
@@ -541,9 +544,7 @@ function SharedEnvsPage() {
                       {item.description || '\u2014'}
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline">
-                        {t('table.varCount', { count: vars.length })}
-                      </Badge>
+                      <Badge variant="outline">{t('table.varCount', { count: vars.length })}</Badge>
                     </TableCell>
                     <TableCell>{formatDate(item.created)}</TableCell>
                     <TableCell className="text-right">
@@ -570,7 +571,7 @@ function SharedEnvsPage() {
                               onClick={() => setDeleteTarget({ id: item.id, name: item.name })}
                             >
                               <Trash2 className="h-4 w-4" />
-                               {t('delete')}
+                              {t('delete')}
                             </DropdownMenuItem>
                           )}
                         </DropdownMenuContent>
@@ -590,9 +591,7 @@ function SharedEnvsPage() {
         <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingId ? t('dialog.editTitle') : t('dialog.newTitle')}</DialogTitle>
-            <DialogDescription>
-              {t('dialog.description')}
-            </DialogDescription>
+            <DialogDescription>{t('dialog.description')}</DialogDescription>
           </DialogHeader>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -620,16 +619,14 @@ function SharedEnvsPage() {
             {/* Variables editor */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                 <Label>{t('dialog.variables')}</Label>
-                 <Button type="button" variant="outline" size="sm" onClick={addVar}>
-                   <Plus className="h-3 w-3 mr-1" /> {t('dialog.addVariable')}
-                 </Button>
+                <Label>{t('dialog.variables')}</Label>
+                <Button type="button" variant="outline" size="sm" onClick={addVar}>
+                  <Plus className="h-3 w-3 mr-1" /> {t('dialog.addVariable')}
+                </Button>
               </div>
 
               {formVars.length === 0 && (
-                <p className="text-sm text-muted-foreground py-2">
-                  {t('dialog.noVariables')}
-                </p>
+                <p className="text-sm text-muted-foreground py-2">{t('dialog.noVariables')}</p>
               )}
 
               <div className="space-y-2">
@@ -656,7 +653,7 @@ function SharedEnvsPage() {
                               value={v.secret}
                               onChange={e => updateVar(i, { secret: e.target.value })}
                             >
-                               <option value="">{t('dialog.selectSecret')}</option>
+                              <option value="">{t('dialog.selectSecret')}</option>
                               {secrets.map(s => (
                                 <option key={s.id} value={s.id}>
                                   {s.name}
@@ -668,7 +665,7 @@ function SharedEnvsPage() {
                               className="text-xs text-primary hover:underline whitespace-nowrap"
                               onClick={() => updateVar(i, { secretMode: 'create', secret: '' })}
                             >
-                               {t('dialog.orType')}
+                              {t('dialog.orType')}
                             </button>
                           </div>
                         ) : (
@@ -677,7 +674,7 @@ function SharedEnvsPage() {
                               type="password"
                               value={v.secretValue}
                               onChange={e => updateVar(i, { secretValue: e.target.value })}
-                               placeholder={t('dialog.secretValuePlaceholder')}
+                              placeholder={t('dialog.secretValuePlaceholder')}
                             />
                             <button
                               type="button"
@@ -686,7 +683,7 @@ function SharedEnvsPage() {
                                 updateVar(i, { secretMode: 'select', secretValue: '' })
                               }
                             >
-                               {t('dialog.orSelect')}
+                              {t('dialog.orSelect')}
                             </button>
                           </div>
                         )
@@ -694,7 +691,7 @@ function SharedEnvsPage() {
                         <Input
                           value={v.value}
                           onChange={e => updateVar(i, { value: e.target.value })}
-                           placeholder={t('dialog.valuePlaceholder')}
+                          placeholder={t('dialog.valuePlaceholder')}
                         />
                       )}
 
@@ -714,7 +711,7 @@ function SharedEnvsPage() {
                             })
                           }
                         />
-                         {t('dialog.secretToggle')}
+                        {t('dialog.secretToggle')}
                       </label>
 
                       {/* Remove */}

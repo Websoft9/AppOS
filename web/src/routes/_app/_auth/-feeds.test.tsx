@@ -78,8 +78,10 @@ const translate = (key: string, values?: Record<string, unknown>) => {
     'actions.deleteSelectedArticles': 'Delete selected source articles',
     'dialogs.addBookmark': 'Add Bookmark',
     'dialogs.editBookmark': 'Edit Bookmark',
-    'dialogs.editBookmarkDescription': 'Update one saved link without turning it into a polling source.',
-    'dialogs.addBookmarkDescription': 'Save one manual link into the Feeds workspace without turning it into a polling source.',
+    'dialogs.editBookmarkDescription':
+      'Update one saved link without turning it into a polling source.',
+    'dialogs.addBookmarkDescription':
+      'Save one manual link into the Feeds workspace without turning it into a polling source.',
     'dialogs.title': 'Title',
     'dialogs.description': 'Description',
     'dialogs.pageTitle': 'Page title',
@@ -97,7 +99,8 @@ const translate = (key: string, values?: Record<string, unknown>) => {
     'dialogs.website': 'Website',
     'dialogs.status': 'Status',
     'dialogs.editFeedSource': 'Edit Feed Source',
-    'dialogs.editFeedSourceDescription': 'Update one RSS or Atom source for the Feeds ingestion loop.',
+    'dialogs.editFeedSourceDescription':
+      'Update one RSS or Atom source for the Feeds ingestion loop.',
     'dialogs.addFeedSource': 'Add Feed Source',
     'dialogs.step1': 'Step 1 of 2. Enter an RSS or Atom URL to analyze before subscribing.',
     'dialogs.step2': 'Step 2 of 2. Review the detected metadata and finish subscribing.',
@@ -106,18 +109,23 @@ const translate = (key: string, values?: Record<string, unknown>) => {
     'dialogs.subscribe': 'Subscribe',
     'dialogs.subscribeDescription': 'Review details and save the source',
     'dialogs.analyzingTitle': 'Analyzing feed URL',
-    'dialogs.analyzingDescription': 'Fetching metadata, detecting feed format, and preparing the subscription details.',
+    'dialogs.analyzingDescription':
+      'Fetching metadata, detecting feed format, and preparing the subscription details.',
     'dialogs.analysisCompleteTitle': 'Analysis complete',
-    'dialogs.analysisCompleteDescription': 'The source metadata has been detected and stored for this subscription.',
+    'dialogs.analysisCompleteDescription':
+      'The source metadata has been detected and stored for this subscription.',
     'dialogs.deleteSource': 'Delete Source',
     'dialogs.deleteFeedSource': 'Delete Feed Source',
     'dialogs.deleteFeedSourceFallback': 'Delete this feed source?',
     'dialogs.deleteSourceAndArticles': 'Delete source and articles',
-    'dialogs.deleteFeedSourceDescription': 'Delete {{name}}? This will also delete {{count}} articles already pulled from this source.',
+    'dialogs.deleteFeedSourceDescription':
+      'Delete {{name}}? This will also delete {{count}} articles already pulled from this source.',
     'dialogs.deleteFeedArticles': 'Delete Feed Articles',
-    'dialogs.deleteFeedArticlesDescription': 'Delete up to {{count}} pulled articles from {{name}}. If you choose fewer than the total, the oldest articles will be deleted first.',
+    'dialogs.deleteFeedArticlesDescription':
+      'Delete up to {{count}} pulled articles from {{name}}. If you choose fewer than the total, the oldest articles will be deleted first.',
     'dialogs.deleteFeedArticlesEmpty': '{{name}} has no pulled articles to delete.',
-    'dialogs.deleteFeedArticlesFallback': 'Delete pulled articles for this source? The source will remain.',
+    'dialogs.deleteFeedArticlesFallback':
+      'Delete pulled articles for this source? The source will remain.',
     'dialogs.articleCount': 'Article count',
     'dialogs.articleCountRange': '1 - {{count}} articles',
     'dialogs.deleteOldestArticles': 'Delete oldest articles',
@@ -127,7 +135,8 @@ const translate = (key: string, values?: Record<string, unknown>) => {
     'dialogs.bookmarkHelp': 'Fetch the page metadata to auto-fill title, description, and favicon.',
     'dialogs.saveBookmark': 'Save Bookmark',
     'dialogs.saveChanges': 'Save Changes',
-    'dialogs.identityImmutable': 'Feed URL and format are immutable identity fields. Create a new source if the upstream feed changes.',
+    'dialogs.identityImmutable':
+      'Feed URL and format are immutable identity fields. Create a new source if the upstream feed changes.',
     'dialogs.shareTitle': 'Share',
     'dialogs.shareDescription': 'Share {{title}} with a tracked URL or QR code.',
     'dialogs.shareUrl': 'Share URL',

@@ -20,7 +20,13 @@ import {
   type MonitorOverviewResponse,
 } from './monitor-overview-shared'
 
-function OverviewItemRow({ item, noActiveIssue }: { item: MonitorOverviewItem; noActiveIssue: string }) {
+function OverviewItemRow({
+  item,
+  noActiveIssue,
+}: {
+  item: MonitorOverviewItem
+  noActiveIssue: string
+}) {
   const summaryEntries = Object.entries(item.summary ?? {}).slice(
     0,
     item.targetType === 'platform' ? 8 : 4
@@ -37,9 +43,7 @@ function OverviewItemRow({ item, noActiveIssue }: { item: MonitorOverviewItem; n
             ' · ' +
             item.targetId}
         </div>
-        <div className="text-sm text-muted-foreground">
-          {item.reason || noActiveIssue}
-        </div>
+        <div className="text-sm text-muted-foreground">{item.reason || noActiveIssue}</div>
         {summaryEntries.length > 0 ? (
           <div className="flex flex-wrap gap-2 pt-1">
             {summaryEntries.map(([key, value]) => (
@@ -88,29 +92,32 @@ export function MonitorOverviewContent() {
     [data.counts]
   )
 
-  const loadOverview = useCallback(async (silent = false) => {
-    if (silent) {
-      setRefreshing(true)
-    } else {
-      setLoading(true)
-    }
-    setError('')
-    try {
-      const response = await pb.send<MonitorOverviewResponse>('/api/monitor/overview', {
-        method: 'GET',
-      })
-      setData(normalizeOverviewResponse(response))
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : t('monitorOverview.errors.load', 'Failed to load monitoring overview')
-      )
-    } finally {
-      setLoading(false)
-      setRefreshing(false)
-    }
-  }, [t])
+  const loadOverview = useCallback(
+    async (silent = false) => {
+      if (silent) {
+        setRefreshing(true)
+      } else {
+        setLoading(true)
+      }
+      setError('')
+      try {
+        const response = await pb.send<MonitorOverviewResponse>('/api/monitor/overview', {
+          method: 'GET',
+        })
+        setData(normalizeOverviewResponse(response))
+      } catch (err) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : t('monitorOverview.errors.load', 'Failed to load monitoring overview')
+        )
+      } finally {
+        setLoading(false)
+        setRefreshing(false)
+      }
+    },
+    [t]
+  )
 
   useEffect(() => {
     void loadOverview()

@@ -260,21 +260,21 @@ export function DeployPage({
         <div className="flex items-center gap-2">
           {view === 'home' ? (
             <>
-                <Button
-                  size="icon"
-                  title={t('page.deploy', { defaultValue: 'Deploy' })}
-                  aria-label={t('page.deploy', { defaultValue: 'Deploy' })}
-                  onClick={() => openManualDialog('compose')}
-                >
+              <Button
+                size="icon"
+                title={t('page.deploy', { defaultValue: 'Deploy' })}
+                aria-label={t('page.deploy', { defaultValue: 'Deploy' })}
+                onClick={() => openManualDialog('compose')}
+              >
                 <Plus className="h-4 w-4" />
               </Button>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  title={t('page.viewActivity', { defaultValue: 'View activity' })}
-                  aria-label={t('page.viewActivity', { defaultValue: 'View activity' })}
-                  asChild
-                >
+              <Button
+                variant="outline"
+                size="icon"
+                title={t('page.viewActivity', { defaultValue: 'View activity' })}
+                aria-label={t('page.viewActivity', { defaultValue: 'View activity' })}
+                asChild
+              >
                 <Link to="/activity" params={{} as never} search={{} as never}>
                   <List className="h-4 w-4" />
                 </Link>
@@ -292,13 +292,13 @@ export function DeployPage({
                   <Plus className="h-4 w-4" />
                 </Link>
               </Button>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  title={t('page.refresh', { defaultValue: 'Refresh' })}
-                  aria-label={t('page.refresh', { defaultValue: 'Refresh' })}
-                  onClick={() => void fetchOperations()}
-                >
+              <Button
+                variant="outline"
+                size="icon"
+                title={t('page.refresh', { defaultValue: 'Refresh' })}
+                aria-label={t('page.refresh', { defaultValue: 'Refresh' })}
+                onClick={() => void fetchOperations()}
+              >
                 <RefreshCw className="h-4 w-4" />
               </Button>
             </>

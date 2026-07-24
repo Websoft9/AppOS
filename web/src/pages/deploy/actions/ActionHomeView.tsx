@@ -206,40 +206,40 @@ export function ActionHomeView<TOperation extends LatestOperationItem>({
   return (
     <div className="space-y-6">
       {prefillLoading ? (
-          <Alert>
-            <AlertDescription>
-              {prefillMode === 'installed'
-                ? t('home.prefillInstalledLoading', {
-                    defaultValue: 'Loading current compose config for {{name}}...',
-                    name: prefillAppName || prefillAppId,
-                  })
-                : t('home.prefillTemplateLoading', {
-                    defaultValue: 'Loading deploy template for {{name}}...',
-                    name: prefillAppName || prefillAppKey,
-                  })}
-            </AlertDescription>
-          </Alert>
+        <Alert>
+          <AlertDescription>
+            {prefillMode === 'installed'
+              ? t('home.prefillInstalledLoading', {
+                  defaultValue: 'Loading current compose config for {{name}}...',
+                  name: prefillAppName || prefillAppId,
+                })
+              : t('home.prefillTemplateLoading', {
+                  defaultValue: 'Loading deploy template for {{name}}...',
+                  name: prefillAppName || prefillAppKey,
+                })}
+          </AlertDescription>
+        </Alert>
       ) : null}
       {prefillReady ? (
-          <Alert>
-            <AlertDescription>
-              {prefillMode === 'installed'
-                ? t('home.prefillInstalledReady', {
-                    defaultValue:
-                      '{{mode}} handoff is ready for {{name}}. The shared deployment form has been prefilled with the current installed compose config.',
-                    mode:
-                      prefillSource === 'upgrade'
-                        ? t('home.upgrade', { defaultValue: 'Upgrade' })
-                        : t('home.redeploy', { defaultValue: 'Redeploy' }),
-                    name: prefillReady,
-                  })
-                : t('home.prefillTemplateReady', {
-                    defaultValue:
-                      'App Store handoff is ready for {{name}}. The shared deployment form has been prefilled with its compose template.',
-                    name: prefillReady,
-                  })}
-            </AlertDescription>
-          </Alert>
+        <Alert>
+          <AlertDescription>
+            {prefillMode === 'installed'
+              ? t('home.prefillInstalledReady', {
+                  defaultValue:
+                    '{{mode}} handoff is ready for {{name}}. The shared deployment form has been prefilled with the current installed compose config.',
+                  mode:
+                    prefillSource === 'upgrade'
+                      ? t('home.upgrade', { defaultValue: 'Upgrade' })
+                      : t('home.redeploy', { defaultValue: 'Redeploy' }),
+                  name: prefillReady,
+                })
+              : t('home.prefillTemplateReady', {
+                  defaultValue:
+                    'App Store handoff is ready for {{name}}. The shared deployment form has been prefilled with its compose template.',
+                  name: prefillReady,
+                })}
+          </AlertDescription>
+        </Alert>
       ) : null}
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -391,7 +391,7 @@ export function ActionHomeView<TOperation extends LatestOperationItem>({
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
-            <div className="space-y-1">
+          <div className="space-y-1">
             <CardTitle className="text-base">
               {t('home.latestActivitySummary', { defaultValue: 'Latest Activity Summary' })}
             </CardTitle>

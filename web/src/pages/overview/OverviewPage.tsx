@@ -295,7 +295,10 @@ function latestSeriesSummary(series: MonitorSeries, t: TFunction<'common'>): str
     if (latestUsed !== null || latestFree !== null) {
       return t('overview.trendSummary.diskUsage', {
         used: latestUsed === null ? '—' : formatBytes(latestUsed),
-        free: latestFree === null ? '' : ` / ${formatBytes(latestFree)} ${t('overview.trendSummary.free')}`,
+        free:
+          latestFree === null
+            ? ''
+            : ` / ${formatBytes(latestFree)} ${t('overview.trendSummary.free')}`,
       })
     }
   }
@@ -307,7 +310,9 @@ function latestSeriesSummary(series: MonitorSeries, t: TFunction<'common'>): str
       return t('overview.trendSummary.networkSpeed', {
         inbound: latestInbound === null ? '—' : `${formatBytes(latestInbound)}/s`,
         outbound:
-          latestOutbound === null ? '' : ` / ${formatBytes(latestOutbound)}/s ${t('overview.trendSummary.out')}`,
+          latestOutbound === null
+            ? ''
+            : ` / ${formatBytes(latestOutbound)}/s ${t('overview.trendSummary.out')}`,
       })
     }
   }
@@ -319,7 +324,9 @@ function latestSeriesSummary(series: MonitorSeries, t: TFunction<'common'>): str
       return t('overview.trendSummary.networkTraffic', {
         inbound: latestInbound === null ? '—' : formatBytes(latestInbound),
         outbound:
-          latestOutbound === null ? '' : ` / ${formatBytes(latestOutbound)} ${t('overview.trendSummary.out')}`,
+          latestOutbound === null
+            ? ''
+            : ` / ${formatBytes(latestOutbound)} ${t('overview.trendSummary.out')}`,
       })
     }
   }
@@ -332,7 +339,10 @@ function latestSeriesSummary(series: MonitorSeries, t: TFunction<'common'>): str
     if (latestRead !== null || latestWrite !== null) {
       return t('overview.trendSummary.diskIo', {
         read: latestRead === null ? '—' : `${formatBytes(latestRead)}/s`,
-        write: latestWrite === null ? '' : ` / ${formatBytes(latestWrite)}/s ${t('overview.trendSummary.write')}`,
+        write:
+          latestWrite === null
+            ? ''
+            : ` / ${formatBytes(latestWrite)}/s ${t('overview.trendSummary.write')}`,
       })
     }
   }

@@ -80,8 +80,13 @@ vi.mock('react-i18next', () => ({
       }
       if (key === 'containers.volumeCount') {
         const count = Number(values?.count ?? 0)
-        const template = count === 1 ? translations['containers.volumeCount_one'] : translations['containers.volumeCount_other']
-        return template.replace(/\{\{(\w+)\}\}/g, (_, token: string) => String(values?.[token] ?? ''))
+        const template =
+          count === 1
+            ? translations['containers.volumeCount_one']
+            : translations['containers.volumeCount_other']
+        return template.replace(/\{\{(\w+)\}\}/g, (_, token: string) =>
+          String(values?.[token] ?? '')
+        )
       }
       const template =
         translations[key] ||

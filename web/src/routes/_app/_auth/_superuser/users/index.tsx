@@ -192,9 +192,7 @@ function UsersTable({ collection, onAddUser, refreshKey }: UsersTableProps) {
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder={
-              collection === 'users'
-                ? t('users.search.users')
-                : t('users.search.superusers')
+              collection === 'users' ? t('users.search.users') : t('users.search.superusers')
             }
             className="pl-8"
             value={query}

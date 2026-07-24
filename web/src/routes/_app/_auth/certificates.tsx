@@ -438,9 +438,7 @@ function CertificatesPage() {
       }
       setQuickSecretOpen(false)
     } catch (err: unknown) {
-      setQuickSecretError(
-        err instanceof Error ? err.message : t('errors.createPrivateKeySecret')
-      )
+      setQuickSecretError(err instanceof Error ? err.message : t('errors.createPrivateKeySecret'))
     } finally {
       setQuickSecretSaving(false)
     }
@@ -697,7 +695,9 @@ function CertificatesPage() {
         </div>
         {filteredItems.length > 0 && (
           <div className="ml-auto flex items-center gap-3 text-sm text-muted-foreground">
-            <span className="whitespace-nowrap">{t('page.totalItems', { count: filteredItems.length })}</span>
+            <span className="whitespace-nowrap">
+              {t('page.totalItems', { count: filteredItems.length })}
+            </span>
             <div className="flex items-center gap-1">
               <button
                 type="button"
@@ -743,7 +743,7 @@ function CertificatesPage() {
             <TableRow>
               <TableHead>
                 <SortableHeader
-                   label={t('table.name')}
+                  label={t('table.name')}
                   field="name"
                   current={sortField}
                   dir={sortDir}
@@ -752,7 +752,7 @@ function CertificatesPage() {
               </TableHead>
               <TableHead>
                 <SortableHeader
-                   label={t('table.domain')}
+                  label={t('table.domain')}
                   field="domain"
                   current={sortField}
                   dir={sortDir}
@@ -760,7 +760,7 @@ function CertificatesPage() {
                 />
               </TableHead>
               <TableHead>
-                 <FilterHeader label={t('table.kind')} active={kindFilter !== 'all'}>
+                <FilterHeader label={t('table.kind')} active={kindFilter !== 'all'}>
                   <DropdownMenuCheckboxItem
                     checked={kindFilter === 'all'}
                     className="px-2"
@@ -791,7 +791,7 @@ function CertificatesPage() {
               </TableHead>
               <TableHead>
                 <SortableHeader
-                   label={t('table.issued')}
+                  label={t('table.issued')}
                   field="issued_at"
                   current={sortField}
                   dir={sortDir}
@@ -800,7 +800,7 @@ function CertificatesPage() {
               </TableHead>
               <TableHead>
                 <SortableHeader
-                   label={t('table.expires')}
+                  label={t('table.expires')}
                   field="expires_at"
                   current={sortField}
                   dir={sortDir}
@@ -808,7 +808,7 @@ function CertificatesPage() {
                 />
               </TableHead>
               <TableHead>
-                 <FilterHeader label={t('table.status')} active={statusFilter !== 'all'}>
+                <FilterHeader label={t('table.status')} active={statusFilter !== 'all'}>
                   <DropdownMenuCheckboxItem
                     checked={statusFilter === 'all'}
                     className="px-2"
@@ -1120,24 +1120,32 @@ function CertificatesPage() {
               <div className="grid grid-cols-2 gap-x-6 gap-y-3 rounded-md border p-4">
                 {editRecord.issuer && (
                   <div className="space-y-0.5">
-                      <span className="text-muted-foreground text-xs font-medium">{t('dialogs.issuer')}</span>
+                    <span className="text-muted-foreground text-xs font-medium">
+                      {t('dialogs.issuer')}
+                    </span>
                     <p className="text-sm">{editRecord.issuer}</p>
                   </div>
                 )}
                 {editRecord.subject && (
                   <div className="space-y-0.5">
-                      <span className="text-muted-foreground text-xs font-medium">{t('dialogs.subject')}</span>
+                    <span className="text-muted-foreground text-xs font-medium">
+                      {t('dialogs.subject')}
+                    </span>
                     <p className="text-sm">{editRecord.subject}</p>
                   </div>
                 )}
                 {editRecord.expires_at && (
                   <div className="space-y-0.5">
-                      <span className="text-muted-foreground text-xs font-medium">{t('detail.expiresAt')}</span>
+                    <span className="text-muted-foreground text-xs font-medium">
+                      {t('detail.expiresAt')}
+                    </span>
                     <p className="text-sm">{formatDate(editRecord.expires_at)}</p>
                   </div>
                 )}
                 <div className="space-y-0.5">
-                    <span className="text-muted-foreground text-xs font-medium">{t('detail.status')}</span>
+                  <span className="text-muted-foreground text-xs font-medium">
+                    {t('detail.status')}
+                  </span>
                   <div>
                     <StatusBadge status={editRecord.status} expiresAt={editRecord.expires_at} />
                   </div>
@@ -1176,7 +1184,7 @@ function CertificatesPage() {
                         size="sm"
                         onClick={() => document.getElementById('edit-upload-cert')?.click()}
                       >
-                         {t('dialogs.uploadFile')}
+                        {t('dialogs.uploadFile')}
                       </Button>
                     </div>
                   </div>
@@ -1310,7 +1318,9 @@ function CertificatesPage() {
         <DialogContent className="max-w-sm" onOpenAutoFocus={e => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle>{t('dialogs.renewTitle')}</DialogTitle>
-            <DialogDescription>{t('dialogs.renewDescription', { name: renewTarget?.name ?? '' })}</DialogDescription>
+            <DialogDescription>
+              {t('dialogs.renewDescription', { name: renewTarget?.name ?? '' })}
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">
@@ -1322,9 +1332,7 @@ function CertificatesPage() {
                 value={renewDays}
                 onChange={e => setRenewDays(parseInt(e.target.value) || DEFAULT_VALIDITY_DAYS)}
               />
-              <p className="text-xs text-muted-foreground">
-                {t('dialogs.validityDescription')}
-              </p>
+              <p className="text-xs text-muted-foreground">{t('dialogs.validityDescription')}</p>
             </div>
           </div>
           <DialogFooter>

@@ -376,7 +376,7 @@ function GroupDetailPage() {
       <div className="bg-destructive/10 text-destructive px-4 py-3 rounded-md text-sm">
         {error}
         <Button variant="ghost" size="sm" className="ml-2" onClick={fetchGroup}>
-            {t('common:retry')}
+          {t('common:retry')}
         </Button>
       </div>
     )
@@ -443,9 +443,7 @@ function GroupDetailPage() {
       {filteredRows.length === 0 && items.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground border rounded-lg">
           <p className="text-lg font-medium">{t('detail.empty.title')}</p>
-          <p className="text-sm mt-1">
-            {t('detail.empty.description')}
-          </p>
+          <p className="text-sm mt-1">{t('detail.empty.description')}</p>
           <Button className="mt-4" onClick={openAddDialog}>
             <Plus className="h-4 w-4 mr-2" />
             {t('detail.addItems')}
@@ -565,14 +563,12 @@ function GroupDetailPage() {
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>{t('detail.addDialog.title')}</DialogTitle>
-            <DialogDescription>
-              {t('detail.addDialog.description')}
-            </DialogDescription>
+            <DialogDescription>{t('detail.addDialog.description')}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             {/* Object type tabs */}
             <div className="space-y-2">
-               <Label>{t('detail.addDialog.objectType')}</Label>
+              <Label>{t('detail.addDialog.objectType')}</Label>
               <select
                 value={addType}
                 onChange={e => handleAddTypeChange(e.target.value)}
@@ -588,7 +584,7 @@ function GroupDetailPage() {
 
             {/* Multi-select dropdown */}
             <div className="space-y-2">
-               <Label>{t('detail.addDialog.selectItems')}</Label>
+              <Label>{t('detail.addDialog.selectItems')}</Label>
               <div ref={dropdownRef} className="relative">
                 {/* Trigger button */}
                 <button
@@ -598,7 +594,9 @@ function GroupDetailPage() {
                 >
                   <span className={addSelected.size === 0 ? 'text-muted-foreground' : ''}>
                     {addSelected.size === 0
-                      ? t('detail.addDialog.selectPlaceholder', { label: OBJECT_TYPE_MAP[addType]?.label ?? addType })
+                      ? t('detail.addDialog.selectPlaceholder', {
+                          label: OBJECT_TYPE_MAP[addType]?.label ?? addType,
+                        })
                       : t('detail.addDialog.selectedCount', { count: addSelected.size })}
                   </span>
                   <ChevronDown
@@ -615,7 +613,9 @@ function GroupDetailPage() {
                         <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
                         <input
                           className="w-full h-8 pl-7 pr-3 text-sm rounded-sm border border-input bg-background outline-none focus:ring-1 focus:ring-ring"
-                          placeholder={t('detail.addDialog.searchPlaceholder', { label: OBJECT_TYPE_MAP[addType]?.label ?? addType })}
+                          placeholder={t('detail.addDialog.searchPlaceholder', {
+                            label: OBJECT_TYPE_MAP[addType]?.label ?? addType,
+                          })}
                           value={addSearch}
                           onChange={e => setAddSearch(e.target.value)}
                           autoFocus
@@ -633,7 +633,9 @@ function GroupDetailPage() {
                         <p className="py-5 text-center text-sm text-muted-foreground">
                           {addSearch
                             ? t('detail.addDialog.noMatches')
-                            : t('detail.addDialog.noAvailable', { label: OBJECT_TYPE_MAP[addType]?.label ?? addType })}
+                            : t('detail.addDialog.noAvailable', {
+                                label: OBJECT_TYPE_MAP[addType]?.label ?? addType,
+                              })}
                         </p>
                       ) : (
                         filteredCandidates.map(c => {
@@ -676,7 +678,9 @@ function GroupDetailPage() {
                             }}
                           >
                             <Plus className="h-3.5 w-3.5 shrink-0" />
-                            {t('detail.addDialog.createNew', { label: OBJECT_TYPE_MAP[addType]?.label ?? addType })}
+                            {t('detail.addDialog.createNew', {
+                              label: OBJECT_TYPE_MAP[addType]?.label ?? addType,
+                            })}
                           </button>
                         </div>
                       </>
@@ -692,7 +696,9 @@ function GroupDetailPage() {
             </Button>
             <Button onClick={handleAddItems} disabled={addSaving || addSelected.size === 0}>
               {addSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              {t('detail.addDialog.add', { suffix: addSelected.size > 0 ? `(${addSelected.size})` : '' })}
+              {t('detail.addDialog.add', {
+                suffix: addSelected.size > 0 ? `(${addSelected.size})` : '',
+              })}
             </Button>
           </DialogFooter>
         </DialogContent>

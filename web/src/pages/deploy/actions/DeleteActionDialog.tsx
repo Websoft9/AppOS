@@ -42,8 +42,7 @@ export function DeleteActionDialog({
                 })
               : singleOperation
                 ? t('dialogs.deleteOneDescription', {
-                    defaultValue:
-                      'Delete {{name}}? This removes the activity record from history.',
+                    defaultValue: 'Delete {{name}}? This removes the activity record from history.',
                     name: singleOperation.compose_project_name || singleOperation.id,
                   })
                 : t('dialogs.deleteFallback', { defaultValue: 'Delete this activity record?' })}
@@ -58,7 +57,10 @@ export function DeleteActionDialog({
             }}
           >
             {operations.length > 1
-              ? t('dialogs.deleteCount', { defaultValue: 'Delete {{count}}', count: operations.length })
+              ? t('dialogs.deleteCount', {
+                  defaultValue: 'Delete {{count}}',
+                  count: operations.length,
+                })
               : t('common:delete', { defaultValue: 'Delete' })}
           </AlertDialogAction>
         </AlertDialogFooter>

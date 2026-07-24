@@ -475,9 +475,7 @@ export function FilesPage() {
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">{t('iac.title')}</h1>
-          <p className="mt-1 text-muted-foreground">
-            {t('iac.description')}
-          </p>
+          <p className="mt-1 text-muted-foreground">{t('iac.description')}</p>
         </div>
         <Button
           variant="outline"
@@ -525,7 +523,10 @@ export function FilesPage() {
                 <>
                   <span className="truncate">{selectedPath}</span>
                   {isDirty && (
-                    <span className="h-2 w-2 rounded-full bg-orange-400" title={t('iac.unsavedChanges')} />
+                    <span
+                      className="h-2 w-2 rounded-full bg-orange-400"
+                      title={t('iac.unsavedChanges')}
+                    />
                   )}
                 </>
               ) : (

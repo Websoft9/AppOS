@@ -447,12 +447,14 @@ export function ComposeTab({
         setProjectContainers(grouped)
         setProjectContainersHydrated(true)
       } catch (err) {
-          setActionError(
-            getApiErrorMessage(
-              err,
-              t('compose.errors.loadContainers', { defaultValue: 'Failed to load compose containers' })
-            )
+        setActionError(
+          getApiErrorMessage(
+            err,
+            t('compose.errors.loadContainers', {
+              defaultValue: 'Failed to load compose containers',
+            })
           )
+        )
       } finally {
         setProjectContainersLoading(state => {
           const next = { ...state }
@@ -587,11 +589,11 @@ export function ComposeTab({
         setTextDialogContent(
           getApiErrorMessage(
             err,
-              request.kind === 'logs'
-                ? t('compose.errors.loadLogs', { defaultValue: 'Failed to load logs' })
-                : t('compose.errors.loadConfig', { defaultValue: 'Failed to load config' })
-            )
+            request.kind === 'logs'
+              ? t('compose.errors.loadLogs', { defaultValue: 'Failed to load logs' })
+              : t('compose.errors.loadConfig', { defaultValue: 'Failed to load config' })
           )
+        )
       } finally {
         setTextDialogLoading(false)
       }
@@ -749,7 +751,9 @@ export function ComposeTab({
               className="h-7 min-w-0 px-0.5"
               onClick={() => changePage(Math.max(1, effectivePage - 1))}
               disabled={effectivePage <= 1}
-                aria-label={t('compose.pagination.previous', { defaultValue: 'Previous compose page' })}
+              aria-label={t('compose.pagination.previous', {
+                defaultValue: 'Previous compose page',
+              })}
             >
               <ChevronLeft className="h-3.5 w-3.5" />
             </Button>
@@ -762,7 +766,7 @@ export function ComposeTab({
               className="h-7 min-w-0 px-0.5"
               onClick={() => changePage(Math.min(totalPages, effectivePage + 1))}
               disabled={effectivePage >= totalPages}
-                aria-label={t('compose.pagination.next', { defaultValue: 'Next compose page' })}
+              aria-label={t('compose.pagination.next', { defaultValue: 'Next compose page' })}
             >
               <ChevronRight className="h-3.5 w-3.5" />
             </Button>
@@ -773,7 +777,9 @@ export function ComposeTab({
                 variant="outline"
                 size="icon"
                 className="h-8 w-8"
-                aria-label={t('compose.settings.button', { defaultValue: 'Compose display settings' })}
+                aria-label={t('compose.settings.button', {
+                  defaultValue: 'Compose display settings',
+                })}
                 title={t('compose.settings.button', { defaultValue: 'Compose display settings' })}
               >
                 <Settings2 className="h-4 w-4" />
@@ -784,16 +790,16 @@ export function ComposeTab({
                 value={String(effectivePageSize)}
                 onValueChange={value => changePageSize(Number(value) as 25 | 50 | 100)}
               >
-                  <DropdownMenuRadioItem value="25">
-                    {t('compose.settings.perPage', { count: 25, defaultValue: '{{count}} / page' })}
-                  </DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="50">
-                    {t('compose.settings.perPage', { count: 50, defaultValue: '{{count}} / page' })}
-                  </DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="100">
-                    {t('compose.settings.perPage', { count: 100, defaultValue: '{{count}} / page' })}
-                  </DropdownMenuRadioItem>
-                </DropdownMenuRadioGroup>
+                <DropdownMenuRadioItem value="25">
+                  {t('compose.settings.perPage', { count: 25, defaultValue: '{{count}} / page' })}
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="50">
+                  {t('compose.settings.perPage', { count: 50, defaultValue: '{{count}} / page' })}
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="100">
+                  {t('compose.settings.perPage', { count: 100, defaultValue: '{{count}} / page' })}
+                </DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -834,12 +840,12 @@ export function ComposeTab({
       {(hasProjectContainerLoading || operationLoading) && !embeddedInWorkspace && (
         <div className="flex shrink-0 flex-wrap items-center gap-2 rounded-lg border border-dashed bg-muted/10 px-3 py-2">
           {hasProjectContainerLoading ? (
-              <Badge variant="outline">
-                {t('compose.loading.projectContainers', {
-                  defaultValue: 'Loading project containers...',
-                })}
-              </Badge>
-            ) : null}
+            <Badge variant="outline">
+              {t('compose.loading.projectContainers', {
+                defaultValue: 'Loading project containers...',
+              })}
+            </Badge>
+          ) : null}
           {operationLoading && operationRequest ? (
             <Badge variant="outline" className="inline-flex items-center gap-1">
               <Loader2 className="h-3 w-3 animate-spin" />
@@ -856,7 +862,10 @@ export function ComposeTab({
               <TableRow>
                 <TableHead className="min-w-[220px] pl-4 pr-2">
                   <div className="flex items-center">
-                    <SortHead label={t('compose.columns.project', { defaultValue: 'Project' })} keyName="project" />
+                    <SortHead
+                      label={t('compose.columns.project', { defaultValue: 'Project' })}
+                      keyName="project"
+                    />
                   </div>
                 </TableHead>
                 <TableHead className="min-w-[140px]">
@@ -875,10 +884,14 @@ export function ComposeTab({
                               statusFilter !== 'all' &&
                                 'bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary'
                             )}
-                            aria-label={t('compose.filters.statusAria', { defaultValue: 'Filter compose status' })}
+                            aria-label={t('compose.filters.statusAria', {
+                              defaultValue: 'Filter compose status',
+                            })}
                             title={
                               statusFilter === 'all'
-                                ? t('compose.filters.statusAria', { defaultValue: 'Filter compose status' })
+                                ? t('compose.filters.statusAria', {
+                                    defaultValue: 'Filter compose status',
+                                  })
                                 : t('compose.filters.statusTitle', {
                                     value: statusFilter,
                                     defaultValue: 'Compose status: {{value}}',
@@ -1207,7 +1220,9 @@ export function ComposeTab({
                           <div className="space-y-4 rounded-lg border bg-background p-4 shadow-sm">
                             <div>
                               <div className="mb-2 text-xs font-medium text-muted-foreground">
-                                {t('compose.expanded.servicesTitle', { defaultValue: 'Compose Services' })}
+                                {t('compose.expanded.servicesTitle', {
+                                  defaultValue: 'Compose Services',
+                                })}
                               </div>
                               {projectPsLoading[project.Name] ? (
                                 <div className="text-xs text-muted-foreground">
@@ -1221,10 +1236,14 @@ export function ComposeTab({
                                     <thead className="bg-muted/30 text-muted-foreground">
                                       <tr>
                                         <th className="px-3 py-2 text-left font-medium">
-                                          {t('compose.expanded.service', { defaultValue: 'Service' })}
+                                          {t('compose.expanded.service', {
+                                            defaultValue: 'Service',
+                                          })}
                                         </th>
                                         <th className="px-3 py-2 text-left font-medium">
-                                          {t('compose.expanded.container', { defaultValue: 'Container' })}
+                                          {t('compose.expanded.container', {
+                                            defaultValue: 'Container',
+                                          })}
                                         </th>
                                         <th className="px-3 py-2 text-left font-medium">
                                           {t('compose.expanded.state', { defaultValue: 'State' })}
@@ -1402,7 +1421,9 @@ export function ComposeTab({
         }
         emptyText={
           operationFailed
-            ? t('compose.operation.failedEmpty', { defaultValue: '(operation failed without output)' })
+            ? t('compose.operation.failedEmpty', {
+                defaultValue: '(operation failed without output)',
+              })
             : t('compose.operation.completedEmpty', {
                 defaultValue: '(operation completed with no output)',
               })
@@ -1413,7 +1434,9 @@ export function ComposeTab({
             : 'compose-operation'
         }
         downloadExtension="log"
-        copySuccessText={t('compose.operation.copySuccess', { defaultValue: 'Operation output copied' })}
+        copySuccessText={t('compose.operation.copySuccess', {
+          defaultValue: 'Operation output copied',
+        })}
         copyFailureText={t('compose.operation.copyFailure', {
           defaultValue: 'Failed to copy operation output',
         })}

@@ -194,9 +194,9 @@ export function SecretCreateDialog({
                     variant="outline"
                     size="sm"
                     onClick={() => setGeneratorOpen(true)}
-                    >
-                      {t('form.generate')}
-                    </Button>
+                  >
+                    {t('form.generate')}
+                  </Button>
                 ) : null
               }
             />
@@ -227,12 +227,12 @@ export function SecretCreateDialog({
           </div>
 
           <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               {t('common:cancel')}
-              </Button>
-              <Button type="button" onClick={() => void handleCreate()} disabled={saving}>
+            </Button>
+            <Button type="button" onClick={() => void handleCreate()} disabled={saving}>
               {title}
-              </Button>
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

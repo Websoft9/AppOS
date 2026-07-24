@@ -345,10 +345,10 @@ export const VolumesTab = forwardRef<
     } catch (err) {
       setInspectMap(state => ({
         ...state,
-          [name]: getApiErrorMessage(
-            err,
-            t('volumes.errors.inspect', { defaultValue: 'Failed to inspect volume' })
-          ),
+        [name]: getApiErrorMessage(
+          err,
+          t('volumes.errors.inspect', { defaultValue: 'Failed to inspect volume' })
+        ),
       }))
     } finally {
       setInspectLoadingMap(state => ({ ...state, [name]: false }))
@@ -362,7 +362,10 @@ export const VolumesTab = forwardRef<
       await queryClient.invalidateQueries({ queryKey: ['docker', 'volumes', serverId] })
     } catch (err) {
       setActionError(
-        getApiErrorMessage(err, t('volumes.errors.remove', { defaultValue: 'Failed to remove volume' }))
+        getApiErrorMessage(
+          err,
+          t('volumes.errors.remove', { defaultValue: 'Failed to remove volume' })
+        )
       )
     }
   }
@@ -374,13 +377,19 @@ export const VolumesTab = forwardRef<
       await queryClient.invalidateQueries({ queryKey: ['docker', 'volumes', serverId] })
     } catch (err) {
       setActionError(
-        getApiErrorMessage(err, t('volumes.errors.prune', { defaultValue: 'Failed to prune volumes' }))
+        getApiErrorMessage(
+          err,
+          t('volumes.errors.prune', { defaultValue: 'Failed to prune volumes' })
+        )
       )
     }
   }
 
   const loadError = error
-    ? getApiErrorMessage(error, t('volumes.errors.load', { defaultValue: 'Failed to load volumes' }))
+    ? getApiErrorMessage(
+        error,
+        t('volumes.errors.load', { defaultValue: 'Failed to load volumes' })
+      )
     : null
   const visibleError = loadError || actionError
   const dependencyIssue = getDockerDependencyIssue(error ?? visibleError)
@@ -567,7 +576,10 @@ export const VolumesTab = forwardRef<
             <TableHeader className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/90">
               <TableRow>
                 <TableHead className="min-w-[220px] pl-4 pr-2">
-                  <SortHead label={t('volumes.columns.name', { defaultValue: 'Name' })} keyName="name" />
+                  <SortHead
+                    label={t('volumes.columns.name', { defaultValue: 'Name' })}
+                    keyName="name"
+                  />
                 </TableHead>
                 <TableHead className="min-w-[120px]">
                   <div className="flex items-center gap-1">
@@ -584,10 +596,14 @@ export const VolumesTab = forwardRef<
                             driverFilter !== 'all' &&
                               'bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary'
                           )}
-                          aria-label={t('volumes.filters.driverAria', { defaultValue: 'Filter volume driver' })}
+                          aria-label={t('volumes.filters.driverAria', {
+                            defaultValue: 'Filter volume driver',
+                          })}
                           title={
                             driverFilter === 'all'
-                              ? t('volumes.filters.driverAria', { defaultValue: 'Filter volume driver' })
+                              ? t('volumes.filters.driverAria', {
+                                  defaultValue: 'Filter volume driver',
+                                })
                               : t('volumes.filters.driverTitle', {
                                   value: driverFilter,
                                   defaultValue: 'Volume driver: {{value}}',
@@ -636,7 +652,9 @@ export const VolumesTab = forwardRef<
                             linkedContainerFilter !== 'all' &&
                               'bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary'
                           )}
-                          aria-label={t('volumes.filters.linkedAria', { defaultValue: 'Filter linked containers' })}
+                          aria-label={t('volumes.filters.linkedAria', {
+                            defaultValue: 'Filter linked containers',
+                          })}
                           title={
                             linkedContainerFilter === 'all'
                               ? t('volumes.filters.all', { defaultValue: 'All' })
@@ -736,12 +754,12 @@ export const VolumesTab = forwardRef<
                               title={linkedContainers.join(', ')}
                             >
                               <span className="truncate">
-                                 {t('volumes.linkedContainerCount', {
-                                   count: linkedContainers.length,
-                                   defaultValue_one: '{{count}} linked container',
-                                   defaultValue_other: '{{count}} linked containers',
-                                 })}
-                               </span>
+                                {t('volumes.linkedContainerCount', {
+                                  count: linkedContainers.length,
+                                  defaultValue_one: '{{count}} linked container',
+                                  defaultValue_other: '{{count}} linked containers',
+                                })}
+                              </span>
                               <ExternalLink className="ml-1 h-3 w-3" />
                             </button>
                           ) : (
@@ -784,7 +802,8 @@ export const VolumesTab = forwardRef<
                             </div>
                           ) : (
                             <pre className="text-xs font-mono bg-muted/40 rounded-md border p-3 overflow-auto max-h-[300px] whitespace-pre-wrap">
-                              {inspectMap[v.Name] || t('volumes.empty.inspect', { defaultValue: '(empty output)' })}
+                              {inspectMap[v.Name] ||
+                                t('volumes.empty.inspect', { defaultValue: '(empty output)' })}
                             </pre>
                           )}
                         </TableCell>
@@ -808,13 +827,13 @@ export const VolumesTab = forwardRef<
         <div className="flex items-center justify-between gap-2 shrink-0">
           <div className="text-xs text-muted-foreground">
             {sorted.length === 0
-               ? t('volumes.pagination.zeroItems', { defaultValue: '0 items' })
-               : t('volumes.pagination.range', {
-                   start: (effectivePage - 1) * effectivePageSize + 1,
-                   end: Math.min(effectivePage * effectivePageSize, sorted.length),
-                   total: sorted.length,
-                   defaultValue: '{{start}}-{{end}} of {{total}}',
-                 })}
+              ? t('volumes.pagination.zeroItems', { defaultValue: '0 items' })
+              : t('volumes.pagination.range', {
+                  start: (effectivePage - 1) * effectivePageSize + 1,
+                  end: Math.min(effectivePage * effectivePageSize, sorted.length),
+                  total: sorted.length,
+                  defaultValue: '{{start}}-{{end}} of {{total}}',
+                })}
           </div>
           <div className="flex items-center gap-2 text-xs">
             <select
@@ -822,9 +841,15 @@ export const VolumesTab = forwardRef<
               value={String(effectivePageSize)}
               onChange={e => changePageSize(Number(e.target.value) as 25 | 50 | 100)}
             >
-              <option value={25}>{t('volumes.pagination.perPage', { count: 25, defaultValue: '{{count}} / page' })}</option>
-              <option value={50}>{t('volumes.pagination.perPage', { count: 50, defaultValue: '{{count}} / page' })}</option>
-              <option value={100}>{t('volumes.pagination.perPage', { count: 100, defaultValue: '{{count}} / page' })}</option>
+              <option value={25}>
+                {t('volumes.pagination.perPage', { count: 25, defaultValue: '{{count}} / page' })}
+              </option>
+              <option value={50}>
+                {t('volumes.pagination.perPage', { count: 50, defaultValue: '{{count}} / page' })}
+              </option>
+              <option value={100}>
+                {t('volumes.pagination.perPage', { count: 100, defaultValue: '{{count}} / page' })}
+              </option>
             </select>
             <Button
               variant="ghost"
@@ -832,7 +857,9 @@ export const VolumesTab = forwardRef<
               className="h-7 min-w-0 px-0.5"
               onClick={() => changePage(Math.max(1, effectivePage - 1))}
               disabled={effectivePage <= 1}
-              aria-label={t('volumes.pagination.previous', { defaultValue: 'Previous volumes page' })}
+              aria-label={t('volumes.pagination.previous', {
+                defaultValue: 'Previous volumes page',
+              })}
             >
               <ChevronLeft className="h-3.5 w-3.5" />
             </Button>
@@ -861,7 +888,9 @@ export const VolumesTab = forwardRef<
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t('volumes.dialogs.removeTitle', { defaultValue: 'Remove volume?' })}</AlertDialogTitle>
+            <AlertDialogTitle>
+              {t('volumes.dialogs.removeTitle', { defaultValue: 'Remove volume?' })}
+            </AlertDialogTitle>
             <AlertDialogDescription>
               {t('volumes.dialogs.removeDescription', {
                 defaultValue:
@@ -964,11 +993,11 @@ export const VolumesTab = forwardRef<
                   htmlFor="prune-volumes-confirmation"
                   className="text-sm font-medium text-foreground"
                 >
-                   {t('volumes.prune.confirmLabel', {
-                     phrase: PRUNE_CONFIRMATION_PHRASE,
-                     defaultValue: 'Type {{phrase}} to enable prune.',
-                   })}
-                 </label>
+                  {t('volumes.prune.confirmLabel', {
+                    phrase: PRUNE_CONFIRMATION_PHRASE,
+                    defaultValue: 'Type {{phrase}} to enable prune.',
+                  })}
+                </label>
                 <Input
                   id="prune-volumes-confirmation"
                   value={pruneConfirmationText}

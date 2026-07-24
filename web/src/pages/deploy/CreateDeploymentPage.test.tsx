@@ -43,8 +43,29 @@ vi.mock('react-i18next', () => ({
     init: () => undefined,
   },
   useTranslation: () => ({
-    t: (key: string, options?: Record<string, unknown>) =>
-      options?.defaultValue ? interpolate(String(options.defaultValue), options) : key,
+    t: (key: string, options?: Record<string, unknown>) => {
+      const translations: Record<string, string> = {
+        'exposure.title': 'Public Access',
+        'exposure.help':
+          'Prefer server ports in the 9001-9999 range when the host port is operator-managed.',
+        'exposure.description': 'Choose one public access path, or disable public access entirely.',
+        'exposure.disabled': 'Disabled',
+        'exposure.disabledHelp': 'Disabled / Public access blocked',
+        'exposure.domainAccess': 'Domain Access',
+        'exposure.recommended': 'Recommended',
+        'exposure.domainDescription': 'Access via domain for security.',
+        'exposure.portAccess': 'Port Access',
+        'exposure.portDescription': 'Access via port if domain unavailable.',
+        'exposure.serviceName': 'Service Name',
+        'exposure.containerPort': 'Container Port',
+        'exposure.openPort': 'Open Port',
+        'exposure.serverPort': 'Server Port',
+        'exposure.on': 'On',
+        'exposure.off': 'Off',
+      }
+      const template = translations[key] || options?.defaultValue || key
+      return interpolate(String(template), options)
+    },
   }),
 }))
 
@@ -1603,7 +1624,7 @@ describe('CreateDeploymentPage', () => {
     })
 
     expect(screen.queryByText('Service Name')).toBeNull()
-    expect(screen.queryByLabelText('Server Port primary')).toBeNull()
+    expect(screen.queryByLabelText('Server Port Primary Service')).toBeNull()
     expect(screen.queryByRole('button', { name: /No access/i })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Create Deployment' })).toBeDisabled()
 
@@ -1619,8 +1640,8 @@ describe('CreateDeploymentPage', () => {
     expect(screen.getByText('Service Name')).toBeInTheDocument()
     expect(screen.getByText('Container Port')).toBeInTheDocument()
     expect(screen.getByText('Open Port')).toBeInTheDocument()
-    expect(screen.getByLabelText('Open Port primary')).toBeInTheDocument()
-    expect(screen.getByLabelText('Server Port primary')).toBeInTheDocument()
+    expect(screen.getByLabelText(/Open Port /i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/Server Port /i)).toBeInTheDocument()
 
     fireEvent.change(getAppNameField(), { target: { value: 'internal-demo' } })
     await selectTargetLocation('local')

@@ -114,10 +114,8 @@ export function SecretCredentialField({
           variant="ghost"
           size="icon"
           className={`h-10 w-10 shrink-0 border-0 ${showReferencePicker ? pickerActionAlignmentClass : 'self-center'}`}
-            title={
-              useReference ? t('form.useDirectInput') : t('form.useSavedSecret')
-            }
-            onClick={toggleReferenceMode}
+          title={useReference ? t('form.useDirectInput') : t('form.useSavedSecret')}
+          onClick={toggleReferenceMode}
         >
           {useReference ? <Unlink className="h-4 w-4" /> : <Link2 className="h-4 w-4" />}
         </Button>
@@ -150,10 +148,10 @@ export function SecretCredentialField({
                   value={referenceValue}
                   options={options}
                   onSelect={onReferenceValueChange}
-                    placeholder={t('form.selectSecret')}
-                    searchPlaceholder={t('form.searchSecrets')}
-                    emptyMessage={t('form.noMatchingSecrets')}
-                    createLabel={onCreateReference ? t('form.newSecret') : undefined}
+                  placeholder={t('form.selectSecret')}
+                  searchPlaceholder={t('form.searchSecrets')}
+                  emptyMessage={t('form.noMatchingSecrets')}
+                  createLabel={onCreateReference ? t('form.newSecret') : undefined}
                   onCreate={onCreateReference}
                   autoOpen={!editMode}
                   showNoneOption={false}
@@ -171,8 +169,8 @@ export function SecretCredentialField({
                     variant="ghost"
                     size="icon"
                     className={`h-10 w-10 shrink-0 ${pickerActionAlignmentClass}`}
-                     title={t('form.editSecret')}
-                     onClick={() => onEditReference(referenceValue)}
+                    title={t('form.editSecret')}
+                    onClick={() => onEditReference(referenceValue)}
                   >
                     <Pencil className="h-3.5 w-3.5" />
                   </Button>
@@ -183,9 +181,9 @@ export function SecretCredentialField({
                     className="h-10"
                     onClick={() => onEditReference(referenceValue)}
                   >
-                     {t('form.editSecretButton')}
-                   </Button>
-                 ))}
+                    {t('form.editSecretButton')}
+                  </Button>
+                ))}
             </div>
           ) : (
             <div className="flex flex-wrap items-start gap-3">
@@ -226,24 +224,24 @@ export function SecretCredentialField({
           length={length}
           onLengthChange={setLength}
           onConfirm={() => onManualValueChange(generateValue(length))}
-            title={generatorTitle === 'Generate Password' ? t('generator.title') : generatorTitle}
-            description={
-              generatorDescription === 'Choose the password length before filling the field.'
-                ? t('generator.description')
-                : generatorDescription
-            }
-            lengthLabel={
-              generatorLengthLabel === 'Password Length'
-                ? t('generator.lengthLabel')
-                : generatorLengthLabel
-            }
-            confirmLabel={
-              generatorConfirmLabel === 'Fill Password'
-                ? t('generator.confirmLabel')
-                : generatorConfirmLabel
-            }
-          />
-        ) : null}
+          title={generatorTitle === 'Generate Password' ? t('generator.title') : generatorTitle}
+          description={
+            generatorDescription === 'Choose the password length before filling the field.'
+              ? t('generator.description')
+              : generatorDescription
+          }
+          lengthLabel={
+            generatorLengthLabel === 'Password Length'
+              ? t('generator.lengthLabel')
+              : generatorLengthLabel
+          }
+          confirmLabel={
+            generatorConfirmLabel === 'Fill Password'
+              ? t('generator.confirmLabel')
+              : generatorConfirmLabel
+          }
+        />
+      ) : null}
     </div>
   )
 }

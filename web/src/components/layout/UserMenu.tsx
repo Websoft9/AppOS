@@ -83,7 +83,9 @@ export function UserMenu() {
             <>
               <AlertDialogHeader>
                 <AlertDialogTitle>{t('shell.logoutConfirmTitle')}</AlertDialogTitle>
-                <AlertDialogDescription>{t('shell.logoutConfirmDescription')}</AlertDialogDescription>
+                <AlertDialogDescription>
+                  {t('shell.logoutConfirmDescription')}
+                </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>{t('common:cancel')}</AlertDialogCancel>

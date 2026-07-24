@@ -145,11 +145,7 @@ function ProfileSection({ collectionName, authId }: { collectionName: string; au
           </div>
         )}
 
-        {!isMember && (
-          <p className="text-sm text-muted-foreground">
-            {t('profile.superuserNote')}
-          </p>
-        )}
+        {!isMember && <p className="text-sm text-muted-foreground">{t('profile.superuserNote')}</p>}
 
         {profileSuccess && <SuccessMsg msg={profileSuccess} />}
         {profileError && <ErrorMsg msg={profileError} />}
@@ -335,9 +331,7 @@ function EmailSection({ collectionName }: { collectionName: string }) {
         <Button onClick={handleRequest} disabled={sending || !newEmail}>
           {sending ? t('email.saving') : t('email.save')}
         </Button>
-        <p className="text-xs text-muted-foreground">
-          {t('email.note')}
-        </p>
+        <p className="text-xs text-muted-foreground">{t('email.note')}</p>
       </div>
     </section>
   )
@@ -354,9 +348,7 @@ function ProfilePage() {
     <div className="container mx-auto max-w-2xl space-y-10 py-6">
       <div className="space-y-1">
         <h1 className="text-2xl font-semibold">{t('title')}</h1>
-        <p className="text-sm text-muted-foreground">
-          {t('description')}
-        </p>
+        <p className="text-sm text-muted-foreground">{t('description')}</p>
       </div>
 
       <ProfileSection collectionName={collectionName} authId={authId} />

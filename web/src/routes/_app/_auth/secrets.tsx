@@ -815,7 +815,9 @@ export function SecretsPage() {
         )}
         {filteredItems.length > 0 && (
           <div className="ml-auto flex items-center gap-3 text-sm text-muted-foreground">
-            <span className="whitespace-nowrap">{t('page.totalItems', { count: filteredItems.length })}</span>
+            <span className="whitespace-nowrap">
+              {t('page.totalItems', { count: filteredItems.length })}
+            </span>
             <div className="flex items-center gap-1">
               <button
                 type="button"
@@ -958,7 +960,7 @@ export function SecretsPage() {
                   onSort={handleSort}
                 />
               </TableHead>
-               <TableHead className="w-[48px]">{t('table.actions')}</TableHead>
+              <TableHead className="w-[48px]">{t('table.actions')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -984,7 +986,9 @@ export function SecretsPage() {
                     {templateLabelMap.get(item.template_id) ?? item.template_id}
                   </TableCell>
                   <TableCell>
-                    {item.scope === 'user_private' ? t('statuses.userPrivate') : t('statuses.global')}
+                    {item.scope === 'user_private'
+                      ? t('statuses.userPrivate')
+                      : t('statuses.global')}
                   </TableCell>
                   <TableCell>
                     <Badge variant="outline">
@@ -993,7 +997,7 @@ export function SecretsPage() {
                   </TableCell>
                   <TableCell>
                     <Badge variant={item.status === 'revoked' ? 'secondary' : 'default'}>
-                       {item.status || 'active'}
+                      {item.status || 'active'}
                     </Badge>
                   </TableCell>
                   <TableCell>{formatDate(item.created)}</TableCell>
@@ -1037,7 +1041,7 @@ export function SecretsPage() {
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => void openEdit(item)}>
                           <Pencil className="h-4 w-4" />
-                            {t('common:edit')}
+                          {t('common:edit')}
                         </DropdownMenuItem>
                         {canRevealSecret(item.access_mode, secretPolicy) && (
                           <DropdownMenuItem
@@ -1121,7 +1125,9 @@ export function SecretsPage() {
                         </div>
                         {item.description && (
                           <div className="sm:col-span-2 lg:col-span-3">
-                            <span className="text-muted-foreground">{t('detail.description')}:</span>{' '}
+                            <span className="text-muted-foreground">
+                              {t('detail.description')}:
+                            </span>{' '}
                             <span>{item.description}</span>
                           </div>
                         )}
@@ -1174,7 +1180,10 @@ export function SecretsPage() {
               value={editScope}
               options={SCOPE_OPTIONS.map(option => ({
                 ...option,
-                label: option.value === 'user_private' ? t('statuses.userPrivate') : t('statuses.global'),
+                label:
+                  option.value === 'user_private'
+                    ? t('statuses.userPrivate')
+                    : t('statuses.global'),
               }))}
               onChange={setEditScope}
             />
@@ -1214,8 +1223,8 @@ export function SecretsPage() {
                 type="submit"
                 disabled={editSavingPayload || !editId || !editPayloadHasValues}
               >
-                  {editSavingPayload ? t('dialogs.updating') : t('dialogs.updateValues')}
-                </Button>
+                {editSavingPayload ? t('dialogs.updating') : t('dialogs.updateValues')}
+              </Button>
             </div>
           </form>
 
@@ -1291,7 +1300,10 @@ export function SecretsPage() {
                   value={createScope}
                   options={SCOPE_OPTIONS.map(option => ({
                     ...option,
-                    label: option.value === 'user_private' ? t('statuses.userPrivate') : t('statuses.global'),
+                    label:
+                      option.value === 'user_private'
+                        ? t('statuses.userPrivate')
+                        : t('statuses.global'),
                   }))}
                   onChange={setCreateScope}
                 />
@@ -1322,18 +1334,22 @@ export function SecretsPage() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-                {confirmAction?.type === 'revoke' ? t('dialogs.revokeTitle') : t('dialogs.deleteTitle')}
-              </AlertDialogTitle>
-              <AlertDialogDescription>
-                {confirmAction?.type === 'revoke'
-                  ? t('dialogs.revokeDescription', { name: confirmAction.name })
-                  : t('dialogs.deleteDescription', { name: confirmAction?.name ?? '' })}
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
+              {confirmAction?.type === 'revoke'
+                ? t('dialogs.revokeTitle')
+                : t('dialogs.deleteTitle')}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmAction?.type === 'revoke'
+                ? t('dialogs.revokeDescription', { name: confirmAction.name })
+                : t('dialogs.deleteDescription', { name: confirmAction?.name ?? '' })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
             <AlertDialogCancel>{t('common:cancel')}</AlertDialogCancel>
-            <AlertDialogAction onClick={() => void handleConfirm()}>{t('common:confirm')}</AlertDialogAction>
-            </AlertDialogFooter>
+            <AlertDialogAction onClick={() => void handleConfirm()}>
+              {t('common:confirm')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 

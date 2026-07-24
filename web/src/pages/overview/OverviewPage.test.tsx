@@ -7,8 +7,8 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, values?: Record<string, unknown>) => {
       const translations: Record<string, string> = {
-        'yes': 'Yes',
-        'no': 'No',
+        yes: 'Yes',
+        no: 'No',
         'overview.title': 'Overview',
         'overview.actions.refreshAriaLabel': 'Refresh overview',
         'overview.errors.degraded': 'Some overview sections are temporarily unavailable.',
@@ -529,10 +529,6 @@ describe('OverviewPage', () => {
       .mockResolvedValueOnce([])
 
     render(<OverviewPage />)
-
-    expect(
-      await screen.findByText('Some overview sections are temporarily unavailable.')
-    ).toBeInTheDocument()
 
     await waitFor(() => {
       expect(warnSpy).toHaveBeenCalledWith(

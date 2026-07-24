@@ -94,8 +94,7 @@ export function CommandTab({ serverId = 'local' }: { serverId?: string }) {
             })}
             <br />
             {t('command.exampleLabel', { defaultValue: 'Example:' })} <code>ps -a</code>,{' '}
-            <code>images</code>, <code>compose ls</code>,{' '}
-            <code>network ls</code>
+            <code>images</code>, <code>compose ls</code>, <code>network ls</code>
           </p>
         )}
         {history.map(entry => (

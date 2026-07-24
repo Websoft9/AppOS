@@ -67,21 +67,25 @@ export function CreateDeploymentReviewPanel({
     : !checkResult
       ? activeChecking || activeSubmitting
         ? t('create.checkingInputs', { defaultValue: 'Checking current inputs...' })
-        : t('create.noPreflight', { defaultValue: 'No pre-flight result for the current inputs yet.' })
+        : t('create.noPreflight', {
+            defaultValue: 'No pre-flight result for the current inputs yet.',
+          })
       : checkResult.ok && preflightIssueCount === 0
         ? t('create.ready', { defaultValue: 'Ready to deploy' })
         : t(preflightIssueCount === 1 ? 'create.issuesFound' : 'create.issuesFoundPlural', {
-          count: preflightIssueCount || 1,
-          defaultValue:
-            preflightIssueCount === 1 ? '{{count}} issue found' : '{{count}} issues found',
-        })
+            count: preflightIssueCount || 1,
+            defaultValue:
+              preflightIssueCount === 1 ? '{{count}} issue found' : '{{count}} issues found',
+          })
 
   return (
     <div>
       <div className="space-y-4 xl:sticky xl:top-6 xl:ml-3">
         <Card className="rounded-2xl border-slate-200 shadow-sm dark:border-slate-800">
           <CardHeader className="space-y-1 pb-3">
-            <CardTitle className="text-sm">{t('create.summary', { defaultValue: 'Summary' })}</CardTitle>
+            <CardTitle className="text-sm">
+              {t('create.summary', { defaultValue: 'Summary' })}
+            </CardTitle>
             <CardDescription>
               {t('create.currentDeploymentOverview', {
                 defaultValue: 'Current deployment overview.',
@@ -182,7 +186,8 @@ export function CreateDeploymentReviewPanel({
                         </TooltipTrigger>
                         <TooltipContent side="top" className="max-w-xs text-xs">
                           {t('create.preflightTooltip', {
-                            defaultValue: 'Check surfaces name, port, and disk issues before deployment.',
+                            defaultValue:
+                              'Check surfaces name, port, and disk issues before deployment.',
                           })}
                         </TooltipContent>
                       </Tooltip>
@@ -266,10 +271,13 @@ export function CreateDeploymentReviewPanel({
         {helpVisible ? (
           <Card className="border-slate-200 dark:border-slate-800">
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm">{t('create.help', { defaultValue: 'Help' })}</CardTitle>
+              <CardTitle className="text-sm">
+                {t('create.help', { defaultValue: 'Help' })}
+              </CardTitle>
               <CardDescription>
                 {t('create.helpDescription', {
-                  defaultValue: 'Short answers for the most common questions during deployment creation.',
+                  defaultValue:
+                    'Short answers for the most common questions during deployment creation.',
                 })}
               </CardDescription>
             </CardHeader>

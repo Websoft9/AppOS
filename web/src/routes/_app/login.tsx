@@ -91,9 +91,9 @@ export function LoginPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-              <label htmlFor="email" className="block text-sm font-medium mb-1 text-foreground">
-                {emailLabel}
-              </label>
+            <label htmlFor="email" className="block text-sm font-medium mb-1 text-foreground">
+              {emailLabel}
+            </label>
             <input
               type="email"
               id="email"
@@ -105,9 +105,9 @@ export function LoginPage() {
             />
           </div>
           <div>
-              <label htmlFor="password" className="block text-sm font-medium mb-1 text-foreground">
-                {passwordLabel}
-              </label>
+            <label htmlFor="password" className="block text-sm font-medium mb-1 text-foreground">
+              {passwordLabel}
+            </label>
             <input
               type="password"
               id="password"

@@ -81,11 +81,11 @@ export function EmbeddedIframePage({ page }: { page: EmbeddedIframePageDefinitio
     <div className="flex h-full min-h-0 flex-col gap-4 p-4">
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-1">
-            <h1 className="text-2xl font-semibold tracking-tight">{page.title}</h1>
-            <p className="text-sm text-muted-foreground">
-              {page.description ?? t('embeddedIframe.description')}
-            </p>
-          </div>
+          <h1 className="text-2xl font-semibold tracking-tight">{page.title}</h1>
+          <p className="text-sm text-muted-foreground">
+            {page.description ?? t('embeddedIframe.description')}
+          </p>
+        </div>
         <a
           href={page.proxyPath}
           target="_blank"

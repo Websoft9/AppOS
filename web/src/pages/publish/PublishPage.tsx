@@ -295,10 +295,10 @@ export function PublishPage() {
             >
               Cancel
             </Button>
-              <Button onClick={handleCreate}>{t('dialog.create')}</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+            <Button onClick={handleCreate}>{t('dialog.create')}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

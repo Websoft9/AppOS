@@ -220,7 +220,9 @@ export function PlatformComponentsPage() {
                   <article key={component.id} className="rounded-xl border bg-background/80 p-4">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="text-base font-medium leading-6">{component.name}</p>
-                      <Badge variant="outline">{formatRuntimeKindLabel(component.runtime_kind)}</Badge>
+                      <Badge variant="outline">
+                        {formatRuntimeKindLabel(component.runtime_kind)}
+                      </Badge>
                       <Badge variant="secondary">
                         {formatComponentCriticalityLabel(component.criticality)}
                       </Badge>

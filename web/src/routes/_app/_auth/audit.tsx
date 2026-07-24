@@ -242,9 +242,7 @@ export function AuditPage() {
           </Button>
         </div>
       </div>
-      <p className="text-sm text-muted-foreground mb-4">
-        {t('description')}
-      </p>
+      <p className="text-sm text-muted-foreground mb-4">{t('description')}</p>
 
       {/* Summary */}
       {summary && (
@@ -344,7 +342,7 @@ export function AuditPage() {
               <TableHead>
                 <SortHeader
                   field="created"
-                   label={t('table.time')}
+                  label={t('table.time')}
                   current={sortField}
                   dir={sortDir}
                   onSort={handleSort}
@@ -353,17 +351,17 @@ export function AuditPage() {
               <TableHead>
                 <SortHeader
                   field="action"
-                   label={t('table.action')}
+                  label={t('table.action')}
                   current={sortField}
                   dir={sortDir}
                   onSort={handleSort}
                 />
               </TableHead>
-               <TableHead>{t('table.resource')}</TableHead>
+              <TableHead>{t('table.resource')}</TableHead>
               <TableHead>
                 <SortHeader
                   field="status"
-                   label={t('table.status')}
+                  label={t('table.status')}
                   current={sortField}
                   dir={sortDir}
                   onSort={handleSort}
@@ -373,7 +371,7 @@ export function AuditPage() {
                 <TableHead>
                   <SortHeader
                     field="ip"
-                     label={t('table.ip')}
+                    label={t('table.ip')}
                     current={sortField}
                     dir={sortDir}
                     onSort={handleSort}
@@ -384,7 +382,7 @@ export function AuditPage() {
                 <TableHead>
                   <SortHeader
                     field="user_email"
-                     label={t('table.user')}
+                    label={t('table.user')}
                     current={sortField}
                     dir={sortDir}
                     onSort={handleSort}
@@ -488,7 +486,7 @@ export function AuditPage() {
           >
             {PAGE_SIZE_OPTIONS.map(n => (
               <option key={n} value={n}>
-                  {t('pagination.perPage', { count: n })}
+                {t('pagination.perPage', { count: n })}
               </option>
             ))}
           </select>

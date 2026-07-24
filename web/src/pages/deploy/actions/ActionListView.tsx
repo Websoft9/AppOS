@@ -247,7 +247,8 @@ export function ActionListView<TOperation extends ActionListItem>({
         <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center">
           <div className="text-sm text-muted-foreground">
             {t('list.summary', {
-              defaultValue: 'Total: {{total}}, Active ({{active}}), Completed ({{completed}}), Failed ({{failed}})',
+              defaultValue:
+                'Total: {{total}}, Active ({{active}}), Completed ({{completed}}), Failed ({{failed}})',
               total: summary.total,
               active: summary.active,
               completed: summary.completed,
@@ -302,7 +303,9 @@ export function ActionListView<TOperation extends ActionListItem>({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-40">
-              <DropdownMenuLabel>{t('list.columns', { defaultValue: 'Columns' })}</DropdownMenuLabel>
+              <DropdownMenuLabel>
+                {t('list.columns', { defaultValue: 'Columns' })}
+              </DropdownMenuLabel>
               <DropdownMenuCheckboxItem
                 checked={showCreatedColumn}
                 onCheckedChange={checked => setShowCreatedColumn(Boolean(checked))}
@@ -363,16 +366,19 @@ export function ActionListView<TOperation extends ActionListItem>({
               </button>
             </Badge>
           ))}
-           <Button variant="ghost" size="sm" onClick={onClearAllFilters}>
+          <Button variant="ghost" size="sm" onClick={onClearAllFilters}>
             {t('list.clearFilters', { defaultValue: 'Clear filters' })}
-           </Button>
+          </Button>
         </div>
       ) : null}
 
       {selectedCount > 0 ? (
         <div className="text-sm text-muted-foreground">
           {selectedCount === 1
-            ? t('list.selected', { defaultValue: '{{count}} action selected.', count: selectedCount })
+            ? t('list.selected', {
+                defaultValue: '{{count}} action selected.',
+                count: selectedCount,
+              })
             : t('list.selectedPlural', {
                 defaultValue: '{{count}} actions selected.',
                 count: selectedCount,
@@ -426,7 +432,9 @@ export function ActionListView<TOperation extends ActionListItem>({
                   onChange={onServerFilterChange}
                 />
               </TableHead>
-              <TableHead>{t('list.headers.totalDuration', { defaultValue: 'Total duration' })}</TableHead>
+              <TableHead>
+                {t('list.headers.totalDuration', { defaultValue: 'Total duration' })}
+              </TableHead>
               {showCreatedColumn ? (
                 <TableHead>
                   <SortableHeader
@@ -439,18 +447,18 @@ export function ActionListView<TOperation extends ActionListItem>({
                 </TableHead>
               ) : null}
               <TableHead>
-                  <SortableHeader
-                    label={t('list.headers.started', { defaultValue: 'Started' })}
-                    field="started_at"
+                <SortableHeader
+                  label={t('list.headers.started', { defaultValue: 'Started' })}
+                  field="started_at"
                   current={sortField}
                   dir={sortDir}
                   onSort={onSort}
                 />
               </TableHead>
               <TableHead>
-                  <SortableHeader
-                    label={t('list.headers.finished', { defaultValue: 'Finished' })}
-                    field="finished_at"
+                <SortableHeader
+                  label={t('list.headers.finished', { defaultValue: 'Finished' })}
+                  field="finished_at"
                   current={sortField}
                   dir={sortDir}
                   onSort={onSort}

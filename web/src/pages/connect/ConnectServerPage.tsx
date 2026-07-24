@@ -659,10 +659,13 @@ export function ConnectServerPage({
     })
   }, [serverQuery, servers])
 
-  const connectTypeLabel = useCallback((server: ServerType) => {
-    const raw = String(server.connect_type || 'direct').toLowerCase()
-    return raw === 'tunnel' ? t('server.connectType.tunnel') : t('server.connectType.direct')
-  }, [t])
+  const connectTypeLabel = useCallback(
+    (server: ServerType) => {
+      const raw = String(server.connect_type || 'direct').toLowerCase()
+      return raw === 'tunnel' ? t('server.connectType.tunnel') : t('server.connectType.direct')
+    },
+    [t]
+  )
 
   const duplicateSessionCount = useMemo(() => {
     if (!duplicateConnectTarget) return 0
@@ -1081,7 +1084,8 @@ export function ConnectServerPage({
       const saveRes = await updateSystemdUnit(activeServerId, systemdSelected, systemdUnitContent)
       const verifyRes = await verifySystemdUnit(activeServerId, systemdSelected)
       const output =
-        [saveRes.output, verifyRes.verify_output].filter(Boolean).join('\n\n') || t('server.results.validatePassed')
+        [saveRes.output, verifyRes.verify_output].filter(Boolean).join('\n\n') ||
+        t('server.results.validatePassed')
       setSystemdUnitResult(output)
       setSystemdView('cat')
     } catch (error) {
@@ -1167,9 +1171,7 @@ export function ConnectServerPage({
       <div className="flex items-start gap-2 px-3 py-2 border-b shrink-0">
         <div className="mr-1">
           <h1 className="text-2xl font-bold tracking-tight leading-none">{t('server.title')}</h1>
-          <p className="text-muted-foreground mt-1 text-sm">
-            {t('server.description')}
-          </p>
+          <p className="text-muted-foreground mt-1 text-sm">{t('server.description')}</p>
         </div>
 
         <div className="flex-1" />
@@ -1231,7 +1233,9 @@ export function ConnectServerPage({
                 {t('server.runScript')}
               </DropdownMenuSubTrigger>
               <DropdownMenuSubContent className="w-[360px] max-h-[300px] overflow-y-auto">
-                <DropdownMenuLabel className="text-xs">{t('server.runScriptHint')}</DropdownMenuLabel>
+                <DropdownMenuLabel className="text-xs">
+                  {t('server.runScriptHint')}
+                </DropdownMenuLabel>
                 {scripts.map(s => (
                   <DropdownMenuItem
                     key={s.id}
@@ -1249,7 +1253,9 @@ export function ConnectServerPage({
                     </div>
                   </DropdownMenuItem>
                 ))}
-                {scripts.length === 0 && <DropdownMenuItem disabled>{t('server.noScripts')}</DropdownMenuItem>}
+                {scripts.length === 0 && (
+                  <DropdownMenuItem disabled>{t('server.noScripts')}</DropdownMenuItem>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleCreateScript}>
                   <Plus className="h-4 w-4 mr-2" />
@@ -1344,13 +1350,16 @@ export function ConnectServerPage({
                     className="justify-start"
                     onClick={() => applySplitPreset(0.5)}
                   >
-                     {t('server.reset')}
+                    {t('server.reset')}
                   </Button>
                 </div>
               </DropdownMenuContent>
             </DropdownMenu>
             <TooltipContent>
-               {t('server.layout', { left: Math.round(splitRatio * 100), right: Math.round((1 - splitRatio) * 100) })}
+              {t('server.layout', {
+                left: Math.round(splitRatio * 100),
+                right: Math.round((1 - splitRatio) * 100),
+              })}
             </TooltipContent>
           </Tooltip>
         )}
@@ -1379,13 +1388,15 @@ export function ConnectServerPage({
           <DialogHeader>
             <DialogTitle>
               {connectingPhase === 'safe-exit'
-                 ? t('hub.disconnecting')
-                 : connectingPhase === 'limit'
-                   ? t('server.connectionLimitReached')
-                   : t('hub.connecting')}
+                ? t('hub.disconnecting')
+                : connectingPhase === 'limit'
+                  ? t('server.connectionLimitReached')
+                  : t('hub.connecting')}
             </DialogTitle>
             <DialogDescription>
-              {connectingTarget ? t('server.target', { target: connectingTarget }) : t('server.preparing')}
+              {connectingTarget
+                ? t('server.target', { target: connectingTarget })
+                : t('server.preparing')}
             </DialogDescription>
           </DialogHeader>
           <div className="py-2 text-sm">
@@ -1876,7 +1887,9 @@ export function ConnectServerPage({
               {!systemdActionLoading && systemdView === 'status' && (
                 <div className="space-y-1 text-sm">
                   {Object.keys(systemdStatusDetails).length === 0 ? (
-                    <div className="text-muted-foreground">{t('server.systemdManager.noStatus')}</div>
+                    <div className="text-muted-foreground">
+                      {t('server.systemdManager.noStatus')}
+                    </div>
                   ) : (
                     Object.entries(systemdStatusDetails).map(([key, value]) => (
                       <div key={key} className="grid grid-cols-[160px_1fr] gap-2">

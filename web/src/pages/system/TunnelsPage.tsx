@@ -91,11 +91,7 @@ import {
   statusTone,
 } from './tunnel-utils'
 
-function statusBadge(
-  item: TunnelItem,
-  t: TFunction<'system'>,
-  pendingStatus?: PendingStatusKind
-) {
+function statusBadge(item: TunnelItem, t: TFunction<'system'>, pendingStatus?: PendingStatusKind) {
   const status = resolvedStatus(item, pendingStatus)
 
   if (status === 'online') {
@@ -267,7 +263,11 @@ export function TunnelsPage({
         return next
       })
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('tunnels.errors.loadOverview', 'Failed to load tunnel overview'))
+      setError(
+        err instanceof Error
+          ? err.message
+          : t('tunnels.errors.loadOverview', 'Failed to load tunnel overview')
+      )
     } finally {
       if (!options?.silent) {
         setLoading(false)
@@ -287,7 +287,11 @@ export function TunnelsPage({
       )
       setForwardDraft(normalizeTunnelForwardsResponse(res))
     } catch (err) {
-      setForwardsError(err instanceof Error ? err.message : t('tunnels.errors.loadDesiredForwards', 'Failed to load desired forwards'))
+      setForwardsError(
+        err instanceof Error
+          ? err.message
+          : t('tunnels.errors.loadDesiredForwards', 'Failed to load desired forwards')
+      )
     } finally {
       setForwardsLoading(false)
     }
@@ -322,7 +326,10 @@ export function TunnelsPage({
         ...current,
         [serverId]: {
           loading: false,
-          error: err instanceof Error ? err.message : t('tunnels.errors.loadConnectionLogs', 'Failed to load connection logs'),
+          error:
+            err instanceof Error
+              ? err.message
+              : t('tunnels.errors.loadConnectionLogs', 'Failed to load connection logs'),
           items: current[serverId]?.items ?? [],
         },
       }))
@@ -444,7 +451,11 @@ export function TunnelsPage({
       await pb.send(`/api/tunnel/servers/${item.id}/status`, { method: 'GET' })
       await loadOverview()
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('tunnels.errors.checkStatus', 'Failed to check tunnel status'))
+      setError(
+        err instanceof Error
+          ? err.message
+          : t('tunnels.errors.checkStatus', 'Failed to check tunnel status')
+      )
     } finally {
       setBusyId(null)
     }
@@ -477,7 +488,11 @@ export function TunnelsPage({
         await loadLogs(confirmTarget.item.id)
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('tunnels.errors.actionFailed', 'Tunnel action failed'))
+      setError(
+        err instanceof Error
+          ? err.message
+          : t('tunnels.errors.actionFailed', 'Tunnel action failed')
+      )
     } finally {
       setBusyId(null)
     }
@@ -512,7 +527,11 @@ export function TunnelsPage({
         await loadLogs(pauseTarget.id)
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('tunnels.errors.pauseFailed', 'Failed to pause tunnel connect'))
+      setError(
+        err instanceof Error
+          ? err.message
+          : t('tunnels.errors.pauseFailed', 'Failed to pause tunnel connect')
+      )
     } finally {
       setBusyId(null)
     }
@@ -633,11 +652,17 @@ export function TunnelsPage({
         method: 'PUT',
         body: { forwards: forwardDraft },
       })
-      setForwardsMessage(t('tunnels.notices.forwardsSaved', 'Saved. Applies on next reconnect or regenerated setup.'))
+      setForwardsMessage(
+        t('tunnels.notices.forwardsSaved', 'Saved. Applies on next reconnect or regenerated setup.')
+      )
       await loadForwards(portForwardTarget.id)
       await loadOverview({ silent: true })
     } catch (err) {
-      setForwardsError(err instanceof Error ? err.message : t('tunnels.errors.saveDesiredForwards', 'Failed to save desired forwards'))
+      setForwardsError(
+        err instanceof Error
+          ? err.message
+          : t('tunnels.errors.saveDesiredForwards', 'Failed to save desired forwards')
+      )
     } finally {
       setForwardsSaving(false)
     }
@@ -732,11 +757,36 @@ export function TunnelsPage({
             </button>
             {showStats ? (
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-md bg-muted/60 px-3 py-2 text-sm">
-                <span className="font-medium text-foreground">{t('tunnels.summary.total', { count: overallSummary.total, defaultValue: `Total ${overallSummary.total}` })}</span>
-                <span className="font-medium text-emerald-600">{t('tunnels.summary.online', { count: overallSummary.online, defaultValue: `Online ${overallSummary.online}` })}</span>
-                <span className="font-medium text-slate-500">{t('tunnels.summary.offline', { count: overallSummary.offline, defaultValue: `Offline ${overallSummary.offline}` })}</span>
-                <span className="font-medium text-amber-700">{t('tunnels.summary.paused', { count: overallSummary.paused, defaultValue: `Paused ${overallSummary.paused}` })}</span>
-                <span className="font-medium text-amber-600">{t('tunnels.summary.waiting', { count: overallSummary.waiting, defaultValue: `Waiting ${overallSummary.waiting}` })}</span>
+                <span className="font-medium text-foreground">
+                  {t('tunnels.summary.total', {
+                    count: overallSummary.total,
+                    defaultValue: `Total ${overallSummary.total}`,
+                  })}
+                </span>
+                <span className="font-medium text-emerald-600">
+                  {t('tunnels.summary.online', {
+                    count: overallSummary.online,
+                    defaultValue: `Online ${overallSummary.online}`,
+                  })}
+                </span>
+                <span className="font-medium text-slate-500">
+                  {t('tunnels.summary.offline', {
+                    count: overallSummary.offline,
+                    defaultValue: `Offline ${overallSummary.offline}`,
+                  })}
+                </span>
+                <span className="font-medium text-amber-700">
+                  {t('tunnels.summary.paused', {
+                    count: overallSummary.paused,
+                    defaultValue: `Paused ${overallSummary.paused}`,
+                  })}
+                </span>
+                <span className="font-medium text-amber-600">
+                  {t('tunnels.summary.waiting', {
+                    count: overallSummary.waiting,
+                    defaultValue: `Waiting ${overallSummary.waiting}`,
+                  })}
+                </span>
               </div>
             ) : null}
           </div>
@@ -745,7 +795,7 @@ export function TunnelsPage({
               variant="ghost"
               size="icon"
               className="h-8 w-8"
-               aria-label={t('tunnels.actions.previousPage', 'Previous page')}
+              aria-label={t('tunnels.actions.previousPage', 'Previous page')}
               disabled={safePage <= 1}
               onClick={() => updateQueryState({ page: Math.max(1, safePage - 1) })}
             >
@@ -758,7 +808,7 @@ export function TunnelsPage({
               variant="ghost"
               size="icon"
               className="h-8 w-8"
-               aria-label={t('tunnels.actions.nextPage', 'Next page')}
+              aria-label={t('tunnels.actions.nextPage', 'Next page')}
               disabled={safePage >= totalPages}
               onClick={() => updateQueryState({ page: Math.min(totalPages, safePage + 1) })}
             >
@@ -799,7 +849,7 @@ export function TunnelsPage({
                       <TableHead>{t('tunnels.table.tunnelId', 'Tunnel ID')}</TableHead>
                       <TableHead>
                         <SortableHeader
-                           label={t('tunnels.table.server', 'Server')}
+                          label={t('tunnels.table.server', 'Server')}
                           field="name"
                           activeField={sortField}
                           dir={sortDir}
@@ -808,7 +858,7 @@ export function TunnelsPage({
                       </TableHead>
                       <TableHead>
                         <SortableHeader
-                           label={t('tunnels.table.status', 'Status')}
+                          label={t('tunnels.table.status', 'Status')}
                           field="status"
                           activeField={sortField}
                           dir={sortDir}
@@ -817,25 +867,29 @@ export function TunnelsPage({
                       </TableHead>
                       <TableHead>
                         <SortableHeader
-                           label={t('tunnels.table.lastConnected', 'Last Connected')}
+                          label={t('tunnels.table.lastConnected', 'Last Connected')}
                           field="connected_at"
                           activeField={sortField}
                           dir={sortDir}
                           onToggle={toggleSort}
                         />
                       </TableHead>
-                       <TableHead>{t('tunnels.table.created', 'Created')}</TableHead>
-                       <TableHead>{t('tunnels.table.sessionDuration', 'Session Duration')}</TableHead>
+                      <TableHead>{t('tunnels.table.created', 'Created')}</TableHead>
+                      <TableHead>
+                        {t('tunnels.table.sessionDuration', 'Session Duration')}
+                      </TableHead>
                       <TableHead>
                         <SortableHeader
-                           label={t('tunnels.table.remoteAddress', 'Remote Address')}
+                          label={t('tunnels.table.remoteAddress', 'Remote Address')}
                           field="remote_addr"
                           activeField={sortField}
                           dir={sortDir}
                           onToggle={toggleSort}
                         />
                       </TableHead>
-                       <TableHead className="w-[52px] text-right">{t('tunnels.table.action', 'Action')}</TableHead>
+                      <TableHead className="w-[52px] text-right">
+                        {t('tunnels.table.action', 'Action')}
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -845,7 +899,7 @@ export function TunnelsPage({
                       const pendingStatus = pendingStatusById[item.id]
                       const effectiveMappings = item.services.length
                         ? item.services.map(service => formatEffectiveMapping(service)).join(' | ')
-                         : t('tunnels.details.none', 'None')
+                        : t('tunnels.details.none', 'None')
 
                       return (
                         <Fragment key={item.id}>
@@ -864,7 +918,8 @@ export function TunnelsPage({
                               </button>
                               {item.disconnect_reason ? (
                                 <div className="text-muted-foreground mt-1 text-xs">
-                                   {t('tunnels.details.lastDisconnectPrefix', 'Last disconnect:')} {formatDisconnectReason(item)}
+                                  {t('tunnels.details.lastDisconnectPrefix', 'Last disconnect:')}{' '}
+                                  {formatDisconnectReason(item)}
                                 </div>
                               ) : null}
                             </TableCell>
@@ -872,7 +927,7 @@ export function TunnelsPage({
                               <div
                                 className={`inline-flex items-center gap-2 ${statusTone(item, pendingStatus)}`}
                               >
-                                 {statusBadge(item, t, pendingStatus)}
+                                {statusBadge(item, t, pendingStatus)}
                               </div>
                             </TableCell>
                             <TableCell className="text-sm text-muted-foreground">
@@ -885,14 +940,16 @@ export function TunnelsPage({
                               {formatSessionDuration(item)}
                             </TableCell>
                             <TableCell className="text-sm text-muted-foreground">
-                               {item.remote_addr || t('shared.emptyDash', '—')}
+                              {item.remote_addr || t('shared.emptyDash', '—')}
                             </TableCell>
                             <TableCell className="text-right">
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                   <Button variant="ghost" size="icon" className="h-8 w-8">
                                     <MoreVertical className="h-4 w-4" />
-                                     <span className="sr-only">{t('tunnels.actions.menu', 'Actions')}</span>
+                                    <span className="sr-only">
+                                      {t('tunnels.actions.menu', 'Actions')}
+                                    </span>
                                   </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
@@ -913,9 +970,9 @@ export function TunnelsPage({
                                     onClick={() => void handleCheckStatus(item)}
                                   >
                                     {!actionBusy && <RefreshCw className="mr-2 h-4 w-4" />}
-                                     {actionBusy
-                                       ? t('tunnels.actions.checking', 'Checking...')
-                                       : t('tunnels.actions.check', 'Check')}
+                                    {actionBusy
+                                      ? t('tunnels.actions.checking', 'Checking...')
+                                      : t('tunnels.actions.check', 'Check')}
                                   </DropdownMenuItem>
                                   <DropdownMenuSeparator />
                                   {item.is_paused || item.status === 'paused' ? (
@@ -923,7 +980,7 @@ export function TunnelsPage({
                                       onClick={() => setConfirmTarget({ action: 'resume', item })}
                                     >
                                       <RefreshCw className="mr-2 h-4 w-4" />
-                                       {t('tunnels.actions.resumeConnect', 'Resume Connect')}
+                                      {t('tunnels.actions.resumeConnect', 'Resume Connect')}
                                     </DropdownMenuItem>
                                   ) : (
                                     <DropdownMenuItem
@@ -933,7 +990,7 @@ export function TunnelsPage({
                                       }}
                                     >
                                       <PlugZap className="mr-2 h-4 w-4" />
-                                       {t('tunnels.actions.pauseConnect', 'Pause Connect')}
+                                      {t('tunnels.actions.pauseConnect', 'Pause Connect')}
                                     </DropdownMenuItem>
                                   )}
                                   <DropdownMenuItem
@@ -941,13 +998,13 @@ export function TunnelsPage({
                                     onClick={() => setConfirmTarget({ action: 'disconnect', item })}
                                   >
                                     <Trash2 className="mr-2 h-4 w-4" />
-                                     {t('tunnels.actions.restartConnection', 'Restart Connection')}
+                                    {t('tunnels.actions.restartConnection', 'Restart Connection')}
                                   </DropdownMenuItem>
                                   <DropdownMenuItem
                                     onClick={() => setConfirmTarget({ action: 'rotate', item })}
                                   >
                                     <KeyRound className="mr-2 h-4 w-4" />
-                                     {t('tunnels.actions.rotateToken', 'Rotate token')}
+                                    {t('tunnels.actions.rotateToken', 'Rotate token')}
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>
@@ -959,7 +1016,7 @@ export function TunnelsPage({
                                 <div className="space-y-3 rounded-lg border bg-muted/10 px-4 py-3 text-sm">
                                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b pb-2">
                                     <span className="font-medium text-foreground">
-                                       {t('tunnels.details.title', 'Tunnel Details')}
+                                      {t('tunnels.details.title', 'Tunnel Details')}
                                     </span>
                                     {item.description ? (
                                       <span className="text-muted-foreground">
@@ -968,7 +1025,9 @@ export function TunnelsPage({
                                     ) : null}
                                   </div>
                                   <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-                                     <DetailItem label={t('tunnels.details.serverName', 'Server Name')}>
+                                    <DetailItem
+                                      label={t('tunnels.details.serverName', 'Server Name')}
+                                    >
                                       {onOpenServerDetail ? (
                                         <button
                                           type="button"
@@ -983,41 +1042,60 @@ export function TunnelsPage({
                                       )}
                                     </DetailItem>
                                     <DetailItem
-                                       label={t('tunnels.table.status', 'Status')}
-                                       value={item.is_paused ? t('tunnels.status.paused', 'Paused') : item.status}
-                                     />
-                                     <DetailItem
-                                       label={t('tunnels.table.lastConnected', 'Last Connected')}
-                                       value={formatLastConnected(item)}
-                                     />
-                                     <DetailItem label={t('tunnels.table.created', 'Created')} value={formatCreated(item)} />
-                                     <DetailItem
-                                       label={t('tunnels.table.sessionDuration', 'Session Duration')}
-                                       value={formatSessionDuration(item)}
-                                     />
-                                     <DetailItem
-                                       label={t('tunnels.details.remote', 'Remote')}
-                                       value={infoValue(item.remote_addr || t('shared.emptyDash', '—'))}
-                                     />
-                                     <DetailItem
-                                       label={t('tunnels.details.reconnects24h', 'Reconnects 24h')}
-                                       value={String(item.recent_reconnect_count_24h ?? 0)}
-                                     />
-                                     <DetailItem
-                                       label={t('tunnels.details.pauseUntil', 'Pause Until')}
-                                       value={formatDateTime(item.pause_until)}
-                                     />
-                                     <DetailItem
-                                       label={t('tunnels.details.lastDisconnect', 'Last Disconnect')}
-                                       value={formatDisconnectReason(item)}
-                                     />
-                                     <DetailItem
-                                       label={t('tunnels.details.waitingFirstConnect', 'Waiting First Connect')}
-                                       value={item.waiting_for_first_connect ? t('shared.boolean.yes', 'Yes') : t('shared.boolean.no', 'No')}
-                                     />
-                                     <DetailItem
-                                       label={t('tunnels.details.effectiveMappings', 'Effective Mappings')}
-                                       value={effectiveMappings}
+                                      label={t('tunnels.table.status', 'Status')}
+                                      value={
+                                        item.is_paused
+                                          ? t('tunnels.status.paused', 'Paused')
+                                          : item.status
+                                      }
+                                    />
+                                    <DetailItem
+                                      label={t('tunnels.table.lastConnected', 'Last Connected')}
+                                      value={formatLastConnected(item)}
+                                    />
+                                    <DetailItem
+                                      label={t('tunnels.table.created', 'Created')}
+                                      value={formatCreated(item)}
+                                    />
+                                    <DetailItem
+                                      label={t('tunnels.table.sessionDuration', 'Session Duration')}
+                                      value={formatSessionDuration(item)}
+                                    />
+                                    <DetailItem
+                                      label={t('tunnels.details.remote', 'Remote')}
+                                      value={infoValue(
+                                        item.remote_addr || t('shared.emptyDash', '—')
+                                      )}
+                                    />
+                                    <DetailItem
+                                      label={t('tunnels.details.reconnects24h', 'Reconnects 24h')}
+                                      value={String(item.recent_reconnect_count_24h ?? 0)}
+                                    />
+                                    <DetailItem
+                                      label={t('tunnels.details.pauseUntil', 'Pause Until')}
+                                      value={formatDateTime(item.pause_until)}
+                                    />
+                                    <DetailItem
+                                      label={t('tunnels.details.lastDisconnect', 'Last Disconnect')}
+                                      value={formatDisconnectReason(item)}
+                                    />
+                                    <DetailItem
+                                      label={t(
+                                        'tunnels.details.waitingFirstConnect',
+                                        'Waiting First Connect'
+                                      )}
+                                      value={
+                                        item.waiting_for_first_connect
+                                          ? t('shared.boolean.yes', 'Yes')
+                                          : t('shared.boolean.no', 'No')
+                                      }
+                                    />
+                                    <DetailItem
+                                      label={t(
+                                        'tunnels.details.effectiveMappings',
+                                        'Effective Mappings'
+                                      )}
+                                      value={effectiveMappings}
                                       className="md:col-span-2 xl:col-span-3"
                                     />
                                   </div>
@@ -1045,17 +1123,26 @@ export function TunnelsPage({
           <AlertDialogHeader>
             <AlertDialogTitle>
               {confirmTarget?.action === 'rotate'
-                 ? t('tunnels.dialogs.rotateTitle', 'Rotate Tunnel Token')
-                 : confirmTarget?.action === 'resume'
-                   ? t('tunnels.dialogs.resumeTitle', 'Resume Tunnel Connect')
-                   : t('tunnels.actions.restartConnection', 'Restart Connection')}
+                ? t('tunnels.dialogs.rotateTitle', 'Rotate Tunnel Token')
+                : confirmTarget?.action === 'resume'
+                  ? t('tunnels.dialogs.resumeTitle', 'Resume Tunnel Connect')
+                  : t('tunnels.actions.restartConnection', 'Restart Connection')}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {confirmTarget?.action === 'rotate'
-                 ? t('tunnels.dialogs.rotateDescription', 'Rotating the token immediately disconnects the active tunnel. The local server must be updated with the new setup command.')
-                 : confirmTarget?.action === 'resume'
-                   ? t('tunnels.dialogs.resumeDescription', 'Resume connect clears pause_until and allows the local tunnel service to reconnect immediately.')
-                   : t('tunnels.dialogs.restartDescription', 'Drop the current tunnel. Local autossh may reconnect immediately.')}
+                ? t(
+                    'tunnels.dialogs.rotateDescription',
+                    'Rotating the token immediately disconnects the active tunnel. The local server must be updated with the new setup command.'
+                  )
+                : confirmTarget?.action === 'resume'
+                  ? t(
+                      'tunnels.dialogs.resumeDescription',
+                      'Resume connect clears pause_until and allows the local tunnel service to reconnect immediately.'
+                    )
+                  : t(
+                      'tunnels.dialogs.restartDescription',
+                      'Drop the current tunnel. Local autossh may reconnect immediately.'
+                    )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1070,9 +1157,14 @@ export function TunnelsPage({
       <AlertDialog open={!!pauseTarget} onOpenChange={open => !open && setPauseTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t('tunnels.dialogs.pauseTitle', 'Pause Tunnel Connect')}</AlertDialogTitle>
+            <AlertDialogTitle>
+              {t('tunnels.dialogs.pauseTitle', 'Pause Tunnel Connect')}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              {t('tunnels.dialogs.pauseDescription', 'Set a pause window in minutes. Decimal values are supported, for example 0.1 minutes.')}
+              {t(
+                'tunnels.dialogs.pauseDescription',
+                'Set a pause window in minutes. Decimal values are supported, for example 0.1 minutes.'
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="space-y-2">
@@ -1081,7 +1173,7 @@ export function TunnelsPage({
             </label>
             <Input
               id="pause-minutes"
-               aria-label={t('tunnels.dialogs.pauseMinutesAria', 'Pause minutes')}
+              aria-label={t('tunnels.dialogs.pauseMinutesAria', 'Pause minutes')}
               type="number"
               min="0.1"
               step="0.1"
@@ -1112,13 +1204,16 @@ export function TunnelsPage({
         <SheetContent side="right" className="w-full sm:max-w-2xl">
           <SheetHeader className="border-b pb-4">
             <SheetTitle>
-               {portForwardTarget
-                 ? `${t('tunnels.actions.portForward', 'Port Forward')} · ${portForwardTarget.name}`
-                 : t('tunnels.actions.portForward', 'Port Forward')}
-             </SheetTitle>
-             <SheetDescription>
-               {t('tunnels.forwards.description', 'Saved intent on the left, current live mappings on the right.')}
-             </SheetDescription>
+              {portForwardTarget
+                ? `${t('tunnels.actions.portForward', 'Port Forward')} · ${portForwardTarget.name}`
+                : t('tunnels.actions.portForward', 'Port Forward')}
+            </SheetTitle>
+            <SheetDescription>
+              {t(
+                'tunnels.forwards.description',
+                'Saved intent on the left, current live mappings on the right.'
+              )}
+            </SheetDescription>
           </SheetHeader>
 
           <div className="flex-1 space-y-4 overflow-y-auto p-4">
@@ -1139,10 +1234,15 @@ export function TunnelsPage({
                 <CardContent className="space-y-4 pt-6">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                       <div className="text-base font-semibold">{t('tunnels.forwards.desiredTitle', 'Desired Forwards')}</div>
-                       <div className="text-sm text-muted-foreground">
-                         {t('tunnels.forwards.desiredDescription', 'Saved mapping intent. Applies on reconnect.')}
-                       </div>
+                      <div className="text-base font-semibold">
+                        {t('tunnels.forwards.desiredTitle', 'Desired Forwards')}
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        {t(
+                          'tunnels.forwards.desiredDescription',
+                          'Saved mapping intent. Applies on reconnect.'
+                        )}
+                      </div>
                     </div>
                     <Button type="button" variant="outline" size="sm" onClick={addForward}>
                       <Plus className="mr-2 h-4 w-4" />
@@ -1153,7 +1253,7 @@ export function TunnelsPage({
                   {forwardsLoading ? (
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <Loader2 className="h-4 w-4 animate-spin" />
-                       {t('tunnels.forwards.loading', 'Loading desired forwards...')}
+                      {t('tunnels.forwards.loading', 'Loading desired forwards...')}
                     </div>
                   ) : forwardDraft.length ? (
                     <div className="space-y-2.5">
@@ -1164,7 +1264,10 @@ export function TunnelsPage({
                         >
                           <Input
                             value={forward.service_name}
-                             placeholder={t('tunnels.forwards.serviceNamePlaceholder', 'service name')}
+                            placeholder={t(
+                              'tunnels.forwards.serviceNamePlaceholder',
+                              'service name'
+                            )}
                             onChange={event =>
                               updateForward(index, { service_name: event.target.value })
                             }
@@ -1172,7 +1275,7 @@ export function TunnelsPage({
                           <div className="flex items-center gap-2 sm:justify-end">
                             <Input
                               value={forward.local_port || ''}
-                               placeholder={t('tunnels.forwards.localPortPlaceholder', 'local port')}
+                              placeholder={t('tunnels.forwards.localPortPlaceholder', 'local port')}
                               type="number"
                               min="1"
                               max="65535"
@@ -1191,13 +1294,17 @@ export function TunnelsPage({
                             onClick={() => removeForward(index)}
                           >
                             <Trash2 className="h-4 w-4" />
-                             <span className="sr-only">{t('tunnels.actions.removeForward', 'Remove forward')}</span>
+                            <span className="sr-only">
+                              {t('tunnels.actions.removeForward', 'Remove forward')}
+                            </span>
                           </Button>
                         </div>
                       ))}
                     </div>
                   ) : (
-                     <div className="text-sm text-muted-foreground">{t('tunnels.forwards.emptyDesired', 'No desired forwards yet.')}</div>
+                    <div className="text-sm text-muted-foreground">
+                      {t('tunnels.forwards.emptyDesired', 'No desired forwards yet.')}
+                    </div>
                   )}
                 </CardContent>
               </Card>
@@ -1205,10 +1312,15 @@ export function TunnelsPage({
               <Card>
                 <CardContent className="space-y-3 pt-6">
                   <div>
-                     <div className="text-base font-semibold">{t('tunnels.details.effectiveMappings', 'Effective Mappings')}</div>
-                     <div className="text-sm text-muted-foreground">
-                       {t('tunnels.forwards.effectiveDescription', 'Live mappings from the latest connected tunnel session.')}
-                     </div>
+                    <div className="text-base font-semibold">
+                      {t('tunnels.details.effectiveMappings', 'Effective Mappings')}
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      {t(
+                        'tunnels.forwards.effectiveDescription',
+                        'Live mappings from the latest connected tunnel session.'
+                      )}
+                    </div>
                   </div>
                   {portForwardTarget?.services.length ? (
                     <div className="space-y-2">
@@ -1225,7 +1337,9 @@ export function TunnelsPage({
                       ))}
                     </div>
                   ) : (
-                     <div className="text-sm text-muted-foreground">{t('tunnels.forwards.emptyEffective', 'No effective mappings.')}</div>
+                    <div className="text-sm text-muted-foreground">
+                      {t('tunnels.forwards.emptyEffective', 'No effective mappings.')}
+                    </div>
                   )}
                 </CardContent>
               </Card>
@@ -1256,10 +1370,10 @@ export function TunnelsPage({
           <SheetHeader className="border-b pb-4">
             <div className="flex items-start justify-between gap-3 pr-12">
               <SheetTitle>
-                 {logsTarget
-                   ? `${t('tunnels.actions.connectionLogs', 'Connection Logs')} · ${logsTarget.name}`
-                   : t('tunnels.actions.connectionLogs', 'Connection Logs')}
-               </SheetTitle>
+                {logsTarget
+                  ? `${t('tunnels.actions.connectionLogs', 'Connection Logs')} · ${logsTarget.name}`
+                  : t('tunnels.actions.connectionLogs', 'Connection Logs')}
+              </SheetTitle>
               {logsTarget ? (
                 <Button
                   variant="outline"
@@ -1288,25 +1402,30 @@ export function TunnelsPage({
             {logsState?.loading && !logsState.items.length ? (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                 {t('tunnels.logs.loading', 'Loading connection logs...')}
+                {t('tunnels.logs.loading', 'Loading connection logs...')}
               </div>
             ) : logsState?.items.length ? (
               <div className="space-y-2">
                 {logsState.items.map(log => {
                   const reason = formatLogReason(log)
                   const metaItems = [
-                     reason ? { label: t('tunnels.logs.reason', 'Reason'), value: reason } : null,
-                     log.remote_addr ? { label: t('tunnels.details.remote', 'Remote'), value: log.remote_addr } : null,
-                     log.pause_until
-                       ? { label: t('tunnels.details.pauseUntil', 'Pause until'), value: formatDateTime(log.pause_until) }
-                       : null,
+                    reason ? { label: t('tunnels.logs.reason', 'Reason'), value: reason } : null,
+                    log.remote_addr
+                      ? { label: t('tunnels.details.remote', 'Remote'), value: log.remote_addr }
+                      : null,
+                    log.pause_until
+                      ? {
+                          label: t('tunnels.details.pauseUntil', 'Pause until'),
+                          value: formatDateTime(log.pause_until),
+                        }
+                      : null,
                   ].filter(Boolean) as Array<{ label: string; value: string }>
 
                   return (
                     <div key={log.id} className="rounded-md border px-3 py-3 text-sm">
                       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                         <div className="font-medium text-foreground">
-                           {log.label || log.action || t('tunnels.logs.event', 'Event')}
+                          {log.label || log.action || t('tunnels.logs.event', 'Event')}
                         </div>
                         <div className="text-muted-foreground">{formatDateTime(log.at)}</div>
                       </div>
@@ -1330,7 +1449,9 @@ export function TunnelsPage({
                 })}
               </div>
             ) : (
-               <div className="text-sm text-muted-foreground">{t('tunnels.logs.empty', 'No connection logs yet.')}</div>
+              <div className="text-sm text-muted-foreground">
+                {t('tunnels.logs.empty', 'No connection logs yet.')}
+              </div>
             )}
           </div>
         </SheetContent>
