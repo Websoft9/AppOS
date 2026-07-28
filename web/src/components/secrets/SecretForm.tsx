@@ -16,6 +16,7 @@ export interface SecretTemplateField {
   type: string
   required?: boolean
   upload?: boolean
+  description?: string
 }
 
 export interface SecretTemplate {
@@ -91,6 +92,29 @@ function isTextFile(file: File): boolean {
     return true
   }
   return false
+}
+
+function sshKeyContentHint(
+  templateId: string,
+  fieldKey: string,
+  value: string,
+  t: (key: string) => string
+) {
+  if (templateId !== 'ssh_key' || fieldKey !== 'private_key') return ''
+  const trimmed = value.trim()
+  if (!trimmed) return ''
+  if (trimmed.startsWith('PuTTY-User-Key-File-')) return t('form.sshKeyHintPPK')
+  if (
+    trimmed.startsWith('ssh-ed25519 ') ||
+    trimmed.startsWith('ssh-rsa ') ||
+    trimmed.startsWith('ssh-dss ') ||
+    trimmed.startsWith('ecdsa-sha2-') ||
+    trimmed.includes('BEGIN PUBLIC KEY') ||
+    trimmed.includes('BEGIN SSH2 PUBLIC KEY')
+  ) {
+    return t('form.sshKeyHintPublic')
+  }
+  return ''
 }
 
 interface SecretFormProps {
@@ -171,12 +195,21 @@ export function SecretForm({
             const inputId = `secret-form-${templateId}-${field.key}`
             const fieldAccessory = renderFieldAccessory?.(field)
             const isRevealed = Boolean(revealedFields[inputId])
+            const contentHint = sshKeyContentHint(
+              templateId,
+              field.key,
+              payload[field.key] ?? '',
+              t
+            )
             return (
               <div key={field.key} className="space-y-2">
                 <Label htmlFor={inputId}>
                   {field.label}
                   {field.required ? ' *' : ''}
                 </Label>
+                {field.description ? (
+                  <p className="text-xs text-muted-foreground">{field.description}</p>
+                ) : null}
                 {isTextarea ? (
                   <Textarea
                     id={inputId}
@@ -245,6 +278,9 @@ export function SecretForm({
                     {uploadError && <p className="text-xs text-destructive">{uploadError}</p>}
                   </div>
                 )}
+                {contentHint ? (
+                  <p className="text-xs text-muted-foreground">{contentHint}</p>
+                ) : null}
               </div>
             )
           })}

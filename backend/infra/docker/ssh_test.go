@@ -3,6 +3,7 @@ package docker
 import (
 	"crypto/ed25519"
 	"crypto/rand"
+	"encoding/pem"
 	"os"
 	"path/filepath"
 	"strings"
@@ -62,4 +63,54 @@ func TestResolveHostKeyCallbackUsesConfiguredKnownHosts(t *testing.T) {
 	if callback == nil {
 		t.Fatal("expected non-nil host key callback")
 	}
+}
+
+func TestSSHExecutorClientConfigPrivateKeyWithPassphrase(t *testing.T) {
+	exec := NewSSHExecutor(SSHConfig{
+		Host:       "example.com",
+		Port:       22,
+		User:       "root",
+		AuthType:   "ssh_key",
+		Secret:     mustDockerEncryptedPrivateKeyPEM(t, "secret-pass"),
+		Passphrase: "secret-pass",
+	})
+
+	cfg, err := exec.clientConfig()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(cfg.Auth) != 1 {
+		t.Fatalf("expected one auth method, got %d", len(cfg.Auth))
+	}
+}
+
+func TestSSHExecutorClientConfigPrivateKeyMissingPassphrase(t *testing.T) {
+	exec := NewSSHExecutor(SSHConfig{
+		Host:     "example.com",
+		Port:     22,
+		User:     "root",
+		AuthType: "ssh_key",
+		Secret:   mustDockerEncryptedPrivateKeyPEM(t, "secret-pass"),
+	})
+
+	_, err := exec.clientConfig()
+	if err == nil {
+		t.Fatal("expected error for missing passphrase")
+	}
+	if !strings.Contains(err.Error(), "requires passphrase") {
+		t.Fatalf("expected missing passphrase error, got %v", err)
+	}
+}
+
+func mustDockerEncryptedPrivateKeyPEM(t *testing.T, passphrase string) string {
+	t.Helper()
+	_, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	block, err := ssh.MarshalPrivateKeyWithPassphrase(privateKey, "test", []byte(passphrase))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(pem.EncodeToMemory(block))
 }

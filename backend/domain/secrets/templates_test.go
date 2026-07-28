@@ -176,3 +176,53 @@ func TestEmbeddedTemplatesValid(t *testing.T) {
 		}
 	}
 }
+
+func TestValidatePayloadSSHKeyRejectsPublicKey(t *testing.T) {
+	tpl := Template{ID: "ssh_key", Fields: []TemplateField{{Key: "private_key", Required: true}, {Key: "passphrase"}}}
+	err := ValidatePayload(map[string]any{
+		"private_key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBrokenExample user@example",
+	}, tpl)
+	if err == nil {
+		t.Fatal("expected public key payload to be rejected")
+	}
+	if err.Error() != "ssh_key payload must contain an SSH private key, not a public key" {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestValidatePayloadSSHKeyRejectsPPK(t *testing.T) {
+	tpl := Template{ID: "ssh_key", Fields: []TemplateField{{Key: "private_key", Required: true}, {Key: "passphrase"}}}
+	err := ValidatePayload(map[string]any{
+		"private_key": "PuTTY-User-Key-File-3: ssh-ed25519\nEncryption: none\nComment: test",
+	}, tpl)
+	if err == nil {
+		t.Fatal("expected PPK payload to be rejected")
+	}
+	if err.Error() != "ssh_key payload does not support PuTTY PPK files; provide an OpenSSH or PEM private key" {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestValidatePayloadSSHKeyRejectsEncryptedKeyWithoutPassphrase(t *testing.T) {
+	tpl := Template{ID: "ssh_key", Fields: []TemplateField{{Key: "private_key", Required: true}, {Key: "passphrase"}}}
+	err := ValidatePayload(map[string]any{
+		"private_key": mustSecretsEncryptedPrivateKeyPEM(t, "secret-pass"),
+	}, tpl)
+	if err == nil {
+		t.Fatal("expected encrypted key without passphrase to be rejected")
+	}
+	if err.Error() != "encrypted SSH private key requires a passphrase" {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestValidatePayloadSSHKeyAcceptsEncryptedKeyWithPassphrase(t *testing.T) {
+	tpl := Template{ID: "ssh_key", Fields: []TemplateField{{Key: "private_key", Required: true}, {Key: "passphrase"}}}
+	err := ValidatePayload(map[string]any{
+		"private_key": mustSecretsEncryptedPrivateKeyPEM(t, "secret-pass"),
+		"passphrase":  "secret-pass",
+	}, tpl)
+	if err != nil {
+		t.Fatalf("expected encrypted key with passphrase to validate, got %v", err)
+	}
+}

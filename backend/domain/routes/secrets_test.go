@@ -1,16 +1,21 @@
 package routes
 
 import (
+	"crypto/ed25519"
+	"crypto/rand"
 	"encoding/base64"
+	"encoding/pem"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/secrets"
+	cryptossh "golang.org/x/crypto/ssh"
 
 	_ "github.com/websoft9/appos/backend/infra/migrations"
 )
@@ -293,4 +298,89 @@ func TestSecretsPayloadUpdateLegacyTunnelTokenForbidden(t *testing.T) {
 	if !strings.Contains(strings.ToLower(res.Body.String()), "system_secret_payload_read_only") {
 		t.Fatalf("expected reason code in response, got %s", res.Body.String())
 	}
+}
+
+func TestSecretsPayloadUpdateRejectsEncryptedSSHKeyWithoutPassphrase(t *testing.T) {
+	te := newSecretsTestEnv(t)
+	defer te.cleanup()
+
+	col, err := te.app.FindCollectionByNameOrId("secrets")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := core.NewRecord(col)
+	rec.Set("name", "route-secret-ssh")
+	rec.Set("template_id", "ssh_key")
+	rec.Set("scope", "global")
+	rec.Set("access_mode", "use_only")
+	rec.Set("status", "active")
+	rec.Set("created_by", "u1")
+	enc, err := secrets.EncryptPayload(map[string]any{"private_key": mustRouteEncryptedPrivateKeyPEM(t, "secret-pass"), "passphrase": "secret-pass"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec.Set("payload_encrypted", enc)
+	rec.Set("version", 1)
+	if err := te.app.Save(rec); err != nil {
+		t.Fatal(err)
+	}
+
+	body := `{"payload":{"private_key":` + strconv.Quote(mustRouteEncryptedPrivateKeyPEM(t, "secret-pass")) + `}}`
+	res := doSecretsRoute(t, te, http.MethodPut, "/api/secrets/"+rec.Id+"/payload", body, true, false)
+	if res.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", res.Code, res.Body.String())
+	}
+	if !strings.Contains(res.Body.String(), "requires a passphrase") {
+		t.Fatalf("expected clear passphrase error, got %s", res.Body.String())
+	}
+}
+
+func TestSecretsPayloadUpdateRejectsPublicKeyContent(t *testing.T) {
+	te := newSecretsTestEnv(t)
+	defer te.cleanup()
+
+	col, err := te.app.FindCollectionByNameOrId("secrets")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := core.NewRecord(col)
+	rec.Set("name", "route-secret-ssh-public")
+	rec.Set("template_id", "ssh_key")
+	rec.Set("scope", "global")
+	rec.Set("access_mode", "use_only")
+	rec.Set("status", "active")
+	rec.Set("created_by", "u1")
+	enc, err := secrets.EncryptPayload(map[string]any{"private_key": mustRouteEncryptedPrivateKeyPEM(t, "secret-pass"), "passphrase": "secret-pass"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec.Set("payload_encrypted", enc)
+	rec.Set("version", 1)
+	if err := te.app.Save(rec); err != nil {
+		t.Fatal(err)
+	}
+
+	body := `{"payload":{"private_key":"ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBrokenExample user@example"}}`
+	res := doSecretsRoute(t, te, http.MethodPut, "/api/secrets/"+rec.Id+"/payload", body, true, false)
+	if res.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", res.Code, res.Body.String())
+	}
+	if !strings.Contains(res.Body.String(), "not a public key") && !strings.Contains(res.Body.String(), "not a public") {
+		if !strings.Contains(res.Body.String(), "not a public key") && !strings.Contains(res.Body.String(), "private key, not a public key") {
+			t.Fatalf("expected public key validation error, got %s", res.Body.String())
+		}
+	}
+}
+
+func mustRouteEncryptedPrivateKeyPEM(t *testing.T, passphrase string) string {
+	t.Helper()
+	_, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	block, err := cryptossh.MarshalPrivateKeyWithPassphrase(privateKey, "test", []byte(passphrase))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(pem.EncodeToMemory(block))
 }

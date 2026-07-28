@@ -94,12 +94,13 @@ func PullServerFactsSnapshotWithTimeout(app core.App, serverID string, now time.
 		return err
 	}
 	output, err := executeServerFactsCommand(context.Background(), terminal.ConnectorConfig{
-		Host:     cfg.Host,
-		Port:     cfg.Port,
-		User:     cfg.User,
-		AuthType: terminal.CredAuthType(cfg.AuthType),
-		Secret:   cfg.Secret,
-		Shell:    cfg.Shell,
+		Host:       cfg.Host,
+		Port:       cfg.Port,
+		User:       cfg.User,
+		AuthType:   terminal.CredAuthType(cfg.AuthType),
+		Secret:     cfg.Secret,
+		Passphrase: cfg.Passphrase,
+		Shell:      cfg.Shell,
 	}, serverFactsCommand(), timeout)
 	if err != nil {
 		return err

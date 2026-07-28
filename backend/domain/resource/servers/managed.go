@@ -261,6 +261,7 @@ func (s *ManagedServer) applyCredential(app core.App, userID string, cfg *Access
 		cfg.Secret = sec.FirstStringFromPayload(result.Payload, "password", "value")
 	default:
 		cfg.Secret = sec.FirstStringFromPayload(result.Payload, "private_key", "key", "value")
+		cfg.Passphrase = sec.FirstStringFromPayload(result.Payload, "passphrase")
 	}
 	if cfg.Secret == "" {
 		return fmt.Errorf("credential resolve: no usable value in payload for auth_type %q", cfg.AuthType)

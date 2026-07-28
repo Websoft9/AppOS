@@ -2,6 +2,9 @@ package terminal
 
 import (
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"net/http"
@@ -11,6 +14,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	cryptossh "golang.org/x/crypto/ssh"
 )
 
 // mockSession implements Session for testing the session registry.
@@ -327,6 +331,36 @@ func TestAuthMethodFromConfig_SSHKeyAlias_Invalid(t *testing.T) {
 	}
 }
 
+func TestAuthMethodFromConfig_PrivateKeyWithPassphrase(t *testing.T) {
+	privateKey := mustEncryptedPrivateKeyPEM(t, "secret-pass")
+	cfg := ConnectorConfig{
+		AuthType:   "private_key",
+		Secret:     privateKey,
+		Passphrase: "secret-pass",
+	}
+	method, err := AuthMethodFromConfig(cfg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if method == nil {
+		t.Fatal("expected non-nil auth method")
+	}
+}
+
+func TestAuthMethodFromConfig_PrivateKeyMissingPassphrase(t *testing.T) {
+	cfg := ConnectorConfig{
+		AuthType: "private_key",
+		Secret:   mustEncryptedPrivateKeyPEM(t, "secret-pass"),
+	}
+	_, err := AuthMethodFromConfig(cfg)
+	if err == nil {
+		t.Fatal("expected error for encrypted private key without passphrase")
+	}
+	if !strings.Contains(err.Error(), "requires passphrase") {
+		t.Fatalf("expected missing passphrase error, got %v", err)
+	}
+}
+
 func TestSFTPMaxUploadConstant(t *testing.T) {
 	expected := int64(50 << 20)
 	if sftpMaxUploadBytes != expected {
@@ -336,12 +370,13 @@ func TestSFTPMaxUploadConstant(t *testing.T) {
 
 func TestConnectorConfigFields(t *testing.T) {
 	cfg := ConnectorConfig{
-		Host:     "example.com",
-		Port:     22,
-		User:     "root",
-		AuthType: "password",
-		Secret:   "pass",
-		Shell:    "bash",
+		Host:       "example.com",
+		Port:       22,
+		User:       "root",
+		AuthType:   "password",
+		Secret:     "pass",
+		Passphrase: "",
+		Shell:      "bash",
 	}
 	if cfg.Host != "example.com" {
 		t.Fatal("host mismatch")
@@ -352,6 +387,19 @@ func TestConnectorConfigFields(t *testing.T) {
 	if cfg.Shell != "bash" {
 		t.Fatal("shell mismatch")
 	}
+}
+
+func mustEncryptedPrivateKeyPEM(t *testing.T, passphrase string) string {
+	t.Helper()
+	_, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	block, err := cryptossh.MarshalPrivateKeyWithPassphrase(privateKey, "test", []byte(passphrase))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(pem.EncodeToMemory(block))
 }
 
 // ─── ConnectError & classifySSHDialError Tests ───────────────────────────────

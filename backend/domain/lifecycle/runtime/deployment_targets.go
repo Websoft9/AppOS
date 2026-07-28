@@ -94,6 +94,7 @@ func (e sshExecutor) DockerClient() (*docker.Client, error) {
 		User:         cfg.User,
 		AuthType:     string(cfg.AuthType),
 		Secret:       cfg.Secret,
+		Passphrase:   cfg.Passphrase,
 		SudoEnabled:  sudoEnabled,
 		SudoPassword: sudoPassword,
 	})
@@ -158,12 +159,13 @@ func resolveServerAccessConfig(app core.App, serverID string) (servers.AccessCon
 
 func terminalConfigFromServerAccess(cfg servers.AccessConfig) terminal.ConnectorConfig {
 	return terminal.ConnectorConfig{
-		Host:     cfg.Host,
-		Port:     cfg.Port,
-		User:     cfg.User,
-		AuthType: terminal.CredAuthType(cfg.AuthType),
-		Secret:   cfg.Secret,
-		Shell:    cfg.Shell,
+		Host:       cfg.Host,
+		Port:       cfg.Port,
+		User:       cfg.User,
+		AuthType:   terminal.CredAuthType(cfg.AuthType),
+		Secret:     cfg.Secret,
+		Passphrase: cfg.Passphrase,
+		Shell:      cfg.Shell,
 	}
 }
 

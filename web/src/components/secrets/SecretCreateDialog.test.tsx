@@ -11,6 +11,10 @@ vi.mock('react-i18next', () => ({
         'form.selectTypeHint': 'Select type to render fields',
         'form.showValue': 'Show value',
         'form.hideValue': 'Hide value',
+        'form.sshKeyHintPublic':
+          'This looks like a public key. Paste or upload the private key instead.',
+        'form.sshKeyHintPPK':
+          'PuTTY PPK files are not supported here. Export the key as OpenSSH or PEM private key text.',
         'form.generate': 'Generate',
         'visibility.title': 'Visible In',
         'visibility.description': 'Choose which resource dialogs can discover this secret.',
@@ -136,6 +140,12 @@ describe('SecretCreateDialog', () => {
             required: true,
             upload: true,
           },
+          {
+            key: 'passphrase',
+            label: 'Passphrase',
+            type: 'password',
+            description: 'Optional. Only fill this when the private key itself is encrypted.',
+          },
         ],
       },
     ])
@@ -157,6 +167,59 @@ describe('SecretCreateDialog', () => {
     const privateKeyField = await screen.findByLabelText('Private Key *')
     expect(privateKeyField).toHaveStyle({ fieldSizing: 'fixed' })
     expect(privateKeyField).toHaveClass('min-h-32', 'max-h-80', 'resize-y', 'overflow-auto')
+    expect(
+      screen.getByText('Optional. Only fill this when the private key itself is encrypted.')
+    ).toBeInTheDocument()
+  })
+
+  it('shows lightweight hints for public keys and PPK content in ssh key forms', async () => {
+    sendMock.mockResolvedValueOnce([
+      {
+        id: 'ssh_key',
+        label: 'SSH Key',
+        fields: [
+          {
+            key: 'private_key',
+            label: 'Private Key',
+            type: 'textarea',
+            required: true,
+            upload: true,
+          },
+        ],
+      },
+    ])
+
+    render(
+      <SecretCreateDialog
+        open
+        onOpenChange={() => {}}
+        title="Create Credential"
+        description="Create a reusable credential and attach it to this server."
+        allowedTemplateIds={['ssh_key']}
+        templateLabels={{ ssh_key: 'SSH Key' }}
+        defaultTemplateId="ssh_key"
+        defaultName="server-credential-123456"
+        onCreated={() => {}}
+      />
+    )
+
+    const privateKeyField = (await screen.findByLabelText('Private Key *')) as HTMLTextAreaElement
+
+    fireEvent.change(privateKeyField, {
+      target: { value: 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBrokenExample user@example' },
+    })
+    expect(
+      screen.getByText('This looks like a public key. Paste or upload the private key instead.')
+    ).toBeInTheDocument()
+
+    fireEvent.change(privateKeyField, {
+      target: { value: 'PuTTY-User-Key-File-3: ssh-ed25519\nEncryption: none\nComment: test' },
+    })
+    expect(
+      screen.getByText(
+        'PuTTY PPK files are not supported here. Export the key as OpenSSH or PEM private key text.'
+      )
+    ).toBeInTheDocument()
   })
 
   it('stores the invoking resource visibility under Advanced', async () => {

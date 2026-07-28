@@ -100,12 +100,13 @@ func (e shellExecutor) Execute(ctx context.Context, execCtx *ExecutorContext, _ 
 		return NodeStatusFailed, nil, err
 	}
 	output, err := WorkflowExecuteSSHCommandForTesting(ctx, terminal.ConnectorConfig{
-		Host:     access.Host,
-		Port:     access.Port,
-		User:     access.User,
-		AuthType: terminal.CredAuthType(access.AuthType),
-		Secret:   access.Secret,
-		Shell:    access.Shell,
+		Host:       access.Host,
+		Port:       access.Port,
+		User:       access.User,
+		AuthType:   terminal.CredAuthType(access.AuthType),
+		Secret:     access.Secret,
+		Passphrase: access.Passphrase,
+		Shell:      access.Shell,
 	}, rendered, durationTimeout(node.TimeoutSec, 30*time.Second))
 	result := map[string]any{"stdout": output, "exit_code": 0}
 	if err != nil {
@@ -140,12 +141,13 @@ func (e dockerExecutor) Execute(ctx context.Context, execCtx *ExecutorContext, _
 	}
 	dockerCommand := fmt.Sprintf("docker run --rm %s sh -lc %s", shellQuote(renderedImage), shellQuote(renderedCommand))
 	output, err := WorkflowExecuteSSHCommandForTesting(ctx, terminal.ConnectorConfig{
-		Host:     access.Host,
-		Port:     access.Port,
-		User:     access.User,
-		AuthType: terminal.CredAuthType(access.AuthType),
-		Secret:   access.Secret,
-		Shell:    access.Shell,
+		Host:       access.Host,
+		Port:       access.Port,
+		User:       access.User,
+		AuthType:   terminal.CredAuthType(access.AuthType),
+		Secret:     access.Secret,
+		Passphrase: access.Passphrase,
+		Shell:      access.Shell,
 	}, dockerCommand, durationTimeout(node.TimeoutSec, 60*time.Second))
 	result := map[string]any{"stdout": output, "exit_code": 0}
 	if err != nil {

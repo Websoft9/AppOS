@@ -78,6 +78,7 @@ func (s *ManagedServer) buildDockerSSHConfig(app core.App, rt TunnelRuntime, use
 		User:         cfg.User,
 		AuthType:     string(cfg.AuthType),
 		Secret:       cfg.Secret,
+		Passphrase:   cfg.Passphrase,
 		SudoEnabled:  sudoEnabled,
 		SudoPassword: sudoPassword,
 	}, nil

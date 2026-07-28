@@ -23,6 +23,8 @@ type ConnectorConfig struct {
 	AuthType CredAuthType
 	// Secret is the decrypted credential value (password or PEM private key).
 	Secret string
+	// Passphrase decrypts encrypted private keys when AuthType is private_key.
+	Passphrase string
 	// Shell overrides the login shell (empty = server default).
 	Shell string
 }

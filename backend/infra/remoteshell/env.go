@@ -67,12 +67,13 @@ func ResolveExecutionPlan(app core.App, access servers.AccessConfig, serverID st
 
 func terminalConfigFromAccess(access servers.AccessConfig) terminal.ConnectorConfig {
 	return terminal.ConnectorConfig{
-		Host:     access.Host,
-		Port:     access.Port,
-		User:     access.User,
-		AuthType: terminal.CredAuthType(access.AuthType),
-		Secret:   access.Secret,
-		Shell:    access.Shell,
+		Host:       access.Host,
+		Port:       access.Port,
+		User:       access.User,
+		AuthType:   terminal.CredAuthType(access.AuthType),
+		Secret:     access.Secret,
+		Passphrase: access.Passphrase,
+		Shell:      access.Shell,
 	}
 }
 

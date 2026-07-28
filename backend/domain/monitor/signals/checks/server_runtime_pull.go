@@ -93,12 +93,13 @@ func PullServerRuntimeSnapshotWithTimeout(app core.App, serverID string, now tim
 		return err
 	}
 	output, err := executeServerRuntimeCommand(context.Background(), terminal.ConnectorConfig{
-		Host:     cfg.Host,
-		Port:     cfg.Port,
-		User:     cfg.User,
-		AuthType: terminal.CredAuthType(cfg.AuthType),
-		Secret:   cfg.Secret,
-		Shell:    cfg.Shell,
+		Host:       cfg.Host,
+		Port:       cfg.Port,
+		User:       cfg.User,
+		AuthType:   terminal.CredAuthType(cfg.AuthType),
+		Secret:     cfg.Secret,
+		Passphrase: cfg.Passphrase,
+		Shell:      cfg.Shell,
 	}, serverRuntimeCommand(), timeout)
 	if err != nil {
 		return err

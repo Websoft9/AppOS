@@ -16,12 +16,13 @@ const (
 
 // AccessConfig is the servers bounded-context representation of how to reach a managed server.
 type AccessConfig struct {
-	Host     string
-	Port     int
-	User     string
-	AuthType AccessAuthType
-	Secret   string
-	Shell    string
+	Host       string
+	Port       int
+	User       string
+	AuthType   AccessAuthType
+	Secret     string
+	Passphrase string
+	Shell      string
 }
 
 // CredentialAuthType infers the SSH auth type from a secret's template_id.

@@ -1,6 +1,7 @@
 package terminal
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -200,9 +201,9 @@ func (s *sshSession) Close() error {
 func AuthMethodFromConfig(cfg ConnectorConfig) (cryptossh.AuthMethod, error) {
 	switch cfg.AuthType {
 	case AuthMethodPrivateKey, "key", "ssh_key":
-		signer, err := cryptossh.ParsePrivateKey([]byte(cfg.Secret))
+		signer, err := ParsePrivateKeySigner(cfg.Secret, cfg.Passphrase)
 		if err != nil {
-			return nil, fmt.Errorf("private key format invalid or passphrase required: %w", err)
+			return nil, err
 		}
 		return cryptossh.PublicKeys(signer), nil
 	case AuthMethodPassword:
@@ -210,6 +211,36 @@ func AuthMethodFromConfig(cfg ConnectorConfig) (cryptossh.AuthMethod, error) {
 	default:
 		return nil, fmt.Errorf("unsupported auth_type %q; expected password or private_key", cfg.AuthType)
 	}
+}
+
+// ParsePrivateKeySigner builds an SSH signer from either an unencrypted key or
+// an encrypted key plus passphrase.
+func ParsePrivateKeySigner(privateKey string, passphrase string) (cryptossh.Signer, error) {
+	signer, err := cryptossh.ParsePrivateKey([]byte(privateKey))
+	if err == nil {
+		return signer, nil
+	}
+
+	var passphraseMissing *cryptossh.PassphraseMissingError
+	if errors.As(err, &passphraseMissing) {
+		if passphrase == "" {
+			return nil, fmt.Errorf("encrypted private key requires passphrase")
+		}
+		signer, err := cryptossh.ParsePrivateKeyWithPassphrase([]byte(privateKey), []byte(passphrase))
+		if err != nil {
+			return nil, fmt.Errorf("private key format invalid or passphrase incorrect: %w", err)
+		}
+		return signer, nil
+	}
+
+	if passphrase != "" {
+		signer, passphraseErr := cryptossh.ParsePrivateKeyWithPassphrase([]byte(privateKey), []byte(passphrase))
+		if passphraseErr == nil {
+			return signer, nil
+		}
+	}
+
+	return nil, fmt.Errorf("private key format invalid: %w", err)
 }
 
 // ─── Error classification ─────────────────────────────────────────────────────

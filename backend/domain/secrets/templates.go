@@ -14,12 +14,13 @@ import (
 var embeddedTemplatesJSON []byte
 
 type TemplateField struct {
-	Key       string `json:"key"`
-	Label     string `json:"label"`
-	Type      string `json:"type"`
-	Required  bool   `json:"required"`
-	Sensitive bool   `json:"sensitive"`
-	Upload    bool   `json:"upload,omitempty"`
+	Key         string `json:"key"`
+	Label       string `json:"label"`
+	Description string `json:"description,omitempty"`
+	Type        string `json:"type"`
+	Required    bool   `json:"required"`
+	Sensitive   bool   `json:"sensitive"`
+	Upload      bool   `json:"upload,omitempty"`
 }
 
 type Template struct {
@@ -149,6 +150,9 @@ func ValidatePayload(payload map[string]any, tpl Template) error {
 		if s, ok := val.(string); !ok || strings.TrimSpace(s) == "" {
 			return fmt.Errorf("required field is empty: %s", f.Key)
 		}
+	}
+	if err := validateTemplateSpecificPayload(payload, tpl); err != nil {
+		return err
 	}
 	return nil
 }

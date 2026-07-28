@@ -1,12 +1,17 @@
 package secrets
 
 import (
+	"crypto/ed25519"
+	"crypto/rand"
+	"encoding/pem"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tests"
 	"github.com/websoft9/appos/backend/domain/config/sysconfig"
+	cryptossh "golang.org/x/crypto/ssh"
 )
 
 func newSecretsApp(t *testing.T) *tests.TestApp {
@@ -203,4 +208,60 @@ func TestApplyExpiryPolicyZeroMaxAgeLeavesFieldEmpty(t *testing.T) {
 func TestApplyExpiryPolicyNilAppAndRecord(t *testing.T) {
 	// Must not panic
 	applyExpiryPolicy(nil, nil)
+}
+
+func TestUpsertSystemPayloadSecretRejectsEncryptedSSHKeyWithoutPassphrase(t *testing.T) {
+	app := newSecretsApp(t)
+	defer app.Cleanup()
+	setupTestKey(t)
+	if err := LoadTemplatesFromDefaultPath(); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := UpsertSystemPayloadSecret(app, nil, "ssh-key", "ssh_key", map[string]any{
+		"private_key": mustSecretsEncryptedPrivateKeyPEM(t, "secret-pass"),
+	})
+	if err == nil {
+		t.Fatal("expected validation error")
+	}
+	if !strings.Contains(err.Error(), "requires a passphrase") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestUpsertSystemPayloadSecretAcceptsEncryptedSSHKeyWithPassphrase(t *testing.T) {
+	app := newSecretsApp(t)
+	defer app.Cleanup()
+	setupTestKey(t)
+	if err := LoadTemplatesFromDefaultPath(); err != nil {
+		t.Fatal(err)
+	}
+
+	secret, err := UpsertSystemPayloadSecret(app, nil, "ssh-key", "ssh_key", map[string]any{
+		"private_key": mustSecretsEncryptedPrivateKeyPEM(t, "secret-pass"),
+		"passphrase":  "secret-pass",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if secret == nil || secret.Record() == nil {
+		t.Fatal("expected secret record to be created")
+	}
+	meta := decodePayloadMetaMap(secret.Record().Get("payload_meta"))
+	if meta["passphrase_hint"] != "se***" {
+		t.Fatalf("expected passphrase hint in payload meta, got %#v", secret.Record().Get("payload_meta"))
+	}
+}
+
+func mustSecretsEncryptedPrivateKeyPEM(t *testing.T, passphrase string) string {
+	t.Helper()
+	_, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	block, err := cryptossh.MarshalPrivateKeyWithPassphrase(privateKey, "test", []byte(passphrase))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(pem.EncodeToMemory(block))
 }

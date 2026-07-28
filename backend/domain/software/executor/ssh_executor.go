@@ -108,12 +108,13 @@ func NewSSHExecutor(app core.App, serverID, userID string) (*SSHExecutor, error)
 		return nil, fmt.Errorf("resolve server config for %s: %w", serverID, err)
 	}
 	cfg := terminal.ConnectorConfig{
-		Host:     access.Host,
-		Port:     access.Port,
-		User:     access.User,
-		AuthType: terminal.CredAuthType(access.AuthType),
-		Secret:   access.Secret,
-		Shell:    access.Shell,
+		Host:       access.Host,
+		Port:       access.Port,
+		User:       access.User,
+		AuthType:   terminal.CredAuthType(access.AuthType),
+		Secret:     access.Secret,
+		Passphrase: access.Passphrase,
+		Shell:      access.Shell,
 	}
 	client, err := terminal.DialSSH(context.Background(), cfg)
 	if err != nil {
