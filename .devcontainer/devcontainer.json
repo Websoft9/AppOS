@@ -9,5 +9,6 @@
     },
     "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}
   },
-  "postCreateCommand": "make install"
+  "postCreateCommand": "make install && if ! command -v opencode >/dev/null 2>&1; then npm install -g opencode-ai@1.17.18; fi",
+  "forwardPorts": [9000, 8081, 8443, 2222]
 }

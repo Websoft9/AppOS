@@ -2,7 +2,7 @@
 title: 'Make Gate Output Cleanup'
 type: 'refactor'
 created: '2026-07-28'
-status: 'in-progress'
+status: 'done'
 review_loop_iteration: 0
 followup_review_recommended: false
 baseline_revision: '4ad4a646b1f731a43a394bb7dee5a4e4fd75f608'
@@ -43,9 +43,9 @@ warnings: []
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] `Makefile` -- add reusable shell-level color/output helpers for info, success, warning, and error summaries with color-safe fallback behavior -- centralizes presentation logic.
-- [ ] `Makefile` -- refactor `test`, `qa`, `sec`, `gate`, and their `_test-*`, `_qa-*`, `_sec-*` leaf targets to reduce duplicate summary layers while preserving raw failure logs -- produces cleaner output without changing gate semantics.
-- [ ] `Makefile` -- verify every affected command path at least once after refactor, including success and failing/usage branches where practical -- ensures the new output model is real, not assumed.
+- [x] `Makefile` -- add reusable shell-level color/output helpers for info, success, warning, and error summaries with color-safe fallback behavior -- centralizes presentation logic.
+- [x] `Makefile` -- refactor `test`, `qa`, `sec`, `gate`, and their `_test-*`, `_qa-*`, `_sec-*` leaf targets to reduce duplicate summary layers while preserving raw failure logs -- produces cleaner output without changing gate semantics.
+- [x] `Makefile` -- verify every affected command path at least once after refactor, including success and failing/usage branches where practical -- ensures the new output model is real, not assumed.
 
 **Acceptance Criteria:**
 - Given a Testing & Quality leaf command fails, when it runs, then raw tool output remains visible and the summary line is concise and colored red when color is enabled.
@@ -55,6 +55,11 @@ warnings: []
 ## Spec Change Log
 
 ## Review Triage Log
+
+### 2026-07-29 — Verification note
+- Commands were re-run across the Testing & Quality family. Output model changes behaved as expected.
+- `make test-env up` failed in one run due to host port `3306` already being allocated; this is environment-dependent rather than a Makefile summary-format issue.
+- `make gate pr`, `make gate merge`, `make gate staging`, and `make gate release` still surface `repo-drift` when unrelated tracked/untracked worktree changes are present. That matches the gate's existing semantics and is not caused by the summary-model refactor.
 
 ## Design Notes
 
