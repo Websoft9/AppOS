@@ -16,6 +16,7 @@
 - [x] Story 1.5: Version Management Standardization
 - [x] Story 1.6: Image Security Scanning
 - [x] [Story 1.7: Swagger Baseline](specs/implementation-artifacts/story1.7-swagger.md)
+- [x] [Story 1.8: Dev Container Baseline](specs/implementation-artifacts/story1.8-devcontainer.md)
 
 ## Success Metrics
 - Development environment setup < 10 minutes

@@ -8,6 +8,8 @@
 	_test-backend _test-web _test-e2e-runtime _test-e2e-smoke _test-e2e-acceptance _qa-lint _qa-format _qa-openapi _sec-source _sec-artifact \
 	openapi-gen openapi-merge openapi-check openapi-sync opencode opencode-clear
 
+SHELL := /bin/bash
+
 # ============================================================
 # Default values
 # ============================================================
@@ -41,6 +43,19 @@ IMAGE_PULL_MIRRORS_URL ?= https://artifact.websoft9.com/websoft9/dev/mirrors.jso
 IMAGE_PULL_NETWORK_TIMEOUT ?= 5
 IMAGE_PULL_MIRROR_RETRIES ?= 2
 IMAGE_PULL_MIRROR_TIMEOUT ?= 30
+
+COLOR_RESET = \033[0m
+COLOR_BOLD = \033[1m
+COLOR_RED = \033[31m
+COLOR_GREEN = \033[32m
+COLOR_YELLOW = \033[33m
+COLOR_CYAN = \033[36m
+
+define tq_helpers
+tq_has_color() { [ -t 1 ] && [ -z "$$NO_COLOR" ]; }; \
+tq_print() { level="$$1"; text="$$2"; color=""; if tq_has_color; then case "$$level" in info) color='$(COLOR_CYAN)' ;; ok) color='$(COLOR_GREEN)' ;; warn) color='$(COLOR_YELLOW)' ;; err) color='$(COLOR_RED)' ;; *) color='' ;; esac; fi; if [ -n "$$color" ]; then printf '%b%s%b\n' "$$color" "$$text" '$(COLOR_RESET)'; else printf '%s\n' "$$text"; fi; }; \
+tq_print_list() { heading="$$1"; shift; tq_print err "$$heading"; for item in "$$@"; do [ -n "$$item" ] && printf '  - %s\n' "$$item"; done; }
+endef
 
 ifeq ($(CI),)
 ALL_PROXY :=
@@ -362,7 +377,7 @@ endif
 # Testing & Quality
 # ============================================================
 test:
-	@set -e; failures=""; \
+	@set -e; $(tq_helpers); failures=""; \
 	case "$(ARG2)" in \
 	  backend) \
 	    $(MAKE) --no-print-directory _test-backend || failures="$$failures backend"; \
@@ -375,7 +390,7 @@ test:
 	      runtime) $(MAKE) --no-print-directory _test-e2e-runtime || failures="$$failures e2e-runtime" ;; \
 	      smoke) $(MAKE) --no-print-directory _test-e2e-smoke ENV="$(ENV)" || failures="$$failures e2e-smoke" ;; \
 	      "") $(MAKE) --no-print-directory _test-e2e-acceptance ENV="$(ENV)" || failures="$$failures e2e" ;; \
-	      *) echo "✗ Unknown e2e layer: $(ARG3)"; exit 1 ;; \
+	      *) tq_print err "✗ Unknown e2e layer: $(ARG3)"; exit 1 ;; \
 	    esac; \
 	    ;; \
 	  "") \
@@ -383,22 +398,21 @@ test:
 	    $(MAKE) --no-print-directory _test-web || failures="$$failures web"; \
 	    ;; \
 	  *) \
-	    echo "✗ Unknown test scope: $(ARG2)"; \
+	    tq_print err "✗ Unknown test scope: $(ARG2)"; \
 	    exit 1; \
 	    ;; \
 	esac; \
 	if [ -n "$$failures" ]; then \
-	  echo ""; \
-	  echo "✗ Test failures:"; \
-	  for item in $$failures; do echo "  - $$item"; done; \
+	  read -r -a failure_items <<< "$$failures"; \
+	  tq_print_list "✗ Test stage failed" "$${failure_items[@]}"; \
 	  exit 1; \
 	fi; \
-	echo "✓ Tests completed"
+	tq_print ok "✓ Tests completed"
 
 _test-backend:
-	@echo "Running backend tests..."
-	@cd backend && target="$${TARGET:-./...}"; run_filter="$${RUN:-}"; failures=""; for pkg in $$(go list $$target); do \
-		echo "   - $$pkg"; \
+	@set -e; $(tq_helpers); tq_print info "Running backend tests..."; \
+	cd backend && target="$${TARGET:-./...}"; run_filter="$${RUN:-}"; failures=""; for pkg in $$(go list $$target); do \
+		printf '   - %s\n' "$$pkg"; \
 		log_file=$$(mktemp); \
 		if [ -n "$$run_filter" ]; then \
 			go test $$pkg -run "$$run_filter" -v >"$$log_file" 2>&1; status=$$?; \
@@ -410,34 +424,33 @@ _test-backend:
 		rm -f "$$log_file"; \
 	done; \
 	if [ -n "$$failures" ]; then \
-		echo "✗ Backend test package failures:"; \
-		for item in $$failures; do echo "  - $$item"; done; \
+		read -r -a failure_items <<< "$$failures"; \
+		tq_print_list "✗ Backend tests failed" "$${failure_items[@]}"; \
 		exit 1; \
-	fi
-	@echo "✓ Backend tests completed"
+	fi; \
+	tq_print ok "✓ Backend tests completed"
 
 _test-web:
-	@echo "Running web tests..."
-	@cd web && log_file=$$(mktemp); \
+	@set -e; $(tq_helpers); tq_print info "Running web tests..."; \
+	cd web && log_file=$$(mktemp); \
 		bash -lc 'NO_COLOR=1 npm test 2>&1 | tee "$$1"; exit $${PIPESTATUS[0]}' _ "$$log_file"; \
 		status=$$?; \
 		if [ "$$status" -ne 0 ]; then \
 			fail_summary=$$(grep -E '^ FAIL |^ × ' "$$log_file" || true); \
-			echo "✗ Web tests failed"; \
+			tq_print err "✗ Web tests failed"; \
 			if [ -n "$$fail_summary" ]; then \
-				echo "Fail summary:"; \
+				printf '%s\n' 'Fail summary:'; \
 				printf '%s\n' "$$fail_summary"; \
 			fi; \
 			rm -f "$$log_file"; \
 			exit $$status; \
 		fi; \
 		rm -f "$$log_file"
-	@echo "✓ Web tests completed"
+	@set -e; $(tq_helpers); tq_print ok "✓ Web tests completed"
 _test-e2e-runtime:
-	@echo "Running E2E runtime smoke..."
-	@failures=""; \
+	@set -e; $(tq_helpers); tq_print info "Running E2E runtime smoke..."; failures=""; \
 	if [ ! -f backend/appos ] || [ ! -d web/dist ]; then \
-	  echo "→ E2E runtime requires host build artifacts; building missing artifacts without tracked-file mutations..."; \
+	  printf '%s\n' '→ E2E runtime requires host build artifacts; building missing artifacts without tracked-file mutations...'; \
 	  if [ ! -f backend/appos ]; then \
 	    $(MAKE) --no-print-directory build backend ALLOW_TRACKED_MUTATION=0 || failures="$$failures backend-build"; \
 	  fi; \
@@ -450,68 +463,64 @@ _test-e2e-runtime:
 	  APPOS_E2E_SKIP_BUILD=1 bash tests/e2e/setup-status.sh || failures="$$failures setup-status"; \
 	fi; \
 	if [ -n "$$failures" ]; then \
-	  echo "✗ Runtime E2E failures:"; \
-	  for item in $$failures; do echo "  - $$item"; done; \
+	  read -r -a failure_items <<< "$$failures"; \
+	  tq_print_list "✗ Runtime E2E failed" "$${failure_items[@]}"; \
 	  exit 1; \
 	fi
-	@echo "✓ E2E runtime smoke completed"
+	@set -e; $(tq_helpers); tq_print ok "✓ E2E runtime smoke completed"
 
 _test-e2e-smoke:
-	@echo "Running E2E smoke..."
-	@failures=""; \
+	@set -e; $(tq_helpers); tq_print info "Running E2E smoke..."; failures=""; \
 	$(MAKE) --no-print-directory _test-e2e-runtime || failures="$$failures runtime"; \
 	set -a; \
 	if [ -n "$(ENV)" ] && [ -f "$(ENV)" ]; then . "$(ENV)"; fi; \
 	set +a; \
 	cd tests && npx playwright test -c playwright.config.ts --project=chromium --grep @smoke || failures="$$failures browser-smoke"; \
 	if [ -n "$$failures" ]; then \
-	  echo "✗ E2E smoke failures:"; \
-	  for item in $$failures; do echo "  - $$item"; done; \
+	  read -r -a failure_items <<< "$$failures"; \
+	  tq_print_list "✗ E2E smoke failed" "$${failure_items[@]}"; \
 	  exit 1; \
 	fi
-	@echo "✓ E2E smoke completed"
+	@set -e; $(tq_helpers); tq_print ok "✓ E2E smoke completed"
 
 _test-e2e-acceptance:
-	@echo "Running E2E acceptance..."
-	@failures=""; \
+	@set -e; $(tq_helpers); tq_print info "Running E2E acceptance..."; failures=""; \
 	$(MAKE) --no-print-directory _test-e2e-smoke ENV="$(ENV)" || failures="$$failures smoke"; \
 	set -a; \
 	if [ -n "$(ENV)" ] && [ -f "$(ENV)" ]; then . "$(ENV)"; fi; \
 	set +a; \
 	cd tests && npx playwright test -c playwright.config.ts --project=chromium --grep @acceptance || failures="$$failures acceptance"; \
 	if [ -n "$$failures" ]; then \
-	  echo "✗ E2E acceptance failures:"; \
-	  for item in $$failures; do echo "  - $$item"; done; \
+	  read -r -a failure_items <<< "$$failures"; \
+	  tq_print_list "✗ E2E acceptance failed" "$${failure_items[@]}"; \
 	  exit 1; \
 	fi
-	@echo "✓ E2E acceptance completed"
+	@set -e; $(tq_helpers); tq_print ok "✓ E2E acceptance completed"
 
 qa:
-	@set -e; failures=""; \
+	@set -e; $(tq_helpers); failures=""; \
 	case "$(ARG2)" in \
 	  lint) $(MAKE) --no-print-directory _qa-lint || failures="$$failures lint" ;; \
 	  format) $(MAKE) --no-print-directory _qa-format || failures="$$failures format" ;; \
 	  openapi) $(MAKE) --no-print-directory _qa-openapi || failures="$$failures openapi" ;; \
 	  check|"") \
-	    $(MAKE) --no-print-directory _qa-lint || failures="$$failures lint"; \
-	    $(MAKE) --no-print-directory _qa-format || failures="$$failures format"; \
-	    $(MAKE) --no-print-directory _qa-openapi || failures="$$failures openapi"; \
+	    $(MAKE) --no-print-directory _qa-lint || failures="$$failures qa-lint"; \
+	    $(MAKE) --no-print-directory _qa-format || failures="$$failures qa-format"; \
+	    $(MAKE) --no-print-directory _qa-openapi || failures="$$failures qa-openapi"; \
 	    $(MAKE) --no-print-directory _test-backend || failures="$$failures test-backend"; \
 	    $(MAKE) --no-print-directory _test-web || failures="$$failures test-web"; \
 	    ;; \
-	  *) echo "✗ Unknown qa scope: $(ARG2)"; exit 1 ;; \
+	  *) tq_print err "✗ Unknown qa scope: $(ARG2)"; exit 1 ;; \
 	esac; \
 	if [ -n "$$failures" ]; then \
-	  echo ""; \
-	  echo "✗ QA failures:"; \
-	  for item in $$failures; do echo "  - $$item"; done; \
+	  read -r -a failure_items <<< "$$failures"; \
+	  tq_print_list "✗ QA stage failed" "$${failure_items[@]}"; \
 	  exit 1; \
 	fi; \
-	echo "✓ QA completed"
+	tq_print ok "✓ QA completed"
 
 _qa-lint:
-	@echo "Running lint gate..."
-	@failures=""; \
+	@set -e; $(tq_helpers); tq_print info "Running lint gate..."; failures=""; \
 	lint_bin="$(GOLANGCI_LINT_BIN)"; \
 	if ! [ -x "$$lint_bin" ] && ! command -v "$$lint_bin" >/dev/null 2>&1; then lint_bin="$(DEFAULT_GOLANGCI_LINT_BIN)"; fi; \
 	if [ -x "$$lint_bin" ] || command -v "$$lint_bin" >/dev/null 2>&1; then \
@@ -531,13 +540,14 @@ _qa-lint:
 	  if [ "$$status" -ne 0 ]; then failures="$$failures web-typecheck"; fi; \
 	fi; \
 	if [ -n "$$failures" ]; then \
-	  echo "✗ Lint failures:"; for item in $$failures; do echo "  - $$item"; done; exit 1; \
+	  read -r -a failure_items <<< "$$failures"; \
+	  tq_print_list "✗ Lint stage failed" "$${failure_items[@]}"; \
+	  exit 1; \
 	fi
-	@echo "✓ Lint gate completed"
+	@set -e; $(tq_helpers); tq_print ok "✓ Lint gate completed"
 
 _qa-format:
-	@echo "Running format gate..."
-	@failures=""; \
+	@set -e; $(tq_helpers); tq_print info "Running format gate..."; failures=""; \
 	log_file=$$(mktemp); set +e; find backend -name "*.go" -exec gofmt -w {} + >"$$log_file" 2>&1; status=$$?; set -e; cat "$$log_file"; rm -f "$$log_file"; \
 	if [ "$$status" -ne 0 ]; then failures="$$failures gofmt"; fi; \
 	if [ -f "web/package.json" ]; then \
@@ -545,17 +555,19 @@ _qa-format:
 	  if [ "$$status" -ne 0 ]; then failures="$$failures prettier"; fi; \
 	fi; \
 	if [ -n "$$failures" ]; then \
-	  echo "✗ Format failures:"; for item in $$failures; do echo "  - $$item"; done; exit 1; \
+	  read -r -a failure_items <<< "$$failures"; \
+	  tq_print_list "✗ Format stage failed" "$${failure_items[@]}"; \
+	  exit 1; \
 	fi
-	@echo "✓ Format gate completed"
+	@set -e; $(tq_helpers); tq_print ok "✓ Format gate completed"
 
 _qa-openapi:
-	@echo "Running OpenAPI gate..."
-	@$(MAKE) --no-print-directory openapi-sync
-	@echo "✓ OpenAPI gate completed"
+	@set -e; $(tq_helpers); tq_print info "Running OpenAPI gate..."; \
+	$(MAKE) --no-print-directory openapi-sync
+	@set -e; $(tq_helpers); tq_print ok "✓ OpenAPI gate completed"
 
 gate:
-	@set -e; failures=""; baseline_status="$$(git status --porcelain --untracked-files=no)"; \
+	@set -e; $(tq_helpers); failures=""; baseline_status="$$(git status --porcelain --untracked-files=no)"; \
 	case "$(ARG2)" in \
 	  pr) \
 	    $(MAKE) --no-print-directory qa check || failures="$$failures qa-check"; \
@@ -575,30 +587,29 @@ gate:
 	    $(MAKE) --no-print-directory image build || failures="$$failures image-build"; \
 	    $(MAKE) --no-print-directory sec artifact || failures="$$failures sec-artifact"; \
 	    ;; \
-	  *) echo "✗ Unknown gate stage: $(ARG2)"; echo "  Use: pr | merge | staging | release"; exit 1 ;; \
+	  *) tq_print err "✗ Unknown gate stage: $(ARG2)"; printf '%s\n' '  Use: pr | merge | staging | release'; exit 1 ;; \
 	esac; \
 	if [ -z "$$failures" ]; then \
 	  current_status="$$(git status --porcelain --untracked-files=no)"; \
 	  if [ "$$current_status" != "$$baseline_status" ]; then \
-	    echo "✗ Gate changed tracked files in the worktree. This gate expects tracked file state to stay unchanged."; \
-	    echo "  Review and commit the generated/normalized changes, or make the gate path non-mutating, then retry."; \
-	    echo "  Tracked file changes:"; \
+	    tq_print err "✗ Gate changed tracked files in the worktree. This gate expects tracked file state to stay unchanged."; \
+	    printf '%s\n' '  Review and commit the generated/normalized changes, or make the gate path non-mutating, then retry.'; \
+	    printf '%s\n' '  Tracked file changes:'; \
 	    git status --short; \
 	    failures="$$failures repo-drift"; \
 	  else \
-	    echo "✓ Repository tracked state unchanged after gate normalization"; \
+	    tq_print ok "✓ Repository tracked state unchanged after gate normalization"; \
 	  fi; \
 	fi; \
 	if [ -n "$$failures" ]; then \
-	  echo ""; \
-	  echo "✗ Gate failures:"; \
-	  for item in $$failures; do echo "  - $$item"; done; \
+	  read -r -a failure_items <<< "$$failures"; \
+	  tq_print_list "✗ Gate $(ARG2) failed" "$${failure_items[@]}"; \
 	  exit 1; \
 	fi; \
-	  echo "✓ Gate $(ARG2) completed"
+	  tq_print ok "✓ Gate $(ARG2) completed"
 
 sec:
-	@set -e; failures=""; \
+	@set -e; $(tq_helpers); failures=""; \
 	case "$(ARG2)" in \
 	  source) $(MAKE) --no-print-directory _sec-source || failures="$$failures source" ;; \
 	  artifact) $(MAKE) --no-print-directory _sec-artifact || failures="$$failures artifact" ;; \
@@ -606,43 +617,41 @@ sec:
 	    $(MAKE) --no-print-directory _sec-source || failures="$$failures source"; \
 	    $(MAKE) --no-print-directory _sec-artifact || failures="$$failures artifact"; \
 	    ;; \
-	  *) echo "✗ Unknown sec scope: $(ARG2)"; echo "  Use: source | artifact"; exit 1 ;; \
+	  *) tq_print err "✗ Unknown sec scope: $(ARG2)"; printf '%s\n' '  Use: source | artifact'; exit 1 ;; \
 	esac; \
 	if [ -n "$$failures" ]; then \
-	  echo ""; \
-	  echo "✗ Security failures:"; \
-	  for item in $$failures; do echo "  - $$item"; done; \
+	  read -r -a failure_items <<< "$$failures"; \
+	  tq_print_list "✗ Security stage failed" "$${failure_items[@]}"; \
 	  exit 1; \
 	fi; \
-	echo "✓ Security checks completed"
+	tq_print ok "✓ Security checks completed"
 
 _sec-source:
-	@echo "Running source security checks..."
-	@set -e; failures=""; \
-	echo "→ govulncheck (Go CVE scan)..."; \
+	@set -e; $(tq_helpers); tq_print info "Running source security checks..."; failures=""; \
+	printf '%s\n' '→ govulncheck (Go CVE scan)...'; \
 	if [ -x "$(GOVULNCHECK_BIN)" ] || command -v "$(GOVULNCHECK_BIN)" >/dev/null 2>&1 || [ -x "$(DEFAULT_GOVULNCHECK_BIN)" ]; then \
 		govuln_bin="$(GOVULNCHECK_BIN)"; \
 		if ! [ -x "$$govuln_bin" ] && ! command -v "$$govuln_bin" >/dev/null 2>&1; then govuln_bin="$(DEFAULT_GOVULNCHECK_BIN)"; fi; \
 		log_file=$$(mktemp); set +e; (cd backend && "$$govuln_bin" ./...) >"$$log_file" 2>&1; status=$$?; set -e; cat "$$log_file"; rm -f "$$log_file"; \
-		if [ "$$status" -ne 0 ]; then echo "✗ Check failed: govulncheck"; failures="$$failures govulncheck"; else echo "✓ Check passed: govulncheck"; fi; \
-	else echo "✗ Check failed: govulncheck missing"; failures="$$failures govulncheck-missing"; fi; \
-	echo ""; \
-	echo "→ npm audit (JS CVE scan, high+critical only)..."; \
+		if [ "$$status" -ne 0 ]; then tq_print err "✗ Check failed: govulncheck"; failures="$$failures govulncheck"; else tq_print ok "✓ Check passed: govulncheck"; fi; \
+	else tq_print err "✗ Check failed: govulncheck missing"; failures="$$failures govulncheck-missing"; fi; \
+	printf '\n'; \
+	printf '%s\n' '→ npm audit (JS CVE scan, high+critical only)...'; \
 	if [ -f "web/package.json" ]; then \
 		log_file=$$(mktemp); set +e; (cd web && npm audit --audit-level=high) >"$$log_file" 2>&1; status=$$?; set -e; cat "$$log_file"; rm -f "$$log_file"; \
-		if [ "$$status" -ne 0 ]; then echo "✗ Check failed: npm audit"; failures="$$failures npm-audit"; else echo "✓ Check passed: npm audit"; fi; \
-	else echo "✓ Check skipped: npm audit (no web/package.json)"; fi; \
-	echo ""; \
-	echo "→ gitleaks (secret / credential leak detection)..."; \
-	echo "  config: $(GITLEAKS_CONFIG)"; \
-	echo "  mode: working tree only ($(GITLEAKS_ARGS))"; \
+		if [ "$$status" -ne 0 ]; then tq_print err "✗ Check failed: npm audit"; failures="$$failures npm-audit"; else tq_print ok "✓ Check passed: npm audit"; fi; \
+	else tq_print ok "✓ Check skipped: npm audit (no web/package.json)"; fi; \
+	printf '\n'; \
+	printf '%s\n' '→ gitleaks (secret / credential leak detection)...'; \
+	printf '%s\n' '  config: $(GITLEAKS_CONFIG)'; \
+	printf '%s\n' '  mode: working tree only ($(GITLEAKS_ARGS))'; \
 	if [ -x "$(GITLEAKS_BIN)" ] || command -v "$(GITLEAKS_BIN)" >/dev/null 2>&1; then \
 		report_path="$(GITLEAKS_REPORT_PATH)"; mkdir -p "$$(dirname "$$report_path")"; \
 		set +e; "$(GITLEAKS_BIN)" detect --source . --config "$(GITLEAKS_CONFIG)" $(GITLEAKS_ARGS) --report-format json --report-path "$$report_path"; status=$$?; set -e; \
-		if [ "$$status" -eq 1 ]; then echo "✗ Check failed: gitleaks"; failures="$$failures gitleaks"; elif [ "$$status" -ne 0 ]; then echo "✗ Check failed: gitleaks execution"; failures="$$failures gitleaks-exec"; else echo "✓ Check passed: gitleaks"; fi; \
-	else echo "✗ Check failed: gitleaks missing"; failures="$$failures gitleaks-missing"; fi; \
-	echo ""; \
-	echo "→ trivy config (IaC / Docker / workflow misconfiguration scan)..."; \
+		if [ "$$status" -eq 1 ]; then tq_print err "✗ Check failed: gitleaks"; failures="$$failures gitleaks"; elif [ "$$status" -ne 0 ]; then tq_print err "✗ Check failed: gitleaks execution"; failures="$$failures gitleaks-exec"; else tq_print ok "✓ Check passed: gitleaks"; fi; \
+	else tq_print err "✗ Check failed: gitleaks missing"; failures="$$failures gitleaks-missing"; fi; \
+	printf '\n'; \
+	printf '%s\n' '→ trivy config (IaC / Docker / workflow misconfiguration scan)...'; \
 	if command -v docker >/dev/null 2>&1; then \
 		log_file=$$(mktemp); trivy_cache_dir="$(TRIVY_CACHE_DIR)"; mkdir -p "$$trivy_cache_dir"; \
 		trivy_args="config --skip-check-update --skip-version-check --timeout 10m --severity HIGH,CRITICAL --exit-code 1"; \
@@ -660,44 +669,43 @@ _sec-source:
 			docker_proxy_args="$$docker_proxy_args -e NO_PROXY=$$no_proxy_value -e no_proxy=$$no_proxy_value"; \
 		fi; \
 		set +e; docker run --rm $$docker_proxy_args -v "$$(pwd):/workspace" -v "$$trivy_cache_dir:/root/.cache/trivy" -w /workspace aquasec/trivy:latest $$trivy_args /workspace/build >"$$log_file" 2>&1; status=$$?; set -e; cat "$$log_file"; rm -f "$$log_file"; \
-		if [ "$$status" -ne 0 ]; then echo "✗ Check failed: trivy config"; failures="$$failures trivy-config"; else echo "✓ Check passed: trivy config"; fi; \
-	else echo "✗ Check failed: docker missing for trivy config"; failures="$$failures docker-missing-for-trivy-config"; fi; \
+		if [ "$$status" -ne 0 ]; then tq_print err "✗ Check failed: trivy config"; failures="$$failures trivy-config"; else tq_print ok "✓ Check passed: trivy config"; fi; \
+	else tq_print err "✗ Check failed: docker missing for trivy config"; failures="$$failures docker-missing-for-trivy-config"; fi; \
 	if [ -n "$$failures" ]; then \
-		echo ""; \
-		echo "✗ Source security failures:"; \
-		for item in $$failures; do echo "  - $$item"; done; \
+		read -r -a failure_items <<< "$$failures"; \
+		tq_print_list "✗ Source security failed" "$${failure_items[@]}"; \
 		exit 1; \
 	fi
-	@echo "✓ Source security checks completed"
+	@set -e; $(tq_helpers); tq_print ok "✓ Source security checks completed"
 
 _sec-artifact:
-	@echo "Running artifact security checks..."
-	@echo "Generating Software Bill of Materials (SBOM)..."
+	@set -e; $(tq_helpers); tq_print info "Running artifact security checks..."; \
+	tq_print info "Generating Software Bill of Materials (SBOM)..."
 	@if ! command -v syft >/dev/null 2>&1; then \
-		echo "✗ syft not installed. Run 'make install' first."; exit 1; \
+		$(tq_helpers); tq_print err "✗ syft not installed. Run 'make install' first."; exit 1; \
 	fi
 	@log_file=$$(mktemp); \
 	set +e; syft . -o spdx-json --exclude '**/node_modules/**' > sbom.spdx.json 2>"$$log_file"; status=$$?; set -e; \
 	cat "$$log_file"; \
 	if [ "$$status" -ne 0 ]; then \
-		echo "✗ Artifact scan failed at: sbom"; \
+		$(tq_helpers); tq_print err "✗ Artifact scan failed at: sbom"; \
 		rm -f "$$log_file"; \
 		exit $$status; \
 	fi; \
 	rm -f "$$log_file"
-	@echo "✓ SBOM generated → sbom.spdx.json"
+	@set -e; $(tq_helpers); tq_print ok "✓ SBOM generated → sbom.spdx.json"
 	@wc -l sbom.spdx.json | awk '{print "  Lines: " $$1}'
 	@echo ""
-	@echo "Scanning container image for vulnerabilities (HIGH/CRITICAL)..."
+	@set -e; $(tq_helpers); tq_print info "Scanning container image for vulnerabilities (HIGH/CRITICAL)..."
 	@if ! docker image inspect websoft9dev/appos:latest >/dev/null 2>&1; then \
-		echo "✗ Image websoft9dev/appos:latest not found. Run 'make image build' first."; exit 1; \
+		$(tq_helpers); tq_print err "✗ Image websoft9dev/appos:latest not found. Run 'make image build' first."; exit 1; \
 	fi
 	@if docker image inspect aquasec/trivy:latest >/dev/null 2>&1; then \
 		echo "trivy scanner image already present, skip pull."; \
 	else \
 		echo "Pulling trivy scanner image..."; \
 		$(MAKE) --no-print-directory image pull IMAGE=aquasec/trivy:latest || { \
-			echo "✗ Failed to pull trivy scanner image. Abort."; exit 1; \
+			$(tq_helpers); tq_print err "✗ Failed to pull trivy scanner image. Abort."; exit 1; \
 		}; \
 	fi
 	@log_file=$$(mktemp); \
@@ -709,7 +717,7 @@ _sec-artifact:
 	else \
 		echo "trivy DB not cached, pulling via image pull..."; \
 		$(MAKE) --no-print-directory image pull IMAGE=aquasec/trivy-db:2 || { \
-			echo "✗ Failed to pull trivy DB image. Abort."; rm -f "$$log_file"; exit 1; \
+			$(tq_helpers); tq_print err "✗ Failed to pull trivy DB image. Abort."; rm -f "$$log_file"; exit 1; \
 		}; \
 		mkdir -p "$$(dirname "$$trivy_db_cache")"; \
 		tmp_db=$$(mktemp -d); \
@@ -725,7 +733,7 @@ _sec-artifact:
 			echo "  trivy DB extracted to cache."; \
 			db_flags="--skip-db-update"; \
 		else \
-			echo "✗ Failed to extract trivy DB from image. Abort."; rm -f "$$log_file"; exit 1; \
+			$(tq_helpers); tq_print err "✗ Failed to extract trivy DB from image. Abort."; rm -f "$$log_file"; exit 1; \
 		fi; \
 	fi; \
 	docker run --rm \
@@ -739,39 +747,36 @@ _sec-artifact:
 	set -e; \
 	cat "$$log_file"; \
 	if [ "$$status" -ne 0 ]; then \
-		echo "✗ Artifact scan failed at: trivy-image"; \
+		$(tq_helpers); tq_print err "✗ Artifact scan failed at: trivy-image"; \
 		rm -f "$$log_file"; \
 		exit $$status; \
 	fi; \
 	rm -f "$$log_file"
-	@echo "✓ Image scan completed"
-	@echo "✓ Artifact security checks completed"
+	@set -e; $(tq_helpers); tq_print ok "✓ Image scan completed"
+	@set -e; $(tq_helpers); tq_print ok "✓ Artifact security checks completed"
 
 e2e-browser:
-	@echo "Running browser end-to-end tests..."
-	@set -a; \
+	@set -e; $(tq_helpers); tq_print info "Running browser end-to-end tests..."; set -a; \
 	if [ -n "$(ENV)" ] && [ -f "$(ENV)" ]; then . "$(ENV)"; fi; \
 	set +a; \
 	cd tests && npx playwright test -c playwright.config.ts --project=chromium
-	@echo "✓ Browser E2E tests completed"
+	@set -e; $(tq_helpers); tq_print ok "✓ Browser E2E tests completed"
 
 test-env:
 ifeq ($(ARG2),up)
-	@echo "Starting local external test dependencies..."
-	@test -f "$(TEST_ENV_COMPOSE_FILE)" || { echo "✗ Missing $(TEST_ENV_COMPOSE_FILE)"; exit 1; }
-	@set -e; \
+	@set -e; $(tq_helpers); tq_print info "Starting local external test dependencies..."; \
+	test -f "$(TEST_ENV_COMPOSE_FILE)" || { tq_print err "✗ Missing $(TEST_ENV_COMPOSE_FILE)"; exit 1; }; \
 	for image in $(TEST_ENV_IMAGES); do \
 		$(MAKE) --no-print-directory image pull IMAGE="$$image"; \
 	done
 	@$(TEST_ENV_COMPOSE_CMD) up -d
-	@echo "✓ Local external test dependencies started"
+	@set -e; $(tq_helpers); tq_print ok "✓ Local external test dependencies started"
 else ifeq ($(ARG2),down)
-	@echo "Stopping local external test dependencies..."
+	@set -e; $(tq_helpers); tq_print info "Stopping local external test dependencies..."
 	@$(TEST_ENV_COMPOSE_CMD) down -v --remove-orphans
-	@echo "✓ Local external test dependencies stopped"
+	@set -e; $(tq_helpers); tq_print ok "✓ Local external test dependencies stopped"
 else
-	@echo "Usage: make test-env up"
-	@echo "       make test-env down"
+	@set -e; $(tq_helpers); tq_print warn "Usage: make test-env up"; printf '%s\n' '       make test-env down'
 endif
 
 
@@ -822,9 +827,9 @@ openapi-sync:
 
 
 version-check:
-	@echo "Validating version metadata..."
+	@set -e; $(tq_helpers); tq_print info "Validating version metadata..."
 	@node .github/scripts/validate-version.mjs
-	@echo "✓ Version metadata valid"
+	@set -e; $(tq_helpers); tq_print ok "✓ Version metadata valid"
 
 # ============================================================
 # Build Image
