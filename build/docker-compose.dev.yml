@@ -1,0 +1,32 @@
+services:
+  appos-dev:
+    build:
+      context: ..
+      dockerfile: build/Dockerfile.dev
+    container_name: appos-dev
+    working_dir: /workspace
+    tty: true
+    stdin_open: true
+    command: sleep infinity
+    environment:
+      HOME: /home/vscode
+      GOMODCACHE: /home/vscode/.cache/go-mod
+      GOCACHE: /home/vscode/.cache/go-build
+      NPM_CONFIG_CACHE: /home/vscode/.cache/npm
+      OPENCODE_DIR: /home/vscode/.local/share/opencode
+      TRIVY_CACHE_DIR: /home/vscode/.cache/trivy
+    volumes:
+      - ..:/workspace
+      - /var/run/docker.sock:/var/run/docker.sock
+      - appos_dev_go_mod:/home/vscode/.cache/go-mod
+      - appos_dev_go_build:/home/vscode/.cache/go-build
+      - appos_dev_npm:/home/vscode/.cache/npm
+      - appos_dev_opencode:/home/vscode/.local/share/opencode
+      - appos_dev_trivy:/home/vscode/.cache/trivy
+
+volumes:
+  appos_dev_go_mod:
+  appos_dev_go_build:
+  appos_dev_npm:
+  appos_dev_opencode:
+  appos_dev_trivy:

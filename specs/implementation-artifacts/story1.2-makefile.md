@@ -10,6 +10,8 @@
 
 ## User Story
 
+> Historical note (2026-07-29): AppOS no longer uses `build-local`, `Dockerfile.local`, or VS Code `.devcontainer`. Development now uses `build/Dockerfile.dev`, `build/docker-compose.dev.yml`, and `make dev-*` commands.
+
 As a developer, I want simplified Makefile commands, so that I don't need to remember complex docker/go/npm commands.
 
 ## Acceptance Criteria
@@ -28,12 +30,14 @@ As a developer, I want simplified Makefile commands, so that I don't need to rem
 
 ### Dev
 ```bash
-make install              # Install dev dependencies (Go tools, npm packages)
+make dev-build            # Build development container image
+make dev-up               # Start development container
+make dev-bootstrap        # Sync workspace dependencies inside dev container
+make dev-shell            # Open shell inside development container
 make tidy                 # Tidy Go modules
 make build backend        # Build Go binary → backend/appos
 make build web            # Build React app → web/dist
-make run                  # Copy artifacts + restart (default port 9091)
-make run 9092             # Copy artifacts + restart on port 9092
+make run                  # Copy artifacts + restart runtime container
 ```
 
 ### Testing & Quality
@@ -46,8 +50,7 @@ make check                # fmt + lint in one step (local dev)
 
 ### Build Image
 ```bash
-make image build          # Build production image (multi-stage Dockerfile)
-make image build-local    # Build dev image (Dockerfile.local)
+make image build          # Build production/runtime image
 ```
 
 ### Container Management
@@ -140,14 +143,15 @@ All container commands use docker-compose:
 
 ```bash
 # Initial setup
-make install
-make image build-local
-make start
+make dev-build
+make dev-up
+make dev-bootstrap
+make dev-shell
 
 # Code → Test cycle
-# ... edit code ...
-make run              # Hot reload in 10 seconds
-make test             # Verify changes (includes make test e2e fast in strict mode)
+# ... edit code inside dev container ...
+make run
+make test
 ```
 
 ### Production Build
@@ -212,7 +216,8 @@ make help
 
 ### Build Workflow
 ```bash
-make install
+make dev-up
+make dev-bootstrap
 make build backend
 ls backend/appos          # Should exist (PocketBase framework binary)
 
@@ -224,9 +229,6 @@ ls web/dist/              # Should contain index.html
 ```bash
 make image build
 docker images | grep appos:latest
-
-make image build-local
-docker images | grep appos:dev
 ```
 
 ### Container Lifecycle

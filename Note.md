@@ -137,3 +137,7 @@ assets memory
 
 登录页增加一个背景图片
 
+
+如果你愿意，下一步我建议继续做两件事之一：
+1. 把 CI 的 builder 层也逐步对齐到 build/Dockerfile.dev
+2. 在开发容器里补 Playwright 支持，打通浏览器 E2E 开发链路

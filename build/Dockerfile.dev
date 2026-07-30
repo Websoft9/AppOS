@@ -1,0 +1,36 @@
+FROM mcr.microsoft.com/devcontainers/go:1.26-bookworm
+
+ARG GITLEAKS_VERSION=8.30.0
+ARG GOLANGCI_LINT_VERSION=v2.5.0
+ARG OPENCODE_VERSION=1.17.18
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+  docker.io \
+  jq \
+  make \
+  python3 \
+  python3-pip \
+  sqlite3 \
+  && rm -rf /var/lib/apt/lists/*
+
+RUN ARCH="$(dpkg --print-architecture)" && \
+  case "$ARCH" in \
+    amd64) GL_ARCH="x64" ;; \
+    arm64) GL_ARCH="arm64" ;; \
+    *) echo "Unsupported architecture: $ARCH" >&2; exit 1 ;; \
+  esac && \
+  curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_${GL_ARCH}.tar.gz" \
+    | tar -xz -C /usr/local/bin gitleaks
+
+RUN curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+
+RUN GOBIN=/usr/local/bin go install github.com/golangci/golangci-lint/cmd/golangci-lint@${GOLANGCI_LINT_VERSION} && \
+  GOBIN=/usr/local/bin go install github.com/rhysd/actionlint/cmd/actionlint@latest && \
+  GOBIN=/usr/local/bin go install golang.org/x/vuln/cmd/govulncheck@latest
+
+RUN npm install -g opencode-ai@${OPENCODE_VERSION} @qodo/command
+
+ENV DISABLE_TELEMETRY=1 \
+  DO_NOT_TRACK=1
+
+WORKDIR /workspace

@@ -24,6 +24,8 @@ session
 .bmad-loop/runs/
 .bmad-loop/cache/
 
+.cache/dev-bootstrap/
+
 # Playwright
 /test-results/
 /playwright-report/

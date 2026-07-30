@@ -2,7 +2,7 @@
 
 
 
-.PHONY: help install init-env tidy build run test qa gate sec \
+.PHONY: help install dev-up dev-down dev-build dev-shell dev-bootstrap init-env tidy build run test qa gate sec \
 	backend web latest test-env image start stop restart logs stats delete rm kill-port redo sync-store tl e2e-browser source artifact \
 	e2e runtime smoke pr merge staging release up down \
 	_test-backend _test-web _test-e2e-runtime _test-e2e-smoke _test-e2e-acceptance _qa-lint _qa-format _qa-openapi _sec-source _sec-artifact \
@@ -16,6 +16,9 @@ SHELL := /bin/bash
 CONTAINER := appos
 COMPOSE_FILE := build/docker-compose.yml
 COMPOSE_CMD := cd build && docker compose
+DEV_COMPOSE_FILE := build/docker-compose.dev.yml
+DEV_COMPOSE_CMD := docker compose -f $(DEV_COMPOSE_FILE)
+DEV_CONTAINER := appos-dev
 TEST_ENV_COMPOSE_FILE := tests/env/docker-compose.yml
 TEST_ENV_COMPOSE_CMD := docker compose -f $(TEST_ENV_COMPOSE_FILE)
 LOCAL_ENV_DIR := .environments
@@ -89,7 +92,12 @@ help:
 	@echo "=============================="
 	@echo ""
 	@printf "\033[36mDev:\033[0m\n"
-	@echo "  make install              Install dev dependencies (Go tools, build-essential, npm packages)"
+	@echo "  make dev-build            Build the development container image"
+	@echo "  make dev-up               Start the development container"
+	@echo "  make dev-shell            Open a shell inside the development container"
+	@echo "  make dev-bootstrap        Sync workspace dependencies inside the development container"
+	@echo "  make dev-down             Stop and remove the development container"
+	@echo "  make install              Alias for make dev-bootstrap (compatibility)"
 	@echo "  make init-env             Create .environments/local.env from template (auto-loaded outside CI)"
 	@echo "  make tidy                 Tidy Go modules"
 	@echo "  make build                Build all (backend + web)"
@@ -161,98 +169,33 @@ help:
 # Dev
 # ============================================================
 install:
-	@echo "Checking environment..."
-	@# Check golang
-	@if ! command -v go >/dev/null 2>&1; then \
-		echo "✗ Error: Go is not installed. Install from https://go.dev/dl/"; \
-		exit 1; \
-	fi
-	@echo "✓ Go $(shell go version | awk '{print $$3}')";
-	@# Check Node.js
-	@if ! command -v node >/dev/null 2>&1; then \
-		echo "✗ Error: Node.js is not installed. Install from https://nodejs.org/"; \
-		exit 1; \
-	fi
-	@echo "✓ Node.js $(shell node -v)";
-	@# Check Docker
-	@if ! command -v docker >/dev/null 2>&1; then \
-		echo "✗ Error: Docker is not installed. Install from https://docs.docker.com/get-docker/"; \
-		exit 1; \
-	fi
-	@echo "✓ Docker $(shell docker --version | awk '{print $$3}' | tr -d ',')";
-	@# Check gcc (build-essential)
-	@if ! command -v gcc >/dev/null 2>&1; then \
-		echo "→ Installing build-essential..."; \
-		sudo apt-get update && sudo apt-get install -y build-essential || { \
-			echo "✗ Error: Failed to install build-essential. Run manually: sudo apt install build-essential"; \
-			exit 1; \
-		}; \
-	fi
-	@echo "✓ gcc $(shell gcc --version | head -1 | awk '{print $$NF}')";
-	@echo ""
-	@echo "Installing dev dependencies..."
-	@if [ -f "backend/go.mod" ]; then \
-		echo "→ Go modules..."; \
-		cd backend && go mod download; \
-	fi
-	@if [ -f "web/package.json" ]; then \
-		echo "→ npm packages..."; \
-		cd web && npm install; \
-	fi
-	@echo "✓ Dependencies installed"
-	@echo ""
-	@echo "Installing Node.js CLI tools..."
-	@# Qodo CLI is published on npm as @qodo/command (provides the `qodo` binary)
-	@if ! command -v qodo >/dev/null 2>&1; then \
-		echo "→ qodo..."; \
-		npm install -g @qodo/command; \
-	else \
-		echo "✓ qodo already installed"; \
-	fi
-	@echo "✓ Node.js CLI tools installed"
-	@echo ""
-	@echo "Installing Go tooling..."
-	@# golangci-lint
-	@if [ ! -x "$(DEFAULT_GOLANGCI_LINT_BIN)" ] && ! command -v golangci-lint >/dev/null 2>&1; then \
-		echo "→ golangci-lint..."; \
-		go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest; \
-	else \
-		echo "✓ golangci-lint already installed"; \
-	fi
-	@if [ ! -x "$(DEFAULT_ACTIONLINT_BIN)" ] && ! command -v actionlint >/dev/null 2>&1; then \
-		echo "→ actionlint..."; \
-		go install github.com/rhysd/actionlint/cmd/actionlint@latest; \
-	else \
-		echo "✓ actionlint already installed"; \
-	fi
-	@echo "✓ Go tooling installed to $(GO_BIN_DIR)"
-	@echo ""
-	@echo "Installing security tools..."
-	@# govulncheck
-	@if [ ! -x "$(DEFAULT_GOVULNCHECK_BIN)" ] && ! command -v govulncheck >/dev/null 2>&1; then \
-		echo "→ govulncheck..."; \
-		go install golang.org/x/vuln/cmd/govulncheck@latest; \
-	else \
-		echo "✓ govulncheck already installed"; \
-	fi
-	@# gitleaks
-	@if ! command -v gitleaks >/dev/null 2>&1; then \
-		echo "→ gitleaks..."; \
-		GLVER=$$(curl -s https://api.github.com/repos/gitleaks/gitleaks/releases/latest | grep '"tag_name"' | cut -d '"' -f 4 | tr -d 'v'); \
-		ARCH=$$(uname -m | sed 's/x86_64/x64/;s/aarch64/arm64/'); \
-		curl -sSfL "https://github.com/gitleaks/gitleaks/releases/latest/download/gitleaks_$${GLVER}_linux_$${ARCH}.tar.gz" | tar xz -C /tmp gitleaks; \
-		sudo mv /tmp/gitleaks /usr/local/bin/gitleaks; \
-	else \
-		echo "✓ gitleaks already installed"; \
-	fi
-	@# syft (SBOM)
-	@if ! command -v syft >/dev/null 2>&1; then \
-		echo "→ syft..."; \
-		curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sudo sh -s -- -b /usr/local/bin; \
-	else \
-		echo "✓ syft already installed"; \
-	fi
-	@echo "✓ Security tools installed"
+	@echo "make install is kept as a compatibility alias. Use 'make dev-bootstrap' for the Docker-first developer workflow."
+	@$(MAKE) --no-print-directory dev-bootstrap
+
+dev-build:
+	@echo "Building development container image..."
+	@$(DEV_COMPOSE_CMD) build
+	@echo "✓ Development container image built"
+
+dev-up:
+	@echo "Starting development container..."
+	@$(DEV_COMPOSE_CMD) up -d
+	@echo "✓ Development container started"
+
+dev-down:
+	@echo "Stopping development container..."
+	@$(DEV_COMPOSE_CMD) down
+	@echo "✓ Development container stopped"
+
+dev-shell:
+	@docker inspect $(DEV_CONTAINER) >/dev/null 2>&1 || { echo "Development container not running. Start it with 'make dev-up'."; exit 1; }
+	@docker exec -it $(DEV_CONTAINER) bash
+
+dev-bootstrap:
+	@docker inspect $(DEV_CONTAINER) >/dev/null 2>&1 || { echo "Development container not running. Start it with 'make dev-up'."; exit 1; }
+	@echo "Syncing development workspace..."
+	@docker exec $(DEV_CONTAINER) bash /workspace/build/dev/bootstrap.sh
+	@echo "✓ Development workspace ready"
 
 init-env:
 	@mkdir -p "$(LOCAL_ENV_DIR)"
