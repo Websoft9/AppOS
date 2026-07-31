@@ -130,6 +130,26 @@ func TestContainerInspectManyUsesSingleInspectCall(t *testing.T) {
 	}
 }
 
+func TestImageRemoveUsesForceFlag(t *testing.T) {
+	exec := &fakeExecutor{}
+	client := New(exec)
+
+	if _, err := client.ImageRemove(context.Background(), "img-123"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(exec.calls) != 1 {
+		t.Fatalf("expected 1 docker call, got %d", len(exec.calls))
+	}
+	got := exec.calls[0]
+	if got.command != "docker" {
+		t.Fatalf("unexpected command %q", got.command)
+	}
+	if len(got.args) != 4 || got.args[0] != "image" || got.args[1] != "rm" || got.args[2] != "-f" || got.args[3] != "img-123" {
+		t.Fatalf("unexpected image remove args: %#v", got.args)
+	}
+}
+
 func TestComposeConfigReadFallsBackToHostHelper(t *testing.T) {
 	exec := &fakeExecutor{}
 	exec.run = func(command string, args ...string) (string, error) {

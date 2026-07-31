@@ -301,4 +301,12 @@ describe('ImagesTab pull history labels', () => {
       expect(within(body).queryByText('ghcr.io/websoft9/appos')).not.toBeInTheDocument()
     })
   })
+
+  it('uses a composite row key so alias images sharing one ID do not reuse the same row', () => {
+    const source = readFileSync('src/components/docker/ImagesTab.tsx', 'utf8')
+
+    expect(source).toContain('function imageRowKey(image: DockerImage): string')
+    expect(source).toContain('<Fragment key={imageRowKey(img)}>')
+    expect(source).not.toContain('<Fragment key={img.ID}>')
+  })
 })

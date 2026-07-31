@@ -233,7 +233,13 @@
       "load": "Failed to load images"
     },
     "prune": {
-      "completed": "Prune completed."
+      "completed": "Prune completed.",
+      "inProgress": "Pruning images on the target server..."
+    },
+    "messages": {
+      "removeCompleted": "Removed {{count}} image entries.",
+      "removePartial": "Removed entries: {{removed}}. Failed images: {{failed}}.",
+      "pruneCompleted": "Unused image prune completed successfully."
     },
     "filterPlaceholder": "Filter images...",
     "filters": {
@@ -257,7 +263,9 @@
       "inspect": "Inspect",
       "pull": "Pull",
       "remove": "Remove",
-      "viewFullInspect": "View full inspect"
+      "viewFullInspect": "View full inspect",
+      "removing": "Removing...",
+      "pruning": "Pruning..."
     },
     "columns": {
       "repository": "Repository",
@@ -286,6 +294,8 @@
       "next": "Next images page"
     },
     "dialogs": {
+      "removeTitle": "Remove image?",
+      "removeDescription": "This will remove image {{image}}. This action cannot be undone.",
       "removeSelectedTitle": "Remove selected unused images?",
       "removeSelectedDescription": "Selected: {{count}}. Images in use are not selectable.",
       "pruneTitle": "Prune unused images?",

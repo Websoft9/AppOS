@@ -279,9 +279,9 @@ func (c *Client) RegistryStatus(ctx context.Context) (string, error) {
 	return output, nil
 }
 
-// ImageRemove removes an image by ID.
+// ImageRemove force removes an image by ID.
 func (c *Client) ImageRemove(ctx context.Context, id string) (string, error) {
-	return c.exec.Run(ctx, "docker", "image", "rm", id)
+	return c.exec.Run(ctx, "docker", "image", "rm", "-f", id)
 }
 
 // ImagePrune removes unused images.

@@ -10,7 +10,7 @@
 
 ## User Story
 
-> Historical note (2026-07-29): AppOS no longer uses `build-local`, `Dockerfile.local`, or VS Code `.devcontainer`. Development now uses `build/Dockerfile.dev`, `build/docker-compose.dev.yml`, and `make dev-*` commands.
+> Historical note (2026-07-29): AppOS no longer uses `build-local`, `Dockerfile.local`, or the VS Code devcontainer extension flow. Development now uses `.devcontainer/devcontainer.json`, `.devcontainer/Dockerfile`, `make host ...` commands on the host, and plain `make ...` commands inside the development container.
 
 As a developer, I want simplified Makefile commands, so that I don't need to remember complex docker/go/npm commands.
 
@@ -30,14 +30,26 @@ As a developer, I want simplified Makefile commands, so that I don't need to rem
 
 ### Dev
 ```bash
-make dev-build            # Build development container image
-make dev-up               # Start development container
-make dev-bootstrap        # Sync workspace dependencies inside dev container
-make dev-shell            # Open shell inside development container
+make host dev-pull-base   # Pull development base image to the host
+make host dev-build       # Build development container image
+make host dev-build mirror # Build development container image with mirrored package registries
+make host dev-up          # Start development container
+make host dev-bootstrap   # Sync workspace dependencies inside dev container
+make host dev-shell       # Open shell inside development container
 make tidy                 # Tidy Go modules
 make build backend        # Build Go binary → backend/appos
 make build web            # Build React app → web/dist
 make run                  # Copy artifacts + restart runtime container
+```
+
+### Inside Development Container
+```bash
+make build backend        # Build Go binary → backend/appos
+make build web            # Build React app → web/dist
+make test backend         # Backend tests
+make test web             # Frontend tests
+make qa lint              # Lint and typecheck
+make run                  # Copy rebuilt artifacts into runtime container
 ```
 
 ### Testing & Quality
@@ -51,6 +63,7 @@ make check                # fmt + lint in one step (local dev)
 ### Build Image
 ```bash
 make image build          # Build production/runtime image
+make host image pull IMAGE=mcr.microsoft.com/devcontainers/go:1.26-bookworm
 ```
 
 ### Container Management
@@ -143,10 +156,11 @@ All container commands use docker-compose:
 
 ```bash
 # Initial setup
-make dev-build
-make dev-up
-make dev-bootstrap
-make dev-shell
+make host dev-pull-base
+make host dev-build
+make host dev-up
+make host dev-bootstrap
+make host dev-shell
 
 # Code → Test cycle
 # ... edit code inside dev container ...
@@ -200,7 +214,7 @@ docker exec appos supervisorctl status
 
 # Fresh start
 make rm               # Remove everything
-make image build-local
+make host dev-build
 make start
 ```
 
@@ -216,8 +230,8 @@ make help
 
 ### Build Workflow
 ```bash
-make dev-up
-make dev-bootstrap
+make host dev-up
+make host dev-bootstrap
 make build backend
 ls backend/appos          # Should exist (PocketBase framework binary)
 

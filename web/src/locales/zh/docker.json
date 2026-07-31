@@ -218,12 +218,28 @@
     }
   },
   "images": {
+    "prune": {
+      "inProgress": "正在目标服务器上清理镜像..."
+    },
+    "messages": {
+      "removeCompleted": "已删除 {{count}} 条镜像记录。",
+      "removePartial": "已删除记录：{{removed}}，失败镜像：{{failed}}。",
+      "pruneCompleted": "未使用镜像清理完成。"
+    },
     "filters": {
       "registryAria": "按镜像仓库筛选"
     },
     "history": {
       "pendingTab": "等待中",
       "historyTab": "历史"
+    },
+    "actions": {
+      "removing": "删除中...",
+      "pruning": "清理中..."
+    },
+    "dialogs": {
+      "removeTitle": "删除镜像？",
+      "removeDescription": "此操作将删除镜像 {{image}}，且无法撤销。"
     }
   },
   "networks": {

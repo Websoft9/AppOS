@@ -64,6 +64,8 @@ interface HostEntry {
   reason?: string
 }
 
+type DockerHostState = 'loading' | 'ready' | 'offline'
+
 interface DockerPanelProps {
   serverId: string
   className?: string
@@ -88,6 +90,7 @@ type DockerTabId = 'overview' | 'containers' | 'images' | 'volumes' | 'networks'
 
 const DOCKER_PAGE_SIZE_KEY = 'docker.list.page_size'
 const MIN_DOCKER_REFRESH_SPIN_MS = 650
+const DOCKER_TARGETS_REFRESH_INTERVAL_MS = 15_000
 
 function loadGlobalPageSize(): ContainerPageSize {
   try {
@@ -175,6 +178,7 @@ function isComposeProjectRunning(project: OverviewComposeProject) {
 function OverviewTab({
   serverId,
   disabled,
+  active,
   embeddedInWorkspace = false,
   onSelectTab,
   onFilterContainersByNames,
@@ -184,6 +188,7 @@ function OverviewTab({
 }: {
   serverId: string
   disabled: boolean
+  active: boolean
   embeddedInWorkspace?: boolean
   onSelectTab: (tabId: DockerTabId) => void
   onFilterContainersByNames: (names: string[]) => void
@@ -199,7 +204,7 @@ function OverviewTab({
       })
       return parseDockerJsonLines<OverviewContainer>(res.output)
     },
-    enabled: !disabled,
+    enabled: active && !disabled,
     staleTime: 60_000,
     gcTime: 5 * 60_000,
     refetchOnMount: false,
@@ -213,7 +218,7 @@ function OverviewTab({
       })
       return parseDockerJsonLines<OverviewImage>(res.output)
     },
-    enabled: !disabled,
+    enabled: active && !disabled,
     staleTime: 60_000,
     gcTime: 5 * 60_000,
     refetchOnMount: false,
@@ -227,7 +232,7 @@ function OverviewTab({
       })
       return parseDockerJsonLines<OverviewVolume>(res.output)
     },
-    enabled: !disabled,
+    enabled: active && !disabled,
     staleTime: 60_000,
     gcTime: 5 * 60_000,
     refetchOnMount: false,
@@ -241,7 +246,7 @@ function OverviewTab({
       })
       return parseDockerJsonLines<OverviewNetwork>(res.output)
     },
-    enabled: !disabled,
+    enabled: active && !disabled,
     staleTime: 60_000,
     gcTime: 5 * 60_000,
     refetchOnMount: false,
@@ -255,7 +260,7 @@ function OverviewTab({
       })
       return parseComposeProjects(res.output)
     },
-    enabled: !disabled,
+    enabled: active && !disabled,
     staleTime: 60_000,
     gcTime: 5 * 60_000,
     refetchOnMount: false,
@@ -596,6 +601,7 @@ export function DockerPanel({ serverId, className, showWorkspaceHeader = true }:
   const volumesTabRef = useRef<VolumesTabRef>(null)
   const networksTabRef = useRef<NetworksTabRef>(null)
   const [hosts, setHosts] = useState<HostEntry[]>([])
+  const [hostsLoading, setHostsLoading] = useState(true)
   const [refreshSignal, setRefreshSignal] = useState(0)
   const [activeTab, setActiveTab] = useState<DockerTabId>('overview')
   const [containerFilter, setContainerFilter] = useState('')
@@ -721,11 +727,32 @@ export function DockerPanel({ serverId, className, showWorkspaceHeader = true }:
   const refreshFeedbackActive = refreshing || activeTabFetching > 0
 
   useEffect(() => {
-    pb.send(dockerTargetsPath(), { method: 'GET' })
-      .then(res => {
-        if (Array.isArray(res)) setHosts(res as HostEntry[])
-      })
-      .catch(() => setHosts([]))
+    let cancelled = false
+
+    const loadHosts = async (showLoading: boolean) => {
+      if (showLoading) setHostsLoading(true)
+      try {
+        const res = await pb.send(dockerTargetsPath(), { method: 'GET' })
+        if (cancelled) return
+        setHosts(Array.isArray(res) ? (res as HostEntry[]) : [])
+      } catch {
+        if (cancelled) return
+        setHosts([])
+      } finally {
+        if (cancelled) return
+        setHostsLoading(false)
+      }
+    }
+
+    void loadHosts(true)
+    const timer = window.setInterval(() => {
+      void loadHosts(false)
+    }, DOCKER_TARGETS_REFRESH_INTERVAL_MS)
+
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
   }, [])
 
   useEffect(() => {
@@ -737,8 +764,37 @@ export function DockerPanel({ serverId, className, showWorkspaceHeader = true }:
   }, [])
 
   const activeHost = hosts.find(h => h.id === serverId)
-  const dockerDisabled = activeHost ? activeHost.status !== 'online' : false
+  const dockerHostState: DockerHostState = hostsLoading
+    ? 'loading'
+    : activeHost && activeHost.status !== 'online'
+      ? 'offline'
+      : 'ready'
+  const dockerDisabled = dockerHostState !== 'ready'
   const dockerDisabledReason = activeHost?.reason || `${activeHost?.label ?? 'server'} is offline`
+  const dockerStatusMessage =
+    dockerHostState === 'loading'
+      ? 'Checking Docker connection to the selected server...'
+      : dockerDisabledReason
+  const previousHostStateRef = useRef<DockerHostState>('loading')
+
+  useEffect(() => {
+    const previous = previousHostStateRef.current
+    previousHostStateRef.current = dockerHostState
+    if (previous === 'ready' || dockerHostState !== 'ready') return
+
+    setRefreshSignal(signal => signal + 1)
+    void Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['docker', 'containers', serverId] }),
+      queryClient.invalidateQueries({
+        queryKey: ['docker', 'containers', 'for-images', serverId],
+      }),
+      queryClient.invalidateQueries({ queryKey: ['monitor', 'container-telemetry', serverId] }),
+      queryClient.invalidateQueries({ queryKey: ['docker', 'images', serverId] }),
+      queryClient.invalidateQueries({ queryKey: ['docker', 'networks', serverId] }),
+      queryClient.invalidateQueries({ queryKey: ['docker', 'volumes', serverId] }),
+      queryClient.invalidateQueries({ queryKey: ['docker', 'compose', serverId] }),
+    ])
+  }, [dockerHostState, queryClient, serverId])
   const activeTabMeta = useMemo(() => {
     return {
       overview: {
@@ -869,7 +925,13 @@ export function DockerPanel({ serverId, className, showWorkspaceHeader = true }:
                 className="shrink-0"
                 onClick={refreshDockerData}
                 disabled={dockerDisabled || refreshFeedbackActive}
-                title={refreshFeedbackActive ? 'Refreshing Docker data' : 'Refresh Docker data'}
+                title={
+                  dockerHostState === 'loading'
+                    ? 'Checking Docker connection'
+                    : refreshFeedbackActive
+                      ? 'Refreshing Docker data'
+                      : 'Refresh Docker data'
+                }
                 aria-label="Refresh Docker data"
               >
                 {refreshFeedbackActive ? (
@@ -1519,10 +1581,13 @@ export function DockerPanel({ serverId, className, showWorkspaceHeader = true }:
               </div>
             </div>
 
-            {dockerDisabled && (
-              <div className="mx-4 mt-4 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                Docker is disabled for current server: {dockerDisabledReason}
-              </div>
+            {dockerHostState !== 'ready' && (
+              <Alert
+                variant={dockerHostState === 'offline' ? 'destructive' : 'default'}
+                className="mx-4 mt-4"
+              >
+                <AlertDescription>{dockerStatusMessage}</AlertDescription>
+              </Alert>
             )}
 
             {refreshError && (
@@ -1532,177 +1597,196 @@ export function DockerPanel({ serverId, className, showWorkspaceHeader = true }:
             )}
 
             <div className="min-h-0 flex-1">
-              <TabsContent
-                value="overview"
-                className="mt-0 min-h-0 min-w-0 h-full overflow-y-auto p-4 data-[state=active]:flex data-[state=active]:flex-col"
-                data-docker-active-panel={activeTab === 'overview' ? 'true' : 'false'}
-              >
-                <OverviewTab
-                  serverId={serverId}
-                  disabled={dockerDisabled}
-                  embeddedInWorkspace
-                  onSelectTab={setActiveTab}
-                  onFilterContainersByNames={names => {
-                    setContainerFilter('')
-                    setContainerFilterNames(names)
-                    setContainerStateFilter('all')
-                    setActiveTab('containers')
-                  }}
-                  onOpenPullImage={() => {
-                    setActiveTab('images')
-                    window.setTimeout(() => imagesTabRef.current?.openPullDialog(), 0)
-                  }}
-                  onOpenPruneImages={() => {
-                    setActiveTab('images')
-                    window.setTimeout(() => imagesTabRef.current?.openPruneDialog(), 0)
-                  }}
-                  onOpenPruneVolumes={() => {
-                    setActiveTab('volumes')
-                    window.setTimeout(() => volumesTabRef.current?.openPruneDialog(), 0)
-                  }}
-                />
-              </TabsContent>
-              <TabsContent
-                value="containers"
-                className="mt-0 min-h-0 min-w-0 h-full overflow-y-auto p-4 data-[state=active]:flex data-[state=active]:flex-col"
-                data-docker-active-panel={activeTab === 'containers' ? 'true' : 'false'}
-              >
-                <ContainersTab
-                  serverId={serverId}
-                  refreshSignal={refreshSignal}
-                  searchQuery={containerFilter}
-                  stateFilter={containerStateFilter}
-                  onStateFilterChange={setContainerStateFilter}
-                  onSearchQueryChange={setContainerFilter}
-                  filterPreset={containerFilter}
-                  includeNames={containerFilterNames}
-                  page={containerPage}
-                  pageSize={containerPageSize}
-                  visibleColumns={containerVisibleColumns}
-                  refreshDisabled={dockerDisabled}
-                  refreshing={refreshFeedbackActive}
-                  onClearFilterPreset={() => setContainerFilter('')}
-                  onClearIncludeNames={() => setContainerFilterNames([])}
-                  onPageChange={setContainerPage}
-                  onPageSizeChange={() => {}}
-                  onVisibleColumnsChange={() => {}}
-                  onSummaryChange={setContainerSummary}
-                  onRefresh={refreshDockerData}
-                  onOpenVolumeFilter={volumeNames => {
-                    if (!volumeNames || volumeNames.length === 0) return
-                    setVolumesFilter('')
-                    setVolumeFilterNames(volumeNames)
-                    setActiveTab('volumes')
-                  }}
-                  onOpenImageFilter={imageName => {
-                    if (!imageName) return
-                    setImagesFilter(imageName)
-                    setImagesUsageFilter('all')
-                    setActiveTab('images')
-                  }}
-                  onOpenNetworkFilter={networkName => {
-                    if (!networkName) return
-                    setNetworksFilter(networkName)
-                    setActiveTab('networks')
-                  }}
-                  onOpenTerminal={id => setTerminalContainerId(id)}
-                  showPanelChrome={false}
-                />
-              </TabsContent>
-              <TabsContent
-                value="images"
-                className="mt-0 min-h-0 min-w-0 h-full overflow-y-auto p-4 data-[state=active]:flex data-[state=active]:flex-col"
-                data-docker-active-panel={activeTab === 'images' ? 'true' : 'false'}
-              >
-                <ImagesTab
-                  ref={imagesTabRef}
-                  serverId={serverId}
-                  refreshSignal={refreshSignal}
-                  embeddedInWorkspace
-                  externalFilter={imagesFilter}
-                  externalUsageFilter={imagesUsageFilter}
-                  page={imagesPage}
-                  pageSize={imagesPageSize}
-                  onPageChange={setImagesPage}
-                  onOpenContainerFilter={(_imageName, containerNames) => {
-                    setContainerFilter('')
-                    setContainerFilterNames(containerNames)
-                    setActiveTab('containers')
-                  }}
-                  onPullActivityChange={setImagesPullActivity}
-                  onSummaryChange={setImagesSummary}
-                />
-              </TabsContent>
-              <TabsContent
-                value="volumes"
-                className="mt-0 min-h-0 min-w-0 h-full overflow-y-auto p-4 data-[state=active]:flex data-[state=active]:flex-col"
-                data-docker-active-panel={activeTab === 'volumes' ? 'true' : 'false'}
-              >
-                <VolumesTab
-                  ref={volumesTabRef}
-                  serverId={serverId}
-                  refreshSignal={refreshSignal}
-                  embeddedInWorkspace
-                  externalFilter={volumesFilter}
-                  includeNames={volumeFilterNames}
-                  page={volumesPage}
-                  pageSize={volumesPageSize}
-                  onPageChange={setVolumesPage}
-                  onSummaryChange={setVolumesSummary}
-                  onClearIncludeNames={() => setVolumeFilterNames([])}
-                  onOpenContainerFilter={(_name, containerNames) => {
-                    setContainerFilter('')
-                    setContainerFilterNames(containerNames)
-                    setActiveTab('containers')
-                  }}
-                />
-              </TabsContent>
-              <TabsContent
-                value="networks"
-                className="mt-0 min-h-0 min-w-0 h-full overflow-y-auto p-4 data-[state=active]:flex data-[state=active]:flex-col"
-                data-docker-active-panel={activeTab === 'networks' ? 'true' : 'false'}
-              >
-                <NetworksTab
-                  ref={networksTabRef}
-                  serverId={serverId}
-                  refreshSignal={refreshSignal}
-                  embeddedInWorkspace
-                  externalFilter={networksFilter}
-                  page={networksPage}
-                  pageSize={networksPageSize}
-                  onPageChange={setNetworksPage}
-                  onSummaryChange={setNetworksSummary}
-                />
-              </TabsContent>
-              <TabsContent
-                value="compose"
-                className="mt-0 min-h-0 min-w-0 h-full overflow-y-auto p-4 data-[state=active]:flex data-[state=active]:flex-col"
-                data-docker-active-panel={activeTab === 'compose' ? 'true' : 'false'}
-              >
-                <ComposeTab
-                  serverId={serverId}
-                  refreshSignal={refreshSignal}
-                  embeddedInWorkspace
-                  externalFilter={composeFilter}
-                  externalStatusFilter={composeStatusFilter}
-                  page={composePage}
-                  pageSize={composePageSize}
-                  onPageChange={setComposePage}
-                  onSummaryChange={setComposeSummary}
-                  onStatusFilterChange={setComposeStatusFilter}
-                  onOpenContainerFilter={containerName => {
-                    if (!containerName) return
-                    setContainerFilter(containerName)
-                    setContainerFilterNames([])
-                    setActiveTab('containers')
-                  }}
-                  onOpenContainerNames={containerNames => {
-                    setContainerFilter('')
-                    setContainerFilterNames(containerNames)
-                    setActiveTab('containers')
-                  }}
-                />
-              </TabsContent>
+              {activeTab === 'overview' ? (
+                <TabsContent
+                  value="overview"
+                  forceMount
+                  className="mt-0 min-h-0 min-w-0 h-full overflow-y-auto p-4 data-[state=active]:flex data-[state=active]:flex-col"
+                  data-docker-active-panel="true"
+                >
+                  <OverviewTab
+                    serverId={serverId}
+                    disabled={dockerDisabled}
+                    active
+                    embeddedInWorkspace
+                    onSelectTab={setActiveTab}
+                    onFilterContainersByNames={names => {
+                      setContainerFilter('')
+                      setContainerFilterNames(names)
+                      setContainerStateFilter('all')
+                      setActiveTab('containers')
+                    }}
+                    onOpenPullImage={() => {
+                      setActiveTab('images')
+                      window.setTimeout(() => imagesTabRef.current?.openPullDialog(), 0)
+                    }}
+                    onOpenPruneImages={() => {
+                      setActiveTab('images')
+                      window.setTimeout(() => imagesTabRef.current?.openPruneDialog(), 0)
+                    }}
+                    onOpenPruneVolumes={() => {
+                      setActiveTab('volumes')
+                      window.setTimeout(() => volumesTabRef.current?.openPruneDialog(), 0)
+                    }}
+                  />
+                </TabsContent>
+              ) : null}
+              {activeTab === 'containers' ? (
+                <TabsContent
+                  value="containers"
+                  forceMount
+                  className="mt-0 min-h-0 min-w-0 h-full overflow-y-auto p-4 data-[state=active]:flex data-[state=active]:flex-col"
+                  data-docker-active-panel="true"
+                >
+                  <ContainersTab
+                    serverId={serverId}
+                    refreshSignal={refreshSignal}
+                    searchQuery={containerFilter}
+                    stateFilter={containerStateFilter}
+                    onStateFilterChange={setContainerStateFilter}
+                    onSearchQueryChange={setContainerFilter}
+                    filterPreset={containerFilter}
+                    includeNames={containerFilterNames}
+                    page={containerPage}
+                    pageSize={containerPageSize}
+                    visibleColumns={containerVisibleColumns}
+                    refreshDisabled={dockerDisabled}
+                    refreshing={refreshFeedbackActive}
+                    onClearFilterPreset={() => setContainerFilter('')}
+                    onClearIncludeNames={() => setContainerFilterNames([])}
+                    onPageChange={setContainerPage}
+                    onPageSizeChange={() => {}}
+                    onVisibleColumnsChange={() => {}}
+                    onSummaryChange={setContainerSummary}
+                    onRefresh={refreshDockerData}
+                    onOpenVolumeFilter={volumeNames => {
+                      if (!volumeNames || volumeNames.length === 0) return
+                      setVolumesFilter('')
+                      setVolumeFilterNames(volumeNames)
+                      setActiveTab('volumes')
+                    }}
+                    onOpenImageFilter={imageName => {
+                      if (!imageName) return
+                      setImagesFilter(imageName)
+                      setImagesUsageFilter('all')
+                      setActiveTab('images')
+                    }}
+                    onOpenNetworkFilter={networkName => {
+                      if (!networkName) return
+                      setNetworksFilter(networkName)
+                      setActiveTab('networks')
+                    }}
+                    onOpenTerminal={id => setTerminalContainerId(id)}
+                    showPanelChrome={false}
+                  />
+                </TabsContent>
+              ) : null}
+              {activeTab === 'images' ? (
+                <TabsContent
+                  value="images"
+                  forceMount
+                  className="mt-0 min-h-0 min-w-0 h-full overflow-y-auto p-4 data-[state=active]:flex data-[state=active]:flex-col"
+                  data-docker-active-panel="true"
+                >
+                  <ImagesTab
+                    ref={imagesTabRef}
+                    serverId={serverId}
+                    refreshSignal={refreshSignal}
+                    embeddedInWorkspace
+                    externalFilter={imagesFilter}
+                    externalUsageFilter={imagesUsageFilter}
+                    page={imagesPage}
+                    pageSize={imagesPageSize}
+                    onPageChange={setImagesPage}
+                    onOpenContainerFilter={(_imageName, containerNames) => {
+                      setContainerFilter('')
+                      setContainerFilterNames(containerNames)
+                      setActiveTab('containers')
+                    }}
+                    onPullActivityChange={setImagesPullActivity}
+                    onSummaryChange={setImagesSummary}
+                  />
+                </TabsContent>
+              ) : null}
+              {activeTab === 'volumes' ? (
+                <TabsContent
+                  value="volumes"
+                  forceMount
+                  className="mt-0 min-h-0 min-w-0 h-full overflow-y-auto p-4 data-[state=active]:flex data-[state=active]:flex-col"
+                  data-docker-active-panel="true"
+                >
+                  <VolumesTab
+                    ref={volumesTabRef}
+                    serverId={serverId}
+                    refreshSignal={refreshSignal}
+                    embeddedInWorkspace
+                    externalFilter={volumesFilter}
+                    includeNames={volumeFilterNames}
+                    page={volumesPage}
+                    pageSize={volumesPageSize}
+                    onPageChange={setVolumesPage}
+                    onSummaryChange={setVolumesSummary}
+                    onClearIncludeNames={() => setVolumeFilterNames([])}
+                    onOpenContainerFilter={(_name, containerNames) => {
+                      setContainerFilter('')
+                      setContainerFilterNames(containerNames)
+                      setActiveTab('containers')
+                    }}
+                  />
+                </TabsContent>
+              ) : null}
+              {activeTab === 'networks' ? (
+                <TabsContent
+                  value="networks"
+                  forceMount
+                  className="mt-0 min-h-0 min-w-0 h-full overflow-y-auto p-4 data-[state=active]:flex data-[state=active]:flex-col"
+                  data-docker-active-panel="true"
+                >
+                  <NetworksTab
+                    ref={networksTabRef}
+                    serverId={serverId}
+                    refreshSignal={refreshSignal}
+                    embeddedInWorkspace
+                    externalFilter={networksFilter}
+                    page={networksPage}
+                    pageSize={networksPageSize}
+                    onPageChange={setNetworksPage}
+                    onSummaryChange={setNetworksSummary}
+                  />
+                </TabsContent>
+              ) : null}
+              {activeTab === 'compose' ? (
+                <TabsContent
+                  value="compose"
+                  forceMount
+                  className="mt-0 min-h-0 min-w-0 h-full overflow-y-auto p-4 data-[state=active]:flex data-[state=active]:flex-col"
+                  data-docker-active-panel="true"
+                >
+                  <ComposeTab
+                    serverId={serverId}
+                    refreshSignal={refreshSignal}
+                    embeddedInWorkspace
+                    externalFilter={composeFilter}
+                    externalStatusFilter={composeStatusFilter}
+                    page={composePage}
+                    pageSize={composePageSize}
+                    onPageChange={setComposePage}
+                    onSummaryChange={setComposeSummary}
+                    onStatusFilterChange={setComposeStatusFilter}
+                    onOpenContainerFilter={containerName => {
+                      if (!containerName) return
+                      setContainerFilter(containerName)
+                      setContainerFilterNames([])
+                      setActiveTab('containers')
+                    }}
+                    onOpenContainerNames={containerNames => {
+                      setContainerFilter('')
+                      setContainerFilterNames(containerNames)
+                      setActiveTab('containers')
+                    }}
+                  />
+                </TabsContent>
+              ) : null}
             </div>
           </div>
         </div>

@@ -2,7 +2,7 @@
 
 
 
-.PHONY: help install dev-up dev-down dev-build dev-shell dev-bootstrap init-env tidy build run test qa gate sec \
+.PHONY: help host install dev-up dev-down dev-build dev-shell dev-bootstrap init-env tidy build run test qa gate sec \
 	backend web latest test-env image start stop restart logs stats delete rm kill-port redo sync-store tl e2e-browser source artifact \
 	e2e runtime smoke pr merge staging release up down \
 	_test-backend _test-web _test-e2e-runtime _test-e2e-smoke _test-e2e-acceptance _qa-lint _qa-format _qa-openapi _sec-source _sec-artifact \
@@ -16,9 +16,18 @@ SHELL := /bin/bash
 CONTAINER := appos
 COMPOSE_FILE := build/docker-compose.yml
 COMPOSE_CMD := cd build && docker compose
-DEV_COMPOSE_FILE := build/docker-compose.dev.yml
-DEV_COMPOSE_CMD := docker compose -f $(DEV_COMPOSE_FILE)
 DEV_CONTAINER := appos-dev
+DEVCONTAINER_BASE_IMAGE := mcr.microsoft.com/devcontainers/go:1.26-bookworm
+DEVCONTAINER_APT_MIRROR := https://mirrors.tuna.tsinghua.edu.cn/debian
+DEVCONTAINER_APT_SECURITY_MIRROR := https://mirrors.tuna.tsinghua.edu.cn/debian-security
+DEVCONTAINER_NPM_REGISTRY_DEFAULT := https://registry.npmjs.org/
+DEVCONTAINER_NPM_REGISTRY_MIRROR := https://registry.npmmirror.com/
+DEVCONTAINER_GOPROXY_DEFAULT := https://proxy.golang.org,direct
+DEVCONTAINER_GOPROXY_MIRROR := https://goproxy.cn,direct
+DEVCONTAINER_GOSUMDB_DEFAULT := sum.golang.org
+DEVCONTAINER_GOSUMDB_MIRROR := sum.golang.google.cn
+DEVCONTAINER_PIP_INDEX_URL_DEFAULT := https://pypi.org/simple
+DEVCONTAINER_PIP_INDEX_URL_MIRROR := https://pypi.tuna.tsinghua.edu.cn/simple
 TEST_ENV_COMPOSE_FILE := tests/env/docker-compose.yml
 TEST_ENV_COMPOSE_CMD := docker compose -f $(TEST_ENV_COMPOSE_FILE)
 LOCAL_ENV_DIR := .environments
@@ -37,7 +46,6 @@ GITLEAKS_BIN ?= gitleaks
 GITLEAKS_CONFIG ?= .gitleaks.toml
 ACTIONLINT_BIN ?= actionlint
 GITLEAKS_REPORT_PATH ?= build/reports/gitleaks-report.json
-TRIVY_CACHE_DIR ?= $(HOME)/.cache/trivy
 GO_BIN_DIR := $(shell GOBIN="$$(go env GOBIN)"; if [ -n "$$GOBIN" ]; then printf '%s' "$$GOBIN"; else printf '%s/bin' "$$(go env GOPATH)"; fi)
 DEFAULT_GOLANGCI_LINT_BIN := $(GO_BIN_DIR)/golangci-lint
 DEFAULT_GOVULNCHECK_BIN := $(GO_BIN_DIR)/govulncheck
@@ -58,6 +66,26 @@ define tq_helpers
 tq_has_color() { [ -t 1 ] && [ -z "$$NO_COLOR" ]; }; \
 tq_print() { level="$$1"; text="$$2"; color=""; if tq_has_color; then case "$$level" in info) color='$(COLOR_CYAN)' ;; ok) color='$(COLOR_GREEN)' ;; warn) color='$(COLOR_YELLOW)' ;; err) color='$(COLOR_RED)' ;; *) color='' ;; esac; fi; if [ -n "$$color" ]; then printf '%b%s%b\n' "$$color" "$$text" '$(COLOR_RESET)'; else printf '%s\n' "$$text"; fi; }; \
 tq_print_list() { heading="$$1"; shift; tq_print err "$$heading"; for item in "$$@"; do [ -n "$$item" ] && printf '  - %s\n' "$$item"; done; }
+endef
+
+define dc_helpers
+dc_cli() { if command -v devcontainer >/dev/null 2>&1; then devcontainer "$$@"; elif command -v npx >/dev/null 2>&1; then npx -y @devcontainers/cli "$$@"; else printf '%s\n' '✗ devcontainer CLI not found. Install devcontainer CLI or make npx available on the host.' >&2; return 1; fi; }; \
+dc_source_env() { \
+	unset DEVCONTAINER_BASE_IMAGE DEVCONTAINER_APT_MIRROR DEVCONTAINER_APT_SECURITY_MIRROR DEVCONTAINER_NPM_REGISTRY DEVCONTAINER_GOPROXY DEVCONTAINER_GOSUMDB DEVCONTAINER_PIP_INDEX_URL; \
+	export DEVCONTAINER_BASE_IMAGE="$(DEVCONTAINER_BASE_IMAGE)"; \
+	export DEVCONTAINER_NPM_REGISTRY="$(DEVCONTAINER_NPM_REGISTRY_DEFAULT)"; \
+	export DEVCONTAINER_GOPROXY="$(DEVCONTAINER_GOPROXY_DEFAULT)"; \
+	export DEVCONTAINER_GOSUMDB="$(DEVCONTAINER_GOSUMDB_DEFAULT)"; \
+	export DEVCONTAINER_PIP_INDEX_URL="$(DEVCONTAINER_PIP_INDEX_URL_DEFAULT)"; \
+	if [ "$${DEV_SOURCE_MODE:-default}" = "mirror" ]; then \
+		export DEVCONTAINER_APT_MIRROR="$(DEVCONTAINER_APT_MIRROR)"; \
+		export DEVCONTAINER_APT_SECURITY_MIRROR="$(DEVCONTAINER_APT_SECURITY_MIRROR)"; \
+		export DEVCONTAINER_NPM_REGISTRY="$(DEVCONTAINER_NPM_REGISTRY_MIRROR)"; \
+		export DEVCONTAINER_GOPROXY="$(DEVCONTAINER_GOPROXY_MIRROR)"; \
+		export DEVCONTAINER_GOSUMDB="$(DEVCONTAINER_GOSUMDB_MIRROR)"; \
+		export DEVCONTAINER_PIP_INDEX_URL="$(DEVCONTAINER_PIP_INDEX_URL_MIRROR)"; \
+	fi; \
+}
 endef
 
 ifeq ($(CI),)
@@ -92,12 +120,15 @@ help:
 	@echo "=============================="
 	@echo ""
 	@printf "\033[36mDev:\033[0m\n"
-	@echo "  make dev-build            Build the development container image"
-	@echo "  make dev-up               Start the development container"
-	@echo "  make dev-shell            Open a shell inside the development container"
-	@echo "  make dev-bootstrap        Sync workspace dependencies inside the development container"
-	@echo "  make dev-down             Stop and remove the development container"
-	@echo "  make install              Alias for make dev-bootstrap (compatibility)"
+	@echo "  make host dev-pull-base   Pull the development base image onto the host"
+	@echo "  make host dev-build       Build the development container image via devcontainer CLI"
+	@echo "  make host dev-build mirror Build the development container image using mirrored package registries"
+	@echo "  make host dev-up          Start the development container via devcontainer CLI"
+	@echo "  make host dev-shell       Open a shell inside the development container"
+	@echo "  make host dev-bootstrap   Sync workspace dependencies inside the development container"
+	@echo "  make host dev-down        Stop and remove the development container"
+	@echo "  make host image pull IMAGE=... Pull an image on the host using the mirror-aware pull flow"
+	@echo "  make install              Alias for make host dev-bootstrap (compatibility)"
 	@echo "  make init-env             Create .environments/local.env from template (auto-loaded outside CI)"
 	@echo "  make tidy                 Tidy Go modules"
 	@echo "  make build                Build all (backend + web)"
@@ -122,9 +153,7 @@ help:
 	@echo "  make qa format            Format gate (gofmt + prettier)"
 	@echo "  make qa openapi           OpenAPI generation + coverage gate"
 	@echo "  make qa check             lint + format + openapi + test backend + test web"
-	@echo "  make sec source           Source/config security checks (govulncheck, npm audit, gitleaks, trivy config)"
-	@echo "  make sec artifact         Built artifact / image security checks and generate SBOM (syft + trivy)"
-	@echo "  make sec                  sec source + sec artifact"
+	@echo "  make sec source           Source/config security checks (govulncheck, npm audit, gitleaks)"
 	@echo "  make gate pr              PR gate = qa check"
 	@echo "  make gate merge           Merge gate = qa check + sec source + test e2e smoke"
 	@echo "  make gate staging         Staging gate = merge + test e2e"
@@ -168,34 +197,74 @@ help:
 # ============================================================
 # Dev
 # ============================================================
+host:
+	@set -e; \
+	case "$(ARG2)" in \
+	  image) \
+	    case "$(ARG3)" in \
+	      pull) $(MAKE) --no-print-directory image pull IMAGE="$(IMAGE)" ;; \
+	      *) echo "Usage: make host image pull IMAGE=<image>[:<tag>]"; exit 1 ;; \
+	    esac ;; \
+	  dev-pull-base) \
+	    if docker image inspect "$(DEVCONTAINER_BASE_IMAGE)" >/dev/null 2>&1; then \
+	      echo "✓ Development base image already present: $(DEVCONTAINER_BASE_IMAGE)"; \
+	    else \
+	      $(MAKE) --no-print-directory host image pull IMAGE="$(DEVCONTAINER_BASE_IMAGE)"; \
+	    fi ;; \
+	  dev-build) \
+	    case "$(ARG3)" in \
+	      ""|mirror) ;; \
+	      *) echo "Usage: make host dev-build [mirror]"; exit 1 ;; \
+	    esac; \
+	    if ! docker image inspect "$(DEVCONTAINER_BASE_IMAGE)" >/dev/null 2>&1; then \
+	      $(MAKE) --no-print-directory host dev-pull-base; \
+	    fi; \
+	    $(MAKE) --no-print-directory dev-build DEV_SOURCE_MODE="$(ARG3)" ;; \
+	  dev-up) $(MAKE) --no-print-directory dev-up ;; \
+	  dev-shell) $(MAKE) --no-print-directory dev-shell ;; \
+	  dev-bootstrap) $(MAKE) --no-print-directory dev-bootstrap ;; \
+	  dev-down) $(MAKE) --no-print-directory dev-down ;; \
+	  *) echo "Usage: make host {image pull|dev-pull-base|dev-build|dev-up|dev-shell|dev-bootstrap|dev-down}"; exit 1 ;; \
+	esac
+
 install:
-	@echo "make install is kept as a compatibility alias. Use 'make dev-bootstrap' for the Docker-first developer workflow."
-	@$(MAKE) --no-print-directory dev-bootstrap
+	@echo "make install is kept as a compatibility alias. Use 'make host dev-bootstrap' for the host-side developer workflow."
+	@$(MAKE) --no-print-directory host dev-bootstrap
 
 dev-build:
-	@echo "Building development container image..."
-	@$(DEV_COMPOSE_CMD) build
-	@echo "✓ Development container image built"
+	@if [ "$(word 1,$(MAKECMDGOALS))" = "host" ]; then :; else \
+		echo "Building development container image..."; \
+		set -e; $(dc_helpers); dc_source_env; dc_cli build --workspace-folder "$(CURDIR)" --config ".devcontainer/devcontainer.json"; \
+		echo "✓ Development container image built"; \
+	fi
 
 dev-up:
-	@echo "Starting development container..."
-	@$(DEV_COMPOSE_CMD) up -d
-	@echo "✓ Development container started"
+	@if [ "$(word 1,$(MAKECMDGOALS))" = "host" ]; then :; else \
+		echo "Starting development container..."; \
+		set -e; $(dc_helpers); dc_source_env; dc_cli up --workspace-folder "$(CURDIR)" --config ".devcontainer/devcontainer.json"; \
+		echo "✓ Development container started"; \
+	fi
 
 dev-down:
-	@echo "Stopping development container..."
-	@$(DEV_COMPOSE_CMD) down
-	@echo "✓ Development container stopped"
+	@if [ "$(word 1,$(MAKECMDGOALS))" = "host" ]; then :; else \
+		echo "Stopping development container..."; \
+		docker rm -f $(DEV_CONTAINER) >/dev/null 2>&1 || true; \
+		echo "✓ Development container stopped"; \
+	fi
 
 dev-shell:
-	@docker inspect $(DEV_CONTAINER) >/dev/null 2>&1 || { echo "Development container not running. Start it with 'make dev-up'."; exit 1; }
-	@docker exec -it $(DEV_CONTAINER) bash
+	@if [ "$(word 1,$(MAKECMDGOALS))" = "host" ]; then :; else \
+		docker inspect $(DEV_CONTAINER) >/dev/null 2>&1 || { echo "Development container not running. Start it with 'make dev-up'."; exit 1; }; \
+		set -e; $(dc_helpers); dc_cli exec --workspace-folder "$(CURDIR)" --config ".devcontainer/devcontainer.json" bash; \
+	fi
 
 dev-bootstrap:
-	@docker inspect $(DEV_CONTAINER) >/dev/null 2>&1 || { echo "Development container not running. Start it with 'make dev-up'."; exit 1; }
-	@echo "Syncing development workspace..."
-	@docker exec $(DEV_CONTAINER) bash /workspace/build/dev/bootstrap.sh
-	@echo "✓ Development workspace ready"
+	@if [ "$(word 1,$(MAKECMDGOALS))" = "host" ]; then :; else \
+		docker inspect $(DEV_CONTAINER) >/dev/null 2>&1 || { echo "Development container not running. Start it with 'make dev-up'."; exit 1; }; \
+		echo "Syncing development workspace..."; \
+		set -e; $(dc_helpers); dc_cli exec --workspace-folder "$(CURDIR)" --config ".devcontainer/devcontainer.json" bash /workspace/.devcontainer/bootstrap.sh; \
+		echo "✓ Development workspace ready"; \
+	fi
 
 init-env:
 	@mkdir -p "$(LOCAL_ENV_DIR)"
@@ -528,7 +597,6 @@ gate:
 	    $(MAKE) --no-print-directory gate staging ENV="$(ENV)" || failures="$$failures staging-gate"; \
 	    $(MAKE) --no-print-directory build || failures="$$failures build"; \
 	    $(MAKE) --no-print-directory image build || failures="$$failures image-build"; \
-	    $(MAKE) --no-print-directory sec artifact || failures="$$failures sec-artifact"; \
 	    ;; \
 	  *) tq_print err "✗ Unknown gate stage: $(ARG2)"; printf '%s\n' '  Use: pr | merge | staging | release'; exit 1 ;; \
 	esac; \
@@ -552,22 +620,7 @@ gate:
 	  tq_print ok "✓ Gate $(ARG2) completed"
 
 sec:
-	@set -e; $(tq_helpers); failures=""; \
-	case "$(ARG2)" in \
-	  source) $(MAKE) --no-print-directory _sec-source || failures="$$failures source" ;; \
-	  artifact) $(MAKE) --no-print-directory _sec-artifact || failures="$$failures artifact" ;; \
-	  "") \
-	    $(MAKE) --no-print-directory _sec-source || failures="$$failures source"; \
-	    $(MAKE) --no-print-directory _sec-artifact || failures="$$failures artifact"; \
-	    ;; \
-	  *) tq_print err "✗ Unknown sec scope: $(ARG2)"; printf '%s\n' '  Use: source | artifact'; exit 1 ;; \
-	esac; \
-	if [ -n "$$failures" ]; then \
-	  read -r -a failure_items <<< "$$failures"; \
-	  tq_print_list "✗ Security stage failed" "$${failure_items[@]}"; \
-	  exit 1; \
-	fi; \
-	tq_print ok "✓ Security checks completed"
+	@$(MAKE) --no-print-directory _sec-source
 
 _sec-source:
 	@set -e; $(tq_helpers); tq_print info "Running source security checks..."; failures=""; \
@@ -594,109 +647,12 @@ _sec-source:
 		if [ "$$status" -eq 1 ]; then tq_print err "✗ Check failed: gitleaks"; failures="$$failures gitleaks"; elif [ "$$status" -ne 0 ]; then tq_print err "✗ Check failed: gitleaks execution"; failures="$$failures gitleaks-exec"; else tq_print ok "✓ Check passed: gitleaks"; fi; \
 	else tq_print err "✗ Check failed: gitleaks missing"; failures="$$failures gitleaks-missing"; fi; \
 	printf '\n'; \
-	printf '%s\n' '→ trivy config (IaC / Docker / workflow misconfiguration scan)...'; \
-	if command -v docker >/dev/null 2>&1; then \
-		log_file=$$(mktemp); trivy_cache_dir="$(TRIVY_CACHE_DIR)"; mkdir -p "$$trivy_cache_dir"; \
-		trivy_args="config --skip-check-update --skip-version-check --timeout 10m --severity HIGH,CRITICAL --exit-code 1"; \
-		proxy_value="$${ALL_PROXY:-$${all_proxy:-$${HTTP_PROXY:-$${http_proxy:-$${HTTPS_PROXY:-$${https_proxy:-}}}}}}"; \
-		no_proxy_value="$${NO_PROXY:-$${no_proxy:-}}"; \
-		docker_proxy_args=""; \
-		if [ -n "$$proxy_value" ]; then \
-			host_proxy="$$(printf '%s' "$$proxy_value" | sed 's/127\.0\.0\.1/host-gateway/g;s/localhost/host-gateway/g')"; \
-			docker_proxy_args="$$docker_proxy_args --add-host=host-gateway:host-gateway"; \
-			docker_proxy_args="$$docker_proxy_args -e ALL_PROXY=$$host_proxy -e all_proxy=$$host_proxy"; \
-			docker_proxy_args="$$docker_proxy_args -e HTTP_PROXY=$$host_proxy -e http_proxy=$$host_proxy"; \
-			docker_proxy_args="$$docker_proxy_args -e HTTPS_PROXY=$$host_proxy -e https_proxy=$$host_proxy"; \
-		fi; \
-		if [ -n "$$no_proxy_value" ]; then \
-			docker_proxy_args="$$docker_proxy_args -e NO_PROXY=$$no_proxy_value -e no_proxy=$$no_proxy_value"; \
-		fi; \
-		set +e; docker run --rm $$docker_proxy_args -v "$$(pwd):/workspace" -v "$$trivy_cache_dir:/root/.cache/trivy" -w /workspace aquasec/trivy:latest $$trivy_args /workspace/build >"$$log_file" 2>&1; status=$$?; set -e; cat "$$log_file"; rm -f "$$log_file"; \
-		if [ "$$status" -ne 0 ]; then tq_print err "✗ Check failed: trivy config"; failures="$$failures trivy-config"; else tq_print ok "✓ Check passed: trivy config"; fi; \
-	else tq_print err "✗ Check failed: docker missing for trivy config"; failures="$$failures docker-missing-for-trivy-config"; fi; \
 	if [ -n "$$failures" ]; then \
 		read -r -a failure_items <<< "$$failures"; \
 		tq_print_list "✗ Source security failed" "$${failure_items[@]}"; \
 		exit 1; \
 	fi
 	@set -e; $(tq_helpers); tq_print ok "✓ Source security checks completed"
-
-_sec-artifact:
-	@set -e; $(tq_helpers); tq_print info "Running artifact security checks..."; \
-	tq_print info "Generating Software Bill of Materials (SBOM)..."
-	@if ! command -v syft >/dev/null 2>&1; then \
-		$(tq_helpers); tq_print err "✗ syft not installed. Run 'make install' first."; exit 1; \
-	fi
-	@log_file=$$(mktemp); \
-	set +e; syft . -o spdx-json --exclude '**/node_modules/**' > sbom.spdx.json 2>"$$log_file"; status=$$?; set -e; \
-	cat "$$log_file"; \
-	if [ "$$status" -ne 0 ]; then \
-		$(tq_helpers); tq_print err "✗ Artifact scan failed at: sbom"; \
-		rm -f "$$log_file"; \
-		exit $$status; \
-	fi; \
-	rm -f "$$log_file"
-	@set -e; $(tq_helpers); tq_print ok "✓ SBOM generated → sbom.spdx.json"
-	@wc -l sbom.spdx.json | awk '{print "  Lines: " $$1}'
-	@echo ""
-	@set -e; $(tq_helpers); tq_print info "Scanning container image for vulnerabilities (HIGH/CRITICAL)..."
-	@if ! docker image inspect websoft9dev/appos:latest >/dev/null 2>&1; then \
-		$(tq_helpers); tq_print err "✗ Image websoft9dev/appos:latest not found. Run 'make image build' first."; exit 1; \
-	fi
-	@if docker image inspect aquasec/trivy:latest >/dev/null 2>&1; then \
-		echo "trivy scanner image already present, skip pull."; \
-	else \
-		echo "Pulling trivy scanner image..."; \
-		$(MAKE) --no-print-directory image pull IMAGE=aquasec/trivy:latest || { \
-			$(tq_helpers); tq_print err "✗ Failed to pull trivy scanner image. Abort."; exit 1; \
-		}; \
-	fi
-	@log_file=$$(mktemp); \
-	set +e; \
-	trivy_db_cache="$$HOME/.cache/trivy/db/trivy.db"; \
-	if [ -f "$$trivy_db_cache" ]; then \
-		echo "trivy DB already cached, skipping update."; \
-		db_flags="--skip-db-update"; \
-	else \
-		echo "trivy DB not cached, pulling via image pull..."; \
-		$(MAKE) --no-print-directory image pull IMAGE=aquasec/trivy-db:2 || { \
-			$(tq_helpers); tq_print err "✗ Failed to pull trivy DB image. Abort."; rm -f "$$log_file"; exit 1; \
-		}; \
-		mkdir -p "$$(dirname "$$trivy_db_cache")"; \
-		tmp_db=$$(mktemp -d); \
-		docker save aquasec/trivy-db:2 | tar xC "$$tmp_db"; \
-		for blob in "$$tmp_db"/blobs/sha256/*; do \
-			if tar tzf "$$blob" 2>/dev/null | grep -qx 'trivy.db' 2>/dev/null; then \
-				tar xzf "$$blob" -C "$$(dirname "$$trivy_db_cache")" trivy.db metadata.json 2>/dev/null; \
-				break; \
-			fi; \
-		done; \
-		rm -rf "$$tmp_db"; \
-		if [ -f "$$trivy_db_cache" ]; then \
-			echo "  trivy DB extracted to cache."; \
-			db_flags="--skip-db-update"; \
-		else \
-			$(tq_helpers); tq_print err "✗ Failed to extract trivy DB from image. Abort."; rm -f "$$log_file"; exit 1; \
-		fi; \
-	fi; \
-	docker run --rm \
-		-v /var/run/docker.sock:/var/run/docker.sock \
-		-v "$$HOME/.cache/trivy:/root/.cache/trivy" \
-		aquasec/trivy:latest image \
-		--severity HIGH,CRITICAL \
-		--exit-code 0 \
-		$$db_flags \
-		websoft9dev/appos:latest >"$$log_file" 2>&1; status=$$?; \
-	set -e; \
-	cat "$$log_file"; \
-	if [ "$$status" -ne 0 ]; then \
-		$(tq_helpers); tq_print err "✗ Artifact scan failed at: trivy-image"; \
-		rm -f "$$log_file"; \
-		exit $$status; \
-	fi; \
-	rm -f "$$log_file"
-	@set -e; $(tq_helpers); tq_print ok "✓ Image scan completed"
-	@set -e; $(tq_helpers); tq_print ok "✓ Artifact security checks completed"
 
 e2e-browser:
 	@set -e; $(tq_helpers); tq_print info "Running browser end-to-end tests..."; set -a; \
@@ -996,18 +952,14 @@ opencode-clear:
 		echo "✓ No opencode database found (nothing to clear)"; \
 		exit 0; \
 	fi; \
-	SESSION_COUNT=$$(sqlite3 "$$DB" "SELECT COUNT(*) FROM session WHERE parent_id IS NULL;" 2>/dev/null || echo "0"); \
+	SESSION_COUNT=$$(python3 -c "import sqlite3;c=sqlite3.connect('$$DB');print(c.execute('SELECT COUNT(*) FROM session WHERE parent_id IS NULL').fetchone()[0])" 2>/dev/null || echo "0"); \
 	DB_SIZE=" ($$(du -h "$$DB" | cut -f1))"; \
 	echo ""; \
 	echo "========================================="; \
 	printf "  Sessions in opencode store (%s sessions)%s\n" "$$SESSION_COUNT" "$$DB_SIZE"; \
 	echo "========================================="; \
 	if [ "$$SESSION_COUNT" -gt 0 ]; then \
-		sqlite3 -header -column "$$DB" \
-			"SELECT ROW_NUMBER() OVER (ORDER BY time_updated DESC) as '#', \
-			        title, \
-			        datetime(time_updated / 1000, 'unixepoch', 'localtime') as updated \
-			 FROM session WHERE parent_id IS NULL ORDER BY time_updated DESC;" 2>/dev/null; \
+		python3 -c "import sqlite3,datetime;c=sqlite3.connect('$$DB');rows=c.execute('SELECT title,time_updated FROM session WHERE parent_id IS NULL ORDER BY time_updated DESC').fetchall();[print(f'{i+1:>3}. {r[0] or \"(untitled)\":.40}  {datetime.datetime.fromtimestamp(r[1]/1000).strftime(\"%Y-%m-%d %H:%M\")}') for i,r in enumerate(rows)]" 2>/dev/null; \
 	fi; \
 	echo ""; \
 	echo "⚠  This will clear ALL opencode session data at $$OPENCODE_DATA"; \

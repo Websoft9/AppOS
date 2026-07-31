@@ -90,6 +90,13 @@ interface DockerImage {
   CreatedSince: string
 }
 
+type ImageActionNoticeTone = 'default' | 'destructive'
+
+type ImageActionNotice = {
+  message: string
+  tone: ImageActionNoticeTone
+}
+
 function inferImageRegistry(repository?: string): string {
   const value = (repository || '').trim()
   if (!value || value === '<none>') return '-'
@@ -261,6 +268,14 @@ function imageRef(image: DockerImage): string {
   if (!image.Repository || image.Repository === '<none>') return ''
   if (!image.Tag || image.Tag === '<none>') return image.Repository
   return `${image.Repository}:${image.Tag}`
+}
+
+function imageRowKey(image: DockerImage): string {
+  return `${image.ID}::${image.Repository}::${image.Tag}`
+}
+
+function extractImageId(rowKey: string): string {
+  return rowKey.split('::')[0] || rowKey
 }
 
 function isImageUsed(image: DockerImage, containers: DockerContainerRow[]): boolean {
@@ -536,6 +551,12 @@ export const ImagesTab = forwardRef<
   const [batchDeleteOpen, setBatchDeleteOpen] = useState(false)
   const [pruneConfirmOpen, setPruneConfirmOpen] = useState(false)
   const [mockPruneNotice, setMockPruneNotice] = useState<string | null>(null)
+  const [removingImageId, setRemovingImageId] = useState<string | null>(null)
+  const [removingSelected, setRemovingSelected] = useState(false)
+  const [pruning, setPruning] = useState(false)
+  const [pruneError, setPruneError] = useState<string | null>(null)
+  const [actionNotice, setActionNotice] = useState<ImageActionNotice | null>(null)
+  const [singleDeleteImage, setSingleDeleteImage] = useState<DockerImage | null>(null)
 
   const [pullDialogOpen, setPullDialogOpen] = useState(false)
   const [selectedRegistryId, setSelectedRegistryId] = useState(
@@ -790,10 +811,26 @@ export const ImagesTab = forwardRef<
   }
 
   const removeImage = async (id: string) => {
+    const affectedCount = images.filter(image => image.ID === id).length
     try {
       setActionError(null)
+      setActionNotice(null)
+      setRemovingImageId(id)
+      await queryClient.cancelQueries({ queryKey: ['docker', 'images', serverId] })
+      queryClient.setQueryData<DockerImage[]>(['docker', 'images', serverId, refreshSignal], current =>
+        Array.isArray(current) ? current.filter(image => image.ID !== id) : current
+      )
       await pb.send(dockerApiPath(serverId, `/images/${id}`), { method: 'DELETE' })
-      setSelectedIds(state => state.filter(item => item !== id))
+      setSelectedIds(state => state.filter(key => extractImageId(key) !== id))
+      setSingleDeleteImage(null)
+      setActionNotice({
+        tone: 'default',
+        message: t('images.messages.removeCompleted', {
+          count: affectedCount,
+          defaultValue_one: 'Removed {{count}} image entry.',
+          defaultValue_other: 'Removed {{count}} image entries.',
+        }),
+      })
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['docker', 'images', serverId] }),
         queryClient.invalidateQueries({
@@ -807,15 +844,27 @@ export const ImagesTab = forwardRef<
           t('images.errors.remove', { defaultValue: 'Failed to remove image' })
         )
       )
+    } finally {
+      setRemovingImageId(null)
     }
   }
 
   const removeSelectedUnused = async () => {
     if (selectedIds.length === 0) return
+    const selectedImageIds = [...new Set(selectedIds.map(key => extractImageId(key)))]
+    const selectedEntryCount = images.filter(image => selectedImageIds.includes(image.ID)).length
     try {
+      setRemovingSelected(true)
       setActionError(null)
+      setActionNotice(null)
+      await queryClient.cancelQueries({ queryKey: ['docker', 'images', serverId] })
+      queryClient.setQueryData<DockerImage[]>(['docker', 'images', serverId, refreshSignal], current =>
+        Array.isArray(current)
+          ? current.filter(image => !selectedImageIds.includes(image.ID))
+          : current
+      )
       const results = await Promise.allSettled(
-        selectedIds.map(async id => {
+        selectedImageIds.map(async id => {
           await pb.send(dockerApiPath(serverId, `/images/${id}`), { method: 'DELETE' })
           return id
         })
@@ -824,7 +873,9 @@ export const ImagesTab = forwardRef<
         .filter((r): r is PromiseFulfilledResult<string> => r.status === 'fulfilled')
         .map(r => r.value)
       const failed = results.filter(r => r.status === 'rejected')
-      setSelectedIds(state => state.filter(id => !succeeded.includes(id)))
+      setSelectedIds(state =>
+        state.filter(key => !succeeded.includes(extractImageId(key)))
+      )
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['docker', 'images', serverId] }),
         queryClient.invalidateQueries({
@@ -835,10 +886,27 @@ export const ImagesTab = forwardRef<
         setActionError(
           t('images.errors.removeSome', {
             failed: failed.length,
-            total: selectedIds.length,
+            total: selectedImageIds.length,
             defaultValue: '{{failed}} of {{total}} images failed to remove',
           })
         )
+        setActionNotice({
+          tone: 'destructive',
+          message: t('images.messages.removePartial', {
+            removed: Math.max(0, selectedEntryCount - failed.length),
+            failed: failed.length,
+            defaultValue: 'Removed entries: {{removed}}. Failed images: {{failed}}.',
+          }),
+        })
+      } else {
+        setActionNotice({
+          tone: 'default',
+          message: t('images.messages.removeCompleted', {
+            count: selectedEntryCount,
+            defaultValue_one: 'Removed {{count}} image entry.',
+            defaultValue_other: 'Removed {{count}} image entries.',
+          }),
+        })
       }
     } catch (err) {
       setActionError(
@@ -847,29 +915,47 @@ export const ImagesTab = forwardRef<
           t('images.errors.removeSelected', { defaultValue: 'Failed to remove selected images' })
         )
       )
+    } finally {
+      setRemovingSelected(false)
+      setBatchDeleteOpen(false)
     }
   }
 
   const pruneImages = async () => {
     try {
+      setPruning(true)
       setActionError(null)
+      setPruneError(null)
+      setActionNotice(null)
       setMockPruneNotice(null)
-      await pb.send(dockerApiPath(serverId, '/images/prune'), { method: 'POST' })
+      const response = await pb.send(dockerApiPath(serverId, '/images/prune'), { method: 'POST' })
+      const output = typeof response.output === 'string' ? response.output.trim() : ''
       setMockPruneNotice(t('images.prune.completed', { defaultValue: 'Prune completed.' }))
       setSelectedIds([])
+      setActionNotice({
+        tone: 'default',
+        message:
+          output ||
+          t('images.messages.pruneCompleted', {
+            defaultValue: 'Unused image prune completed successfully.',
+          }),
+      })
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['docker', 'images', serverId] }),
         queryClient.invalidateQueries({
           queryKey: ['docker', 'containers', 'for-images', serverId],
         }),
       ])
+      setPruneConfirmOpen(false)
     } catch (err) {
-      setActionError(
-        getApiErrorMessage(
-          err,
-          t('images.errors.prune', { defaultValue: 'Failed to prune images' })
-        )
+      const message = getApiErrorMessage(
+        err,
+        t('images.errors.prune', { defaultValue: 'Failed to prune images' })
       )
+      setActionError(message)
+      setPruneError(message)
+    } finally {
+      setPruning(false)
     }
   }
 
@@ -1186,13 +1272,14 @@ export const ImagesTab = forwardRef<
 
   const toggleImageSelect = (image: DockerImage) => {
     if (usageMap[image.ID]) return
+    const key = imageRowKey(image)
     setSelectedIds(state =>
-      state.includes(image.ID) ? state.filter(id => id !== image.ID) : [...state, image.ID]
+      state.includes(key) ? state.filter(k => k !== key) : [...state, key]
     )
   }
 
   const selectableIds = useMemo(
-    () => sorted.filter(image => !usageMap[image.ID]).map(image => image.ID),
+    () => sorted.filter(image => !usageMap[image.ID]).map(image => imageRowKey(image)),
     [sorted, usageMap]
   )
   const relatedContainersMap = useMemo(() => {
@@ -1289,6 +1376,14 @@ export const ImagesTab = forwardRef<
           <AlertDescription>{visibleError}</AlertDescription>
         </Alert>
       ) : null}
+      {actionNotice ? (
+        <Alert
+          variant={actionNotice.tone === 'destructive' ? 'destructive' : 'default'}
+          className="shrink-0"
+        >
+          <AlertDescription>{actionNotice.message}</AlertDescription>
+        </Alert>
+      ) : null}
       {!embeddedInWorkspace && (
         <>
           <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/20 px-3 py-3 shrink-0">
@@ -1331,10 +1426,14 @@ export const ImagesTab = forwardRef<
             <Button
               variant="outline"
               size="sm"
-              disabled={selectedIds.length === 0}
+              disabled={selectedIds.length === 0 || removingSelected}
               onClick={() => setBatchDeleteOpen(true)}
             >
-              <Trash2 className="h-4 w-4 mr-1" />
+              {removingSelected ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4 mr-1" />
+              )}
               {t('images.actions.removeSelected', {
                 count: selectedIds.length,
                 defaultValue: 'Remove selected ({{count}})',
@@ -1413,8 +1512,12 @@ export const ImagesTab = forwardRef<
       )}
       {embeddedInWorkspace && selectedIds.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 shrink-0 pb-1">
-          <Button variant="outline" size="sm" onClick={() => setBatchDeleteOpen(true)}>
-            <Trash2 className="h-4 w-4 mr-1" />
+          <Button variant="outline" size="sm" disabled={removingSelected} onClick={() => setBatchDeleteOpen(true)}>
+            {removingSelected ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Trash2 className="h-4 w-4 mr-1" />
+            )}
             {t('images.actions.removeSelected', {
               count: selectedIds.length,
               defaultValue: 'Remove selected ({{count}})',
@@ -1554,7 +1657,7 @@ export const ImagesTab = forwardRef<
                 )
                 const imageSize = formatImageBytes(inspect?.Size)
                 return (
-                  <Fragment key={img.ID}>
+                  <Fragment key={imageRowKey(img)}>
                     <TableRow className={cn(used && 'opacity-60', isExpanded && 'bg-muted/20')}>
                       <TableCell
                         className="cursor-pointer pl-4 pr-3 py-3 text-xs"
@@ -1566,7 +1669,7 @@ export const ImagesTab = forwardRef<
                       >
                         <div className="flex min-w-0 items-center gap-2">
                           <Checkbox
-                            checked={selectedIds.includes(img.ID)}
+                            checked={selectedIds.includes(imageRowKey(img))}
                             disabled={used}
                             onCheckedChange={() => toggleImageSelect(img)}
                           />
@@ -1645,7 +1748,7 @@ export const ImagesTab = forwardRef<
                               {t('images.actions.pull', { defaultValue: 'Pull' })}
                             </DropdownMenuItem>
                             <DropdownMenuItem
-                              onSelect={() => setTimeout(() => removeImage(img.ID), 0)}
+                              onSelect={() => setTimeout(() => setSingleDeleteImage(img), 0)}
                               className="text-destructive"
                             >
                               <Trash2 className="h-4 w-4 mr-2" />
@@ -1863,7 +1966,12 @@ export const ImagesTab = forwardRef<
         </div>
       )}
 
-      <AlertDialog open={batchDeleteOpen} onOpenChange={setBatchDeleteOpen}>
+      <AlertDialog
+        open={batchDeleteOpen}
+        onOpenChange={open => {
+          if (!removingSelected) setBatchDeleteOpen(open)
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
@@ -1879,18 +1987,36 @@ export const ImagesTab = forwardRef<
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>{t('common:cancel', { defaultValue: 'Cancel' })}</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            <AlertDialogCancel disabled={removingSelected}>
+              {t('common:cancel', { defaultValue: 'Cancel' })}
+            </AlertDialogCancel>
+            <Button
+              variant="destructive"
+              disabled={removingSelected}
               onClick={() => void removeSelectedUnused()}
             >
-              {t('images.actions.remove', { defaultValue: 'Remove' })}
-            </AlertDialogAction>
+              {removingSelected ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  {t('images.actions.removing', { defaultValue: 'Removing...' })}
+                </>
+              ) : (
+                t('images.actions.remove', { defaultValue: 'Remove' })
+              )}
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={pruneConfirmOpen} onOpenChange={setPruneConfirmOpen}>
+      <AlertDialog
+        open={pruneConfirmOpen}
+        onOpenChange={open => {
+          if (!pruning) {
+            setPruneConfirmOpen(open)
+            if (!open) setPruneError(null)
+          }
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
@@ -1903,17 +2029,88 @@ export const ImagesTab = forwardRef<
               })}
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <div className="space-y-3">
+            {pruning ? (
+              <div className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                {t('images.prune.inProgress', {
+                  defaultValue: 'Pruning images on the target server...'
+                })}
+              </div>
+            ) : null}
+            {pruneError ? (
+              <Alert variant="destructive">
+                <AlertDescription>{pruneError}</AlertDescription>
+              </Alert>
+            ) : null}
+          </div>
           <AlertDialogFooter>
-            <AlertDialogCancel>{t('common:cancel', { defaultValue: 'Cancel' })}</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            <AlertDialogCancel disabled={pruning}>
+              {t('common:cancel', { defaultValue: 'Cancel' })}
+            </AlertDialogCancel>
+            <Button
+              variant="destructive"
+              disabled={pruning}
               onClick={() => {
-                setPruneConfirmOpen(false)
+                setPruneError(null)
                 void pruneImages()
               }}
             >
-              {t('images.actions.prune', { defaultValue: 'Prune' })}
-            </AlertDialogAction>
+              {pruning ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  {t('images.actions.pruning', { defaultValue: 'Pruning...' })}
+                </>
+              ) : (
+                t('images.actions.prune', { defaultValue: 'Prune' })
+              )}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={singleDeleteImage !== null}
+        onOpenChange={open => {
+          if (!open && !removingImageId) setSingleDeleteImage(null)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {t('images.dialogs.removeTitle', { defaultValue: 'Remove image?' })}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {singleDeleteImage &&
+                t('images.dialogs.removeDescription', {
+                  image: `${singleDeleteImage.Repository}:${singleDeleteImage.Tag}`,
+                  defaultValue:
+                    'This will remove image {{image}}. This action cannot be undone.',
+                })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={!!removingImageId}>
+              {t('common:cancel', { defaultValue: 'Cancel' })}
+            </AlertDialogCancel>
+            <Button
+              variant="destructive"
+              disabled={!!removingImageId}
+              onClick={() => {
+                const image = singleDeleteImage
+                if (!image) return
+                void removeImage(image.ID)
+              }}
+            >
+              {removingImageId === singleDeleteImage?.ID ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  {t('images.actions.removing', { defaultValue: 'Removing...' })}
+                </>
+              ) : (
+                t('images.actions.remove', { defaultValue: 'Remove' })
+              )}
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

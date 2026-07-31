@@ -9,14 +9,15 @@
 
 ## 验收标准
 - [x] `make sec`: govulncheck（Go CVE）+ npm audit（JS CVE high+）+ gitleaks（密钥泄露检测）+ trivy config（源码配置风险扫描）
-- [x] `make artifact-scan`: 先用 syft 生成 SBOM → `sbom.spdx.json`（范围：backend + web/src），再执行 trivy 镜像扫描（HIGH/CRITICAL，advisory 模式不阻断）
+- [x] Runtime image vulnerability scanning and SBOM generation run in GitHub Actions release gate, not in local `make` commands
 - [x] `.golangci.yml`: gosec 纳入 lint 流程，豁免 G304/G115，测试文件仅豁免 errcheck/ineffassign
-- [x] CI `scan` job: trivy SARIF 推送 GitHub Security 标签页，SBOM 推送 GitHub Dependency Graph
-- [x] 安全工具由开发镜像与 CI 安装流程统一提供（govulncheck/gitleaks/syft；trivy 通过 Docker 运行无需安装）
+- [x] CI release gate: Trivy SARIF 推送 GitHub Security 标签页，并将文本报告与 SARIF 归档为 workflow artifacts 以便后续修复
+- [x] CI release gate: SBOM 生成并归档为 workflow artifact
+- [x] 本地开发容器只保留源码/配置层安全扫描；镜像层扫描迁移到 GitHub Actions
 - [x] 容器构建文件使用固定基础镜像标签（避免 `latest` 漂移风险）
 - [x] `sbom.spdx.json` 加入 `.gitignore`
 
 ## 实现
 - `.golangci.yml`
-- `Makefile` targets: `sec`, `scan`, `sbom`
-- `.github/workflows/ci.yml` → `scan` job
+- `Makefile` target: `sec`
+- `.github/workflows/_quality-gate.yml`

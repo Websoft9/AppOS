@@ -75,9 +75,6 @@ jobs:
             curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GL_VERSION}/gitleaks_${GL_VERSION}_linux_${GL_ARCH}.tar.gz" \
               | tar -xz -C "$RUNNER_TEMP/bin" gitleaks
           fi
-          if [ "${{ inputs.gate_stage }}" = 'release' ]; then
-            curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b "$RUNNER_TEMP/bin"
-          fi
 
       - name: Verify gate tools
         run: |
@@ -86,9 +83,6 @@ jobs:
           if [ "${{ inputs.gate_stage }}" != 'pr' ]; then
             "$RUNNER_TEMP/bin/govulncheck" -version
             "$RUNNER_TEMP/bin/gitleaks" version
-          fi
-          if [ "${{ inputs.gate_stage }}" = 'release' ]; then
-            "$RUNNER_TEMP/bin/syft" version
           fi
           go version
 
@@ -118,6 +112,44 @@ jobs:
       - name: Run gate
         run: make gate "${{ inputs.gate_stage }}"
 
+      - name: Trivy image scan
+        if: inputs.gate_stage == 'release'
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          image-ref: websoft9dev/appos:latest
+          format: sarif
+          output: build/reports/trivy-image.sarif
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+          ignore-unfixed: true
+          scan-type: image
+
+      - name: Trivy image report
+        if: inputs.gate_stage == 'release'
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          image-ref: websoft9dev/appos:latest
+          format: table
+          output: build/reports/trivy-image.txt
+          severity: HIGH,CRITICAL
+          exit-code: '0'
+          ignore-unfixed: true
+          scan-type: image
+
+      - name: Generate SBOM
+        if: inputs.gate_stage == 'release'
+        uses: anchore/sbom-action@v0
+        with:
+          image: websoft9dev/appos:latest
+          format: spdx-json
+          output-file: sbom.spdx.json
+
+      - name: Upload Trivy SARIF
+        if: always() && inputs.gate_stage == 'release'
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: build/reports/trivy-image.sarif
+
       - name: Stop local test env if present
         if: always() && inputs.gate_stage != 'pr'
         run: make test-env down || true
@@ -136,6 +168,16 @@ jobs:
         with:
           name: e2e-diagnostics-${{ inputs.gate_stage }}-${{ github.sha }}
           path: build/reports/e2e
+          if-no-files-found: ignore
+
+      - name: Upload Trivy reports
+        if: always() && inputs.gate_stage == 'release'
+        uses: actions/upload-artifact@v6
+        with:
+          name: trivy-reports-${{ github.sha }}
+          path: |
+            build/reports/trivy-image.sarif
+            build/reports/trivy-image.txt
           if-no-files-found: ignore
 
       - name: Upload release SBOM

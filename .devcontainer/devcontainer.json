@@ -1,0 +1,61 @@
+{
+  "name": "AppOS Development Container",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": "..",
+    "args": {
+      "DEVCONTAINER_BASE_IMAGE": "${localEnv:DEVCONTAINER_BASE_IMAGE}",
+      "APT_MIRROR": "${localEnv:DEVCONTAINER_APT_MIRROR}",
+      "APT_SECURITY_MIRROR": "${localEnv:DEVCONTAINER_APT_SECURITY_MIRROR}",
+      "NPM_REGISTRY": "${localEnv:DEVCONTAINER_NPM_REGISTRY}",
+      "GOPROXY": "${localEnv:DEVCONTAINER_GOPROXY}",
+      "GOSUMDB": "${localEnv:DEVCONTAINER_GOSUMDB}",
+      "PIP_INDEX_URL": "${localEnv:DEVCONTAINER_PIP_INDEX_URL}"
+    },
+    "options": [
+      "--add-host=host-gateway:host-gateway"
+    ]
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
+      "dockerDashComposeVersion": "none"
+    },
+    "ghcr.io/postfinance/devcontainer-features/playwright-deps:2": {
+      "installChromiumDeps": true,
+      "installFirefoxDeps": false,
+      "installWebkitDeps": false
+    }
+  },
+  "workspaceFolder": "/workspace",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind",
+  "remoteUser": "vscode",
+  "runArgs": [
+    "--name",
+    "appos-dev",
+    "--add-host",
+    "host-gateway:host-gateway"
+  ],
+  "mounts": [
+    "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind",
+    "source=appos_dev_go_mod,target=/home/vscode/.cache/go-mod,type=volume",
+    "source=appos_dev_go_build,target=/home/vscode/.cache/go-build,type=volume",
+    "source=appos_dev_npm,target=/home/vscode/.cache/npm,type=volume",
+    "source=appos_dev_opencode,target=/home/vscode/.local/share/opencode,type=volume",
+    "source=appos_dev_playwright,target=/home/vscode/.cache/ms-playwright,type=volume"
+  ],
+  "containerEnv": {
+    "HOME": "/home/vscode",
+    "GOMODCACHE": "/home/vscode/.cache/go-mod",
+    "GOCACHE": "/home/vscode/.cache/go-build",
+    "NPM_CONFIG_CACHE": "/home/vscode/.cache/npm",
+    "OPENCODE_DIR": "/home/vscode/.local/share/opencode",
+    "PLAYWRIGHT_BROWSERS_PATH": "/home/vscode/.cache/ms-playwright",
+    "NPM_CONFIG_REGISTRY": "${localEnv:DEVCONTAINER_NPM_REGISTRY}",
+    "GOPROXY": "${localEnv:DEVCONTAINER_GOPROXY}",
+    "GOSUMDB": "${localEnv:DEVCONTAINER_GOSUMDB}",
+    "PIP_INDEX_URL": "${localEnv:DEVCONTAINER_PIP_INDEX_URL}",
+    "DISABLE_TELEMETRY": "1",
+    "DO_NOT_TRACK": "1"
+  },
+  "postCreateCommand": "bash /workspace/.devcontainer/bootstrap.sh"
+}
