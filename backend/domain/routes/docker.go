@@ -2,6 +2,7 @@ package routes
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -24,6 +25,8 @@ import (
 )
 
 var enqueueDockerImagePullTask = worker.EnqueueDockerImagePull
+
+const dockerListTimeout = 12 * time.Second
 
 type dockerImageListCacheEntry struct {
 	output    string
@@ -52,6 +55,13 @@ func setCachedDockerImageList(key, output, host string) {
 
 func invalidateDockerImageListCache(key string) {
 	dockerops.InvalidateImageListCache(key)
+}
+
+func withDockerTimeout(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
+	if timeout <= 0 {
+		return context.WithCancel(ctx)
+	}
+	return context.WithTimeout(ctx, timeout)
 }
 
 // registerDockerRoutes registers all Docker operation routes under /api/servers.
@@ -965,7 +975,9 @@ func handleImageList(e *core.RequestEvent) error {
 	if cached, ok := getCachedDockerImageList(cacheKey); ok {
 		return e.JSON(http.StatusOK, map[string]any{"output": cached.output, "host": cached.host})
 	}
-	output, err := client.ImageList(e.Request.Context())
+	ctx, cancel := withDockerTimeout(e.Request.Context(), dockerListTimeout)
+	defer cancel()
+	output, err := client.ImageList(ctx)
 	if err != nil {
 		return dockerError(e, http.StatusInternalServerError, "list images failed", err)
 	}

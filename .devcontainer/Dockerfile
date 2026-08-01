@@ -1,6 +1,11 @@
 ARG DEVCONTAINER_BASE_IMAGE=mcr.microsoft.com/devcontainers/go:1.26-bookworm
 FROM ${DEVCONTAINER_BASE_IMAGE}
 
+ARG GOLANGCI_LINT_IMAGE=golangci/golangci-lint:v2.12-alpine
+FROM ${GOLANGCI_LINT_IMAGE} AS golangci-lint
+
+FROM ${DEVCONTAINER_BASE_IMAGE}
+
 ARG APT_MIRROR
 ARG APT_SECURITY_MIRROR
 ARG NPM_REGISTRY=https://registry.npmjs.org/
@@ -12,7 +17,6 @@ ENV GOPROXY=${GOPROXY} \
   GOSUMDB=${GOSUMDB} \
   PIP_INDEX_URL=${PIP_INDEX_URL}
 
-ARG GOLANGCI_LINT_VERSION=v2.5.0
 ARG OPENCODE_VERSION=1.17.18
 
 RUN set -eux; \
@@ -26,7 +30,7 @@ RUN set -eux; \
   fi; \
   apt-get update && apt-get install -y --no-install-recommends nodejs npm && rm -rf /var/lib/apt/lists/*
 
-RUN GOBIN=/usr/local/bin go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${GOLANGCI_LINT_VERSION}
+COPY --from=golangci-lint /usr/bin/golangci-lint /usr/local/bin/golangci-lint
 
 RUN GOBIN=/usr/local/bin go install github.com/rhysd/actionlint/cmd/actionlint@latest
 

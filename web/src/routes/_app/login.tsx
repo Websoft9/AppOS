@@ -4,6 +4,7 @@ import type { FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/contexts/AuthContext'
+import { useBranding } from '@/contexts/BrandingContext'
 import { getSessionExpiredMessage, SESSION_EXPIRED_REASON } from '@/lib/auth-session'
 import { pb } from '@/lib/pb'
 import { tWithFallback } from '@/lib/i18n'
@@ -25,6 +26,7 @@ export function LoginPage() {
     reason?: string
   }
   const { login, isAuthenticated } = useAuth()
+  const branding = useBranding()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -70,11 +72,18 @@ export function LoginPage() {
   }
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-background relative">
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background">
+      {branding.loginBackgroundUrl ? (
+        <div
+          className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+          style={{ backgroundImage: `url(${branding.loginBackgroundUrl})` }}
+        />
+      ) : null}
+      <div className="absolute inset-0 bg-background/70 backdrop-blur-[1px]" />
       <div className="absolute top-4 right-4">
         <ModeToggle />
       </div>
-      <div className="w-full max-w-md p-8 bg-card rounded-lg shadow-md border border-border">
+      <div className="relative z-10 w-full max-w-md rounded-lg border border-border bg-card p-8 shadow-md">
         <h2 className="text-2xl font-bold text-center mb-6 text-card-foreground">{titleLabel}</h2>
 
         {!error && sessionExpiredMessage && (

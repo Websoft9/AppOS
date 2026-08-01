@@ -7,6 +7,9 @@ export interface DockerDependencyIssue {
     | 'compose_missing'
     | 'docker_daemon_unavailable'
     | 'docker_permission_denied'
+    | 'ssh_timeout'
+    | 'ssh_auth_failed'
+    | 'tunnel_offline'
   title: string
   description: string
 }
@@ -62,6 +65,27 @@ function issueFromCode(code: string): DockerDependencyIssue | null {
         title: 'Docker Engine is not available on this server',
         description:
           'Docker commands cannot run because the Docker binary is missing or unavailable in the current runtime path.',
+      }
+    case 'ssh_timeout':
+      return {
+        code: 'ssh_timeout',
+        title: 'SSH connection to this server timed out',
+        description:
+          'AppOS could not complete the SSH connection in time. Check network reachability, server load, or tunnel responsiveness before retrying.',
+      }
+    case 'ssh_auth_failed':
+      return {
+        code: 'ssh_auth_failed',
+        title: 'SSH authentication failed for this server',
+        description:
+          'The stored SSH credential was rejected by the target server. Update the server credential or access method before retrying.',
+      }
+    case 'tunnel_offline':
+      return {
+        code: 'tunnel_offline',
+        title: 'The tunnel-backed server is currently offline',
+        description:
+          'The managed tunnel is not online right now, so Docker commands cannot reach the target server. Bring the tunnel back online and retry.',
       }
     default:
       return null

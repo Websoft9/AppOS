@@ -17,7 +17,8 @@ CONTAINER := appos
 COMPOSE_FILE := build/docker-compose.yml
 COMPOSE_CMD := cd build && docker compose
 DEV_CONTAINER := appos-dev
-DEVCONTAINER_BASE_IMAGE := mcr.microsoft.com/devcontainers/go:1.26-bookworm
+DEVCONTAINER_BASE_IMAGE := $(shell sed -n 's/^ARG DEVCONTAINER_BASE_IMAGE=//p' .devcontainer/Dockerfile | head -1)
+DEVCONTAINER_TOOL_IMAGES := $(shell grep '^ARG .*_IMAGE=' .devcontainer/Dockerfile | grep -v DEVCONTAINER_BASE_IMAGE | sed 's/^ARG .*_IMAGE=//')
 DEVCONTAINER_APT_MIRROR := https://mirrors.tuna.tsinghua.edu.cn/debian
 DEVCONTAINER_APT_SECURITY_MIRROR := https://mirrors.tuna.tsinghua.edu.cn/debian-security
 DEVCONTAINER_NPM_REGISTRY_DEFAULT := https://registry.npmjs.org/
@@ -206,19 +207,25 @@ host:
 	      *) echo "Usage: make host image pull IMAGE=<image>[:<tag>]"; exit 1 ;; \
 	    esac ;; \
 	  dev-pull-base) \
-	    if docker image inspect "$(DEVCONTAINER_BASE_IMAGE)" >/dev/null 2>&1; then \
-	      echo "✓ Development base image already present: $(DEVCONTAINER_BASE_IMAGE)"; \
-	    else \
-	      $(MAKE) --no-print-directory host image pull IMAGE="$(DEVCONTAINER_BASE_IMAGE)"; \
-	    fi ;; \
+	    for img in $(DEVCONTAINER_BASE_IMAGE) $(DEVCONTAINER_TOOL_IMAGES); do \
+	      if docker image inspect "$$img" >/dev/null 2>&1; then \
+	        echo "✓ Image already present: $$img"; \
+	      else \
+	        echo "→ Pulling image: $$img"; \
+	        $(MAKE) --no-print-directory host image pull IMAGE="$$img"; \
+	      fi; \
+	    done ;; \
 	  dev-build) \
 	    case "$(ARG3)" in \
 	      ""|mirror) ;; \
 	      *) echo "Usage: make host dev-build [mirror]"; exit 1 ;; \
 	    esac; \
-	    if ! docker image inspect "$(DEVCONTAINER_BASE_IMAGE)" >/dev/null 2>&1; then \
-	      $(MAKE) --no-print-directory host dev-pull-base; \
-	    fi; \
+	    for img in $(DEVCONTAINER_BASE_IMAGE) $(DEVCONTAINER_TOOL_IMAGES); do \
+	      if ! docker image inspect "$$img" >/dev/null 2>&1; then \
+	        echo "→ Pulling missing base image: $$img"; \
+	        $(MAKE) --no-print-directory host image pull IMAGE="$$img"; \
+	      fi; \
+	    done; \
 	    $(MAKE) --no-print-directory dev-build DEV_SOURCE_MODE="$(ARG3)" ;; \
 	  dev-up) $(MAKE) --no-print-directory dev-up ;; \
 	  dev-shell) $(MAKE) --no-print-directory dev-shell ;; \

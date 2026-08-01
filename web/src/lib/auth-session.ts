@@ -28,6 +28,28 @@ type PatchedFetch = typeof fetch & {
   __apposAuthPatched?: boolean
 }
 
+let authRefreshInFlight: Promise<unknown> | null = null
+
+async function tryRuntimeAuthRefresh() {
+  if (authRefreshInFlight) {
+    return authRefreshInFlight
+  }
+
+  const collection = pb.authStore.record?.collectionName
+  if (!collection || !pb.authStore.isValid) {
+    throw new SessionExpiredError()
+  }
+
+  authRefreshInFlight = pb
+    .collection(collection)
+    .authRefresh()
+    .finally(() => {
+      authRefreshInFlight = null
+    })
+
+  return authRefreshInFlight
+}
+
 export function authenticatedHeaders(headers?: HeadersInit): Headers {
   const merged = new Headers(headers)
   if (pb.authStore.token) {
@@ -190,8 +212,13 @@ export function installAuthRuntimeGuards() {
         return await originalSend(...args)
       } catch (error) {
         if (isSessionExpiredPocketBaseError(error)) {
-          handleRuntimeSessionExpiry()
-          throw new SessionExpiredError()
+          try {
+            await tryRuntimeAuthRefresh()
+            return await originalSend(...args)
+          } catch {
+            handleRuntimeSessionExpiry()
+            throw new SessionExpiredError()
+          }
         }
         throw error
       }
@@ -211,10 +238,16 @@ export function installAuthRuntimeGuards() {
 
   const originalFetch = currentFetch.bind(globalThis)
   const wrappedFetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
-    const response = await originalFetch(input, init)
-    if (requestUsesAuthToken(input, init) && isUnauthorizedResponseStatus(response.status)) {
-      handleRuntimeSessionExpiry()
-      throw new SessionExpiredError()
+    const usesAuthToken = requestUsesAuthToken(input, init)
+    let response = await originalFetch(input, init)
+    if (usesAuthToken && isUnauthorizedResponseStatus(response.status)) {
+      try {
+        await tryRuntimeAuthRefresh()
+        response = await originalFetch(input, init)
+      } catch {
+        handleRuntimeSessionExpiry()
+        throw new SessionExpiredError()
+      }
     }
     return response
   }) as PatchedFetch

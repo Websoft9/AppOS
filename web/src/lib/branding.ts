@@ -10,6 +10,8 @@ export interface BrandingPayload {
   appURL?: string
   logoMediaId?: string
   logoUrl?: string
+  loginBackgroundMediaId?: string
+  loginBackgroundUrl?: string
   wordmark?: string
   description?: string
   useLogoAsFavicon?: boolean
@@ -23,6 +25,7 @@ export interface ResolvedBranding {
   wordmark: string
   description: string
   logoUrl: string
+  loginBackgroundUrl: string
   faviconUrl: string
   useLogoAsFavicon: boolean
   generatedLogoUrl: string
@@ -40,6 +43,7 @@ export function resolveBranding(payload?: BrandingPayload | null): ResolvedBrand
   const description = payload?.description?.trim() || 'Application Platform'
   const generatedLogoUrl = createGeneratedLogoDataUrl(wordmark || appName)
   const logoUrl = payload?.logoUrl?.trim() || generatedLogoUrl
+  const loginBackgroundUrl = payload?.loginBackgroundUrl?.trim() || ''
   const useLogoAsFavicon = payload?.useLogoAsFavicon ?? false
   const faviconUrl = useLogoAsFavicon ? logoUrl : payload?.faviconUrl?.trim() || logoUrl
 
@@ -49,6 +53,7 @@ export function resolveBranding(payload?: BrandingPayload | null): ResolvedBrand
     wordmark,
     description,
     logoUrl,
+    loginBackgroundUrl,
     faviconUrl,
     useLogoAsFavicon,
     generatedLogoUrl,

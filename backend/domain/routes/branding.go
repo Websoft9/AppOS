@@ -43,23 +43,28 @@ func handleBrandingGet(e *core.RequestEvent) error {
 	appURL, _ := basic["appURL"].(string)
 	logoMediaID, _ := branding["logoMediaId"].(string)
 	logoURL, _ := branding["logoUrl"].(string)
+	loginBackgroundMediaID, _ := branding["loginBackgroundMediaId"].(string)
+	loginBackgroundURL, _ := branding["loginBackgroundUrl"].(string)
 	wordmark, _ := branding["wordmark"].(string)
 	useLogoAsFavicon, _ := branding["useLogoAsFavicon"].(bool)
 	faviconMediaID, _ := branding["faviconMediaId"].(string)
 	faviconURL, _ := branding["faviconUrl"].(string)
 
 	logoURL = resolveBrandingMediaURL(e.App, logoMediaID, logoURL)
+	loginBackgroundURL = resolveBrandingMediaURL(e.App, loginBackgroundMediaID, loginBackgroundURL)
 	faviconURL = resolveBrandingMediaURL(e.App, faviconMediaID, faviconURL)
 
 	return e.JSON(http.StatusOK, map[string]any{
-		"appName":          appName,
-		"appURL":           appURL,
-		"logoMediaId":      logoMediaID,
-		"logoUrl":          logoURL,
-		"wordmark":         wordmark,
-		"useLogoAsFavicon": useLogoAsFavicon,
-		"faviconMediaId":   faviconMediaID,
-		"faviconUrl":       faviconURL,
+		"appName":                appName,
+		"appURL":                 appURL,
+		"logoMediaId":            logoMediaID,
+		"logoUrl":                logoURL,
+		"loginBackgroundMediaId": loginBackgroundMediaID,
+		"loginBackgroundUrl":     loginBackgroundURL,
+		"wordmark":               wordmark,
+		"useLogoAsFavicon":       useLogoAsFavicon,
+		"faviconMediaId":         faviconMediaID,
+		"faviconUrl":             faviconURL,
 	})
 }
 

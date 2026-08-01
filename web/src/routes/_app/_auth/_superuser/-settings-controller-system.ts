@@ -10,6 +10,8 @@ export function useSystemSettingsController(showToast: ShowToast) {
   const [appSaving, setAppSaving] = useState(false)
   const [logoMediaId, setLogoMediaId] = useState('')
   const [logoUrl, setLogoUrl] = useState('')
+  const [loginBackgroundMediaId, setLoginBackgroundMediaId] = useState('')
+  const [loginBackgroundUrl, setLoginBackgroundUrl] = useState('')
   const [wordmark, setWordmark] = useState('appos')
   const [description, setDescription] = useState('Application Platform')
   const [useLogoAsFavicon, setUseLogoAsFavicon] = useState(false)
@@ -42,6 +44,8 @@ export function useSystemSettingsController(showToast: ShowToast) {
       (entryMap.get('branding') as Partial<{
         logoMediaId: string
         logoUrl: string
+        loginBackgroundMediaId: string
+        loginBackgroundUrl: string
         wordmark: string
         description: string
         useLogoAsFavicon: boolean
@@ -50,6 +54,8 @@ export function useSystemSettingsController(showToast: ShowToast) {
       }>) ?? {}
     setLogoMediaId(branding.logoMediaId ?? '')
     setLogoUrl(branding.logoUrl ?? '')
+    setLoginBackgroundMediaId(branding.loginBackgroundMediaId ?? '')
+    setLoginBackgroundUrl(branding.loginBackgroundUrl ?? '')
     setWordmark(branding.wordmark ?? 'appos')
     setDescription(branding.description ?? 'Application Platform')
     setUseLogoAsFavicon(branding.useLogoAsFavicon ?? false)
@@ -114,6 +120,8 @@ export function useSystemSettingsController(showToast: ShowToast) {
         body: {
           logoMediaId,
           logoUrl,
+          loginBackgroundMediaId,
+          loginBackgroundUrl,
           wordmark,
           description,
           useLogoAsFavicon,
@@ -124,6 +132,8 @@ export function useSystemSettingsController(showToast: ShowToast) {
       dispatchBrandingUpdated({
         logoMediaId,
         logoUrl,
+        loginBackgroundMediaId,
+        loginBackgroundUrl,
         wordmark,
         description,
         useLogoAsFavicon,
@@ -198,6 +208,8 @@ export function useSystemSettingsController(showToast: ShowToast) {
     appSaving,
     logoMediaId,
     logoUrl,
+    loginBackgroundMediaId,
+    loginBackgroundUrl,
     wordmark,
     description,
     useLogoAsFavicon,
@@ -208,6 +220,8 @@ export function useSystemSettingsController(showToast: ShowToast) {
     setAppURL,
     setLogoMediaId,
     setLogoUrl,
+    setLoginBackgroundMediaId,
+    setLoginBackgroundUrl,
     setWordmark,
     setDescription,
     setUseLogoAsFavicon,

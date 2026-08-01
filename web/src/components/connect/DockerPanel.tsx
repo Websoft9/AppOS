@@ -279,6 +279,9 @@ function OverviewTab({
   const volumes = volumesQuery.data ?? []
   const networks = networksQuery.data ?? []
   const projects = composeQuery.data ?? []
+  const stoppedCount = containers.filter(container => container.State !== 'running').length
+  const nonRunningProjects = projects.filter(project => !isComposeProjectRunning(project)).length
+  const taggedImages = images.filter(image => image.Tag && image.Tag !== '<none>').length
   const loading =
     containersQuery.isLoading ||
     imagesQuery.isLoading ||
@@ -286,15 +289,12 @@ function OverviewTab({
     networksQuery.isLoading ||
     composeQuery.isLoading
 
-  const stoppedCount = containers.filter(container => container.State !== 'running').length
-  const nonRunningProjects = projects.filter(project => !isComposeProjectRunning(project)).length
-  const taggedImages = images.filter(image => image.Tag && image.Tag !== '<none>').length
-
   const resourceCards = [
     {
       tab: 'containers' as const,
       label: 'Containers',
       count: containers.length,
+      loading: containersQuery.isLoading,
       stateLine: stoppedCount > 0 ? `${stoppedCount} stopped` : 'all running',
       warning: stoppedCount > 0,
       icon: Container,
@@ -303,6 +303,7 @@ function OverviewTab({
       tab: 'compose' as const,
       label: 'Compose',
       count: projects.length,
+      loading: composeQuery.isLoading,
       stateLine: nonRunningProjects > 0 ? `${nonRunningProjects} attention` : 'all running',
       warning: nonRunningProjects > 0,
       icon: Boxes,
@@ -311,6 +312,7 @@ function OverviewTab({
       tab: 'images' as const,
       label: 'Images',
       count: images.length,
+      loading: imagesQuery.isLoading,
       stateLine: `${taggedImages} tagged`,
       warning: false,
       icon: Box,
@@ -319,6 +321,7 @@ function OverviewTab({
       tab: 'volumes' as const,
       label: 'Volumes',
       count: volumes.length,
+      loading: volumesQuery.isLoading,
       stateLine: 'clean',
       warning: false,
       icon: HardDrive,
@@ -327,6 +330,7 @@ function OverviewTab({
       tab: 'networks' as const,
       label: 'Networks',
       count: networks.length,
+      loading: networksQuery.isLoading,
       stateLine: 'ok',
       warning: false,
       icon: Network,
@@ -425,7 +429,7 @@ function OverviewTab({
                     <div className="min-w-0">
                       <CardDescription>{card.label}</CardDescription>
                       <CardTitle className="mt-2 text-3xl">
-                        {loading ? '...' : card.count}
+                        {card.loading ? '...' : card.count}
                       </CardTitle>
                     </div>
                     <div
@@ -986,7 +990,7 @@ export function DockerPanel({ serverId, className, showWorkspaceHeader = true }:
                   <TabsTrigger
                     key={item.value}
                     value={item.value}
-                    disabled={dockerDisabled}
+                    disabled={dockerHostState === 'offline'}
                     className={cn(
                       'h-10 rounded-lg px-3 text-sm after:hidden',
                       navCollapsed && 'justify-center px-2',
@@ -1586,7 +1590,14 @@ export function DockerPanel({ serverId, className, showWorkspaceHeader = true }:
                 variant={dockerHostState === 'offline' ? 'destructive' : 'default'}
                 className="mx-4 mt-4"
               >
-                <AlertDescription>{dockerStatusMessage}</AlertDescription>
+                <AlertDescription>
+                  <span className="inline-flex items-center gap-2">
+                    {dockerHostState === 'loading' ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : null}
+                    <span>{dockerStatusMessage}</span>
+                  </span>
+                </AlertDescription>
               </Alert>
             )}
 
@@ -1597,7 +1608,20 @@ export function DockerPanel({ serverId, className, showWorkspaceHeader = true }:
             )}
 
             <div className="min-h-0 flex-1">
-              {activeTab === 'overview' ? (
+              {dockerHostState === 'loading' ? (
+                <div className="flex h-full min-h-0 flex-col gap-4 p-4">
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                    {Array.from({ length: 5 }).map((_, index) => (
+                      <div
+                        key={`docker-loading-card-${index}`}
+                        className="h-28 animate-pulse rounded-xl border bg-muted/20"
+                      />
+                    ))}
+                  </div>
+                  <div className="min-h-[220px] animate-pulse rounded-xl border bg-muted/20" />
+                </div>
+              ) : null}
+              {dockerHostState === 'ready' && activeTab === 'overview' ? (
                 <TabsContent
                   value="overview"
                   forceMount
@@ -1631,7 +1655,7 @@ export function DockerPanel({ serverId, className, showWorkspaceHeader = true }:
                   />
                 </TabsContent>
               ) : null}
-              {activeTab === 'containers' ? (
+              {dockerHostState === 'ready' && activeTab === 'containers' ? (
                 <TabsContent
                   value="containers"
                   forceMount
@@ -1681,7 +1705,7 @@ export function DockerPanel({ serverId, className, showWorkspaceHeader = true }:
                   />
                 </TabsContent>
               ) : null}
-              {activeTab === 'images' ? (
+              {dockerHostState === 'ready' && activeTab === 'images' ? (
                 <TabsContent
                   value="images"
                   forceMount
@@ -1708,7 +1732,7 @@ export function DockerPanel({ serverId, className, showWorkspaceHeader = true }:
                   />
                 </TabsContent>
               ) : null}
-              {activeTab === 'volumes' ? (
+              {dockerHostState === 'ready' && activeTab === 'volumes' ? (
                 <TabsContent
                   value="volumes"
                   forceMount
@@ -1735,7 +1759,7 @@ export function DockerPanel({ serverId, className, showWorkspaceHeader = true }:
                   />
                 </TabsContent>
               ) : null}
-              {activeTab === 'networks' ? (
+              {dockerHostState === 'ready' && activeTab === 'networks' ? (
                 <TabsContent
                   value="networks"
                   forceMount
@@ -1755,7 +1779,7 @@ export function DockerPanel({ serverId, className, showWorkspaceHeader = true }:
                   />
                 </TabsContent>
               ) : null}
-              {activeTab === 'compose' ? (
+              {dockerHostState === 'ready' && activeTab === 'compose' ? (
                 <TabsContent
                   value="compose"
                   forceMount

@@ -295,6 +295,7 @@ function renderBrandingSection(
   return (
     <BrandingSection
       logoUrl={controller.logoUrl}
+      loginBackgroundUrl={controller.loginBackgroundUrl}
       wordmark={controller.wordmark}
       description={controller.description}
       useLogoAsFavicon={controller.useLogoAsFavicon}
@@ -302,6 +303,8 @@ function renderBrandingSection(
       brandingSaving={controller.brandingSaving}
       setLogoMediaId={controller.setLogoMediaId}
       setLogoUrl={controller.setLogoUrl}
+      setLoginBackgroundMediaId={controller.setLoginBackgroundMediaId}
+      setLoginBackgroundUrl={controller.setLoginBackgroundUrl}
       setWordmark={controller.setWordmark}
       setDescription={controller.setDescription}
       setUseLogoAsFavicon={controller.setUseLogoAsFavicon}

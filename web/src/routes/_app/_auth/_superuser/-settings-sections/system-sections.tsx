@@ -57,6 +57,7 @@ export function BasicSection({
 
 export function BrandingSection({
   logoUrl,
+  loginBackgroundUrl,
   wordmark,
   description,
   useLogoAsFavicon,
@@ -64,6 +65,8 @@ export function BrandingSection({
   brandingSaving,
   setLogoMediaId,
   setLogoUrl,
+  setLoginBackgroundMediaId,
+  setLoginBackgroundUrl,
   setWordmark,
   setDescription,
   setUseLogoAsFavicon,
@@ -72,6 +75,7 @@ export function BrandingSection({
   saveBranding,
 }: {
   logoUrl: string
+  loginBackgroundUrl: string
   wordmark: string
   description: string
   useLogoAsFavicon: boolean
@@ -79,6 +83,8 @@ export function BrandingSection({
   brandingSaving: boolean
   setLogoMediaId: (value: string) => void
   setLogoUrl: (value: string) => void
+  setLoginBackgroundMediaId: (value: string) => void
+  setLoginBackgroundUrl: (value: string) => void
   setWordmark: (value: string) => void
   setDescription: (value: string) => void
   setUseLogoAsFavicon: (value: boolean) => void
@@ -88,6 +94,7 @@ export function BrandingSection({
 }) {
   const [uploadError, setUploadError] = useState('')
   const logoUploadRef = useRef<HTMLInputElement | null>(null)
+  const loginBackgroundUploadRef = useRef<HTMLInputElement | null>(null)
   const faviconUploadRef = useRef<HTMLInputElement | null>(null)
 
   function handleImageUpload(
@@ -174,6 +181,43 @@ export function BrandingSection({
             </div>
           </div>
           <div className="space-y-3">
+            <div className="space-y-1">
+              <div className="space-y-1">
+                <Label htmlFor="loginBackgroundUrl">Login Background</Label>
+                <p className="text-sm text-muted-foreground">
+                  Enter an online URL, or upload an image for the login page background
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Input
+                  id="loginBackgroundUrl"
+                  type="text"
+                  value={loginBackgroundUrl}
+                  onChange={e => {
+                    setLoginBackgroundMediaId('')
+                    setLoginBackgroundUrl(e.target.value)
+                  }}
+                  placeholder="https://example.com/login-background.jpg"
+                  className="flex-1"
+                />
+                <input
+                  ref={loginBackgroundUploadRef}
+                  type="file"
+                  accept=".svg,.png,.jpg,.jpeg,.ico,.webp,image/svg+xml,image/png,image/jpeg,image/x-icon,image/vnd.microsoft.icon,image/webp"
+                  className="hidden"
+                  onChange={event =>
+                    handleImageUpload(event, setLoginBackgroundMediaId, setLoginBackgroundUrl)
+                  }
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => loginBackgroundUploadRef.current?.click()}
+                >
+                  <Upload className="mr-2 h-4 w-4" /> Upload
+                </Button>
+              </div>
+            </div>
             <div className="space-y-1">
               <Label htmlFor="faviconUrl">Favicon</Label>
               <p className="text-sm text-muted-foreground">

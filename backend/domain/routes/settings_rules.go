@@ -407,6 +407,12 @@ func validateBranding(v map[string]any) map[string]string {
 	logoURL, _ := v["logoUrl"].(string)
 	v["logoUrl"] = strings.TrimSpace(logoURL)
 
+	loginBackgroundMediaID, _ := v["loginBackgroundMediaId"].(string)
+	v["loginBackgroundMediaId"] = strings.TrimSpace(loginBackgroundMediaID)
+
+	loginBackgroundURL, _ := v["loginBackgroundUrl"].(string)
+	v["loginBackgroundUrl"] = strings.TrimSpace(loginBackgroundURL)
+
 	wordmark, _ := v["wordmark"].(string)
 	wordmark = strings.TrimSpace(wordmark)
 	if wordmark == "" {

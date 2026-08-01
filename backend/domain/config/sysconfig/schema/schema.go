@@ -432,13 +432,15 @@ var entryCatalog = []EntrySchema{
 
 var customSettingDefaults = map[string]map[string]any{
 	"branding/identity": {
-		"logoMediaId":      "",
-		"logoUrl":          "",
-		"wordmark":         "appos",
-		"description":      "Application Platform",
-		"useLogoAsFavicon": false,
-		"faviconMediaId":   "",
-		"faviconUrl":       "",
+		"logoMediaId":            "",
+		"logoUrl":                "",
+		"loginBackgroundMediaId": "",
+		"loginBackgroundUrl":     "",
+		"wordmark":               "appos",
+		"description":            "Application Platform",
+		"useLogoAsFavicon":       false,
+		"faviconMediaId":         "",
+		"faviconUrl":             "",
 	},
 	"space/quota": {
 		"maxSizeMB":             10,
