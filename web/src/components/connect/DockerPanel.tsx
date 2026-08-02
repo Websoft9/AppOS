@@ -60,6 +60,7 @@ const LazyTerminalPanel = lazy(() =>
 interface HostEntry {
   id: string
   label: string
+  host?: string
   status: 'online' | 'offline'
   reason?: string
 }
@@ -179,6 +180,8 @@ function OverviewTab({
   serverId,
   disabled,
   active,
+  hostLabel,
+  lastRefreshedAt,
   embeddedInWorkspace = false,
   onSelectTab,
   onFilterContainersByNames,
@@ -189,6 +192,8 @@ function OverviewTab({
   serverId: string
   disabled: boolean
   active: boolean
+  hostLabel?: string
+  lastRefreshedAt?: number | null
   embeddedInWorkspace?: boolean
   onSelectTab: (tabId: DockerTabId) => void
   onFilterContainersByNames: (names: string[]) => void
@@ -593,6 +598,18 @@ function OverviewTab({
           </DropdownMenu>
         </CardContent>
       </Card>
+
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/10 px-3 py-2 text-xs text-muted-foreground">
+        <span>
+          Connected target: <span className="font-medium text-foreground">{hostLabel || serverId}</span>
+        </span>
+        <span>
+          Last refresh:{' '}
+          <span className="font-medium text-foreground">
+            {lastRefreshedAt ? new Date(lastRefreshedAt).toLocaleTimeString() : 'Waiting for first sync'}
+          </span>
+        </span>
+      </div>
     </div>
   )
 }
@@ -607,6 +624,7 @@ export function DockerPanel({ serverId, className, showWorkspaceHeader = true }:
   const [hosts, setHosts] = useState<HostEntry[]>([])
   const [hostsLoading, setHostsLoading] = useState(true)
   const [refreshSignal, setRefreshSignal] = useState(0)
+  const [lastDockerRefreshAt, setLastDockerRefreshAt] = useState<number | null>(null)
   const [activeTab, setActiveTab] = useState<DockerTabId>('overview')
   const [containerFilter, setContainerFilter] = useState('')
   const [containerFilterNames, setContainerFilterNames] = useState<string[]>([])
@@ -739,6 +757,7 @@ export function DockerPanel({ serverId, className, showWorkspaceHeader = true }:
         const res = await pb.send(dockerTargetsPath(), { method: 'GET' })
         if (cancelled) return
         setHosts(Array.isArray(res) ? (res as HostEntry[]) : [])
+        setLastDockerRefreshAt(Date.now())
       } catch {
         if (cancelled) return
         setHosts([])
@@ -893,6 +912,7 @@ export function DockerPanel({ serverId, className, showWorkspaceHeader = true }:
         queryClient.invalidateQueries({ queryKey: ['docker', 'volumes', serverId] }),
         queryClient.invalidateQueries({ queryKey: ['docker', 'compose', serverId] }),
       ])
+      setLastDockerRefreshAt(Date.now())
     } catch (err) {
       setRefreshError(getApiErrorMessage(err, 'Failed to refresh Docker data'))
     } finally {
@@ -1632,6 +1652,8 @@ export function DockerPanel({ serverId, className, showWorkspaceHeader = true }:
                     serverId={serverId}
                     disabled={dockerDisabled}
                     active
+                    hostLabel={activeHost?.host}
+                    lastRefreshedAt={lastDockerRefreshAt}
                     embeddedInWorkspace
                     onSelectTab={setActiveTab}
                     onFilterContainersByNames={names => {

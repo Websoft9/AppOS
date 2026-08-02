@@ -186,6 +186,11 @@ export function handleRuntimeSessionExpiry(): boolean {
   return browserSessionExpiryHandler.handle()
 }
 
+export function forceRuntimeSessionExpiry() {
+  browserSessionExpiryHandler.reset()
+  browserSessionExpiryHandler.handle()
+}
+
 export function resetRuntimeSessionExpiryState() {
   browserSessionExpiryHandler.reset()
 }

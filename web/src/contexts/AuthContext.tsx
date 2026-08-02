@@ -1,8 +1,16 @@
-import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useRef, useState, useCallback, type ReactNode } from 'react'
 import { pb } from '@/lib/pb'
-import { installAuthRuntimeGuards, resetRuntimeSessionExpiryState } from '@/lib/auth-session'
+import {
+  forceRuntimeSessionExpiry,
+  installAuthRuntimeGuards,
+  resetRuntimeSessionExpiryState,
+} from '@/lib/auth-session'
 import type { RecordModel } from 'pocketbase'
 import { ClientResponseError } from 'pocketbase'
+import { queryClient } from '@/main'
+
+const SESSION_REFRESH_INTERVAL_MS = 5 * 60_000
+const SESSION_ACTIVITY_WINDOW_MS = 10 * 60_000
 
 interface AuthContextType {
   user: RecordModel | null
@@ -38,6 +46,15 @@ async function tryAuthRefresh() {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<RecordModel | null>(pb.authStore.record)
   const [isLoading, setIsLoading] = useState(true)
+  const lastActivityAtRef = useRef(Date.now())
+
+  const handleSessionExpiry = useCallback(() => {
+    void queryClient.cancelQueries()
+    queryClient.clear()
+    setUser(null)
+    setIsLoading(false)
+    forceRuntimeSessionExpiry()
+  }, [])
 
   useEffect(() => {
     installAuthRuntimeGuards()
@@ -57,7 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(result.record)
       } catch {
         pb.authStore.clear()
-        setUser(null)
+        handleSessionExpiry()
       } finally {
         setIsLoading(false)
       }
@@ -70,10 +87,58 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return pb.authStore.onChange((_token, record) => {
       if (record) {
         resetRuntimeSessionExpiryState()
+        lastActivityAtRef.current = Date.now()
+      } else if (!isLoading) {
+        handleSessionExpiry()
       }
       setUser(record)
     })
+  }, [handleSessionExpiry, isLoading])
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return
+
+    const markActivity = () => {
+      lastActivityAtRef.current = Date.now()
+    }
+
+    const events: Array<keyof WindowEventMap> = ['pointerdown', 'keydown', 'focus']
+    events.forEach(eventName => window.addEventListener(eventName, markActivity, { passive: true }))
+
+    return () => {
+      events.forEach(eventName => window.removeEventListener(eventName, markActivity))
+    }
   }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return
+
+    let cancelled = false
+    const maybeRefreshSession = async () => {
+      if (cancelled || !pb.authStore.isValid || document.visibilityState !== 'visible') return
+      if (Date.now() - lastActivityAtRef.current > SESSION_ACTIVITY_WINDOW_MS) return
+
+      try {
+        const result = await tryAuthRefresh()
+        if (cancelled) return
+        resetRuntimeSessionExpiryState()
+        setUser(result.record)
+      } catch {
+        if (cancelled) return
+        pb.authStore.clear()
+        handleSessionExpiry()
+      }
+    }
+
+    const timer = window.setInterval(() => {
+      void maybeRefreshSession()
+    }, SESSION_REFRESH_INTERVAL_MS)
+
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
+  }, [handleSessionExpiry])
 
   // Login: try _superusers first, then users.
   // Distinguish network errors (throw immediately) from auth errors (try next collection).

@@ -1,9 +1,24 @@
-import { createFileRoute, redirect } from '@tanstack/react-router'
+import { createFileRoute, redirect, useLocation, useNavigate } from '@tanstack/react-router'
+import { useEffect } from 'react'
 import { pb } from '@/lib/pb'
+import { useAuth } from '@/contexts/AuthContext'
 import { AppShell } from '@/components/layout'
 import { UserMenu } from '@/components/layout/UserMenu'
 
-function AuthLayout() {
+export function AuthLayout() {
+  const navigate = useNavigate()
+  const location = useLocation()
+  const { isAuthenticated, isLoading } = useAuth()
+
+  useEffect(() => {
+    if (isLoading || isAuthenticated) return
+    navigate({
+      to: '/login',
+      search: { redirect: location.href },
+      replace: true,
+    })
+  }, [isAuthenticated, isLoading, location.href, navigate])
+
   return <AppShell headerActions={<UserMenu />} />
 }
 

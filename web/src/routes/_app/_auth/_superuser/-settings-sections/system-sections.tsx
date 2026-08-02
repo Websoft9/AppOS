@@ -216,6 +216,17 @@ export function BrandingSection({
                 >
                   <Upload className="mr-2 h-4 w-4" /> Upload
                 </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => {
+                    setLoginBackgroundMediaId('')
+                    setLoginBackgroundUrl('')
+                  }}
+                  disabled={!loginBackgroundUrl}
+                >
+                  Clear
+                </Button>
               </div>
             </div>
             <div className="space-y-1">
