@@ -29,8 +29,17 @@ type PatchedFetch = typeof fetch & {
 }
 
 let authRefreshInFlight: Promise<unknown> | null = null
+let refreshDepth = 0
 
 async function tryRuntimeAuthRefresh() {
+  // Re-entrancy guard: if we're called from within the pb.send() that was
+  // triggered by a prior tryRuntimeAuthRefresh(), the in-flight promise depends
+  // on this call itself — returning it would deadlock. Break the cycle.
+  if (refreshDepth > 0) {
+    throw new SessionExpiredError()
+  }
+
+  // Deduplication: if another request already started a refresh, wait for it.
   if (authRefreshInFlight) {
     return authRefreshInFlight
   }
@@ -40,11 +49,13 @@ async function tryRuntimeAuthRefresh() {
     throw new SessionExpiredError()
   }
 
+  refreshDepth++
   authRefreshInFlight = pb
     .collection(collection)
     .authRefresh()
     .finally(() => {
       authRefreshInFlight = null
+      refreshDepth--
     })
 
   return authRefreshInFlight

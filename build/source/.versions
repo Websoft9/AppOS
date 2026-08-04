@@ -1,0 +1,24 @@
+# Single source of truth for all component versions.
+# Both the dev container and runtime container reference these values.
+
+[base]
+ALPINE = "3.24"
+DEV_GO_BASE_IMAGE = "mcr.microsoft.com/devcontainers/go:1.26-bookworm"
+
+[shared]
+NODE = "22-bookworm-slim"
+
+[dev]
+GOLANGCI_LINT = "v2.12-alpine"
+BETTERLEAKS = "latest"
+ACTIONLINT = "latest"
+GOVULNCHECK = "latest"
+PLAYWRIGHT = "latest"
+
+
+[runtime]
+OPENCODE = "1.17.18"
+VICTORIAMETRICS = "v1.147.0"
+TRAEFIK = "v3.7.8"
+REDIS = "7"                # from Alpine apk
+NODEJS = "24"              # from Alpine apk

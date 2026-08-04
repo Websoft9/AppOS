@@ -93,6 +93,10 @@ type VolumeContainerLink = {
   runningNames: string[]
 }
 
+type VolumeActionNotice = {
+  message: string
+}
+
 function parseContainers(output: string): Container[] {
   if (!output.trim()) return []
   return output
@@ -211,12 +215,14 @@ export const VolumesTab = forwardRef<
   const [internalPageSize, setInternalPageSize] = useState<25 | 50 | 100>(loadGlobalPageSize)
   const [internalPage, setInternalPage] = useState(1)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [actionNotice, setActionNotice] = useState<VolumeActionNotice | null>(null)
   const [expandedVolume, setExpandedVolume] = useState<string | null>(null)
   const [inspectMap, setInspectMap] = useState<Record<string, string>>({})
   const [inspectLoadingMap, setInspectLoadingMap] = useState<Record<string, boolean>>({})
   const [pendingRemoveVolume, setPendingRemoveVolume] = useState<string | null>(null)
   const [pruneConfirmOpen, setPruneConfirmOpen] = useState(false)
   const [pruneConfirmationText, setPruneConfirmationText] = useState('')
+  const [pruning, setPruning] = useState(false)
   const [filesVolume, setFilesVolume] = useState<Volume | null>(null)
 
   const effectivePage = externalPage ?? internalPage
@@ -358,6 +364,7 @@ export const VolumesTab = forwardRef<
   const removeVolume = async (name: string) => {
     try {
       setActionError(null)
+      setActionNotice(null)
       await pb.send(dockerApiPath(serverId, `/volumes/${name}`), { method: 'DELETE' })
       await queryClient.invalidateQueries({ queryKey: ['docker', 'volumes', serverId] })
     } catch (err) {
@@ -372,9 +379,20 @@ export const VolumesTab = forwardRef<
 
   const pruneVolumes = async () => {
     try {
+      setPruning(true)
       setActionError(null)
+      setActionNotice(null)
       await pb.send(dockerApiPath(serverId, '/volumes/prune'), { method: 'POST' })
-      await queryClient.invalidateQueries({ queryKey: ['docker', 'volumes', serverId] })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['docker', 'volumes', serverId] }),
+        queryClient.invalidateQueries({ queryKey: ['docker', 'volumes', 'containers', serverId] }),
+      ])
+      setActionNotice({
+        message: t('volumes.messages.pruneCompleted', {
+          defaultValue: 'Unused volume prune completed successfully.',
+        }),
+      })
+      handlePruneDialogOpenChange(false)
     } catch (err) {
       setActionError(
         getApiErrorMessage(
@@ -382,6 +400,8 @@ export const VolumesTab = forwardRef<
           t('volumes.errors.prune', { defaultValue: 'Failed to prune volumes' })
         )
       )
+    } finally {
+      setPruning(false)
     }
   }
 
@@ -494,6 +514,7 @@ export const VolumesTab = forwardRef<
   }
 
   const handlePruneDialogOpenChange = (open: boolean) => {
+    if (!open && pruning) return
     setPruneConfirmOpen(open)
     if (!open) setPruneConfirmationText('')
   }
@@ -521,6 +542,11 @@ export const VolumesTab = forwardRef<
       ) : visibleError ? (
         <Alert variant="destructive" className="shrink-0">
           <AlertDescription>{visibleError}</AlertDescription>
+        </Alert>
+      ) : null}
+      {actionNotice ? (
+        <Alert className="shrink-0">
+          <AlertDescription>{actionNotice.message}</AlertDescription>
         </Alert>
       ) : null}
       {!embeddedInWorkspace && (
@@ -935,6 +961,14 @@ export const VolumesTab = forwardRef<
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="space-y-4">
+            {pruning ? (
+              <div className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                {t('volumes.prune.inProgress', {
+                  defaultValue: 'Pruning volumes on the target server...',
+                })}
+              </div>
+            ) : null}
             <div className="rounded-md border bg-muted/20 px-3 py-3 text-sm">
               {volumeContainersLoading ? (
                 <div className="inline-flex items-center gap-2 text-muted-foreground">
@@ -1012,17 +1046,25 @@ export const VolumesTab = forwardRef<
             ) : null}
           </div>
           <AlertDialogFooter>
-            <AlertDialogCancel>{t('common:close', { defaultValue: 'Close' })}</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              disabled={!pruneActionEnabled}
+            <AlertDialogCancel disabled={pruning}>
+              {t('common:close', { defaultValue: 'Close' })}
+            </AlertDialogCancel>
+            <Button
+              variant="destructive"
+              disabled={!pruneActionEnabled || pruning}
               onClick={() => {
-                handlePruneDialogOpenChange(false)
                 void pruneVolumes()
               }}
             >
-              {t('volumes.actions.prune', { defaultValue: 'Prune' })}
-            </AlertDialogAction>
+              {pruning ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  {t('volumes.actions.pruning', { defaultValue: 'Pruning...' })}
+                </>
+              ) : (
+                t('volumes.actions.prune', { defaultValue: 'Prune' })
+              )}
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

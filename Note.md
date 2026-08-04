@@ -141,3 +141,81 @@ assets memory
 如果你愿意，下一步我建议继续做两件事之一：
 1. 把 CI 的 builder 层也逐步对齐到 build/Dockerfile.dev
 2. 在开发容器里补 Playwright 支持，打通浏览器 E2E 开发链路
+
+
+Prepare: 
+
+ make init-env             Create .environments/local.env from template (auto-loaded outside CI)
+ make image pull IMAGE=... Pull an image on the host using the mirror-aware pull flow
+
+Dev runtime:
+
+ make pull base-image  Pull all base images from build/source/spec.yaml
+ make build dev-image  Build the development container image
+ make build dev-image --from-mirror Build the development container image from packages mirror
+ make dev up  Start the development container
+ make dev shell  Docker exec to development container
+ make dev down Stop and remove the development container
+ make tidy                 Exec to dev container for tidy Go modules
+ make build                Exec to dev container to build all resources (backend + web)
+ make build backend   Exec to dev container to build Go binary → backend/appos
+ make build web         Exec to dev container to build React web → web/dist
+ make sync-store        Exec to dev container to fefresh backend/domain/catalog/seed/*.json from artifact.websoft9.com
+ make build image Exec to dev container to build runtime image
+
+Dev-OpenAPI:
+  make openapi-gen          Auto-generate OpenAPI spec skeleton from route source
+  make openapi-merge        Merge ext-api.yaml + native-api.yaml -> api.yaml
+  make openapi-check        Validate code->spec coverage and group-matrix generated anchors
+  make openapi-sync         Generate + validate OpenAPI in one command
+
+Code Quality:
+  make test backend         Backend unit + integration tests
+    example: make test backend TARGET=./domain/iac/...
+    example: make test backend TARGET=./domain/routes RUN=TestIACRoutes
+  make test web             Frontend unit + integration tests
+  make qa lint              Lint gate (Go lint + actionlint + eslint + web typecheck)
+  make qa format            Format gate (gofmt + prettier)
+  make qa openapi           OpenAPI generation + coverage gate
+  make qa check             lint + format + openapi + test backend + test web
+  make sec source           Source/config security checks (govulncheck, npm audit, betterleaks)
+
+Runtime container:
+  make start                Start container (interactive port prompt when attached to a TTY)
+  make start latest       Start with latest image (skip interactive)
+  make stop                 Stop container
+  make restart              Restart container
+  make logs                 View container logs (follow mode)
+  make stats                Show all services status inside container
+  make delete               Stop and remove container (keeps volumes)
+  make rm                   Force remove container and volumes
+
+Automatic Testing: 
+  make test e2e runtime     Container/runtime smoke
+  make test e2e smoke       Runtime smoke + Playwright browser smoke
+  make test e2e             Smoke + acceptance browser tests
+  make test-env up          Start local external test dependencies
+  make test-env down        Stop local external test dependencies
+
+
+CI Gate: 
+  make gate pr              PR gate = qa check
+  make gate merge           Merge gate = qa check + sec source + test e2e smoke
+  make gate staging         Staging gate = merge + test e2e
+  make gate release         Release gate = staging + sec artifact
+  make version-check        Validate Git tag version metadata or print current git-derived version
+
+Utilities:
+  make opencode             Launch opencode with proxy disabled
+  make opencode-clear       Clear ALL opencode session data (with confirmation)
+  make kill-port 9091       Kill process using port
+  make tl                   Show template tooling commands
+  make tl validate          Validate normalized templates
+  make tl validate wordpress Validate one normalized template sample
+  make tl ingress           Render sample template ingress payload (default: wordpress)
+  make tl ingress wordpress Render sample template ingress payload for one template
+  make tl ingress wordpress TL_VALUES=templates/tests/examples/wordpress.values.json
+  make tl verify            Run template validation and ingress rendering
+  make help                 Show this help
+
+

@@ -83,11 +83,13 @@ function renderTab() {
     },
   })
 
-  return render(
+  const rendered = render(
     <QueryClientProvider client={queryClient}>
       <VolumesTab serverId="srv-1" />
     </QueryClientProvider>
   )
+
+  return { ...rendered, queryClient }
 }
 
 describe('VolumesTab', () => {
@@ -152,7 +154,63 @@ describe('VolumesTab', () => {
   })
 
   it('reviews unused volumes and requires a confirmation phrase before prune', async () => {
-    renderTab()
+    const { queryClient } = renderTab()
+    const invalidateQueriesSpy = vi.spyOn(queryClient, 'invalidateQueries')
+    const pruneRequest: { resolve: null | (() => void) } = { resolve: null }
+
+    sendMock.mockImplementation((path: string, options?: { method?: string }) => {
+      if (path === '/api/servers/srv-1/docker/volumes/prune' && options?.method === 'POST') {
+        return new Promise<Record<string, never>>(resolve => {
+          pruneRequest.resolve = () => resolve({})
+        })
+      }
+
+      if (path === '/api/servers/srv-1/docker/volumes' && options?.method === 'GET') {
+        return Promise.resolve({
+          output: [
+            JSON.stringify({
+              Name: 'used-data',
+              Driver: 'local',
+              Mountpoint: '/var/lib/docker/volumes/used-data/_data',
+            }),
+            JSON.stringify({
+              Name: 'unused-cache',
+              Driver: 'local',
+              Mountpoint: '/var/lib/docker/volumes/unused-cache/_data',
+            }),
+          ].join('\n'),
+        })
+      }
+
+      if (path === '/api/servers/srv-1/docker/containers' && options?.method === 'GET') {
+        return Promise.resolve({
+          output: [
+            JSON.stringify({
+              ID: 'ctr-1',
+              Names: 'demo-app',
+            }),
+          ].join('\n'),
+        })
+      }
+
+      if (path === '/api/servers/srv-1/docker/containers/ctr-1' && options?.method === 'GET') {
+        return Promise.resolve({
+          output: JSON.stringify([
+            {
+              State: { Running: true },
+              Mounts: [
+                {
+                  Name: 'used-data',
+                  Type: 'volume',
+                },
+              ],
+            },
+          ]),
+        })
+      }
+
+      return Promise.reject(new Error(`Unexpected request: ${path}`))
+    })
 
     const openButton = await screen.findByRole('button', { name: 'Prune unused' })
     await waitFor(() => expect(openButton).toBeEnabled())
@@ -188,11 +246,33 @@ describe('VolumesTab', () => {
 
     fireEvent.click(pruneButton)
 
+    expect(await within(dialog).findByText('Pruning...')).toBeInTheDocument()
+    expect(within(dialog).getByText('Pruning volumes on the target server...')).toBeInTheDocument()
+    expect(pruneButton).toBeDisabled()
+
+    if (!pruneRequest.resolve) {
+      throw new Error('Expected prune request to be pending')
+    }
+    pruneRequest.resolve()
+
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith('/api/servers/srv-1/docker/volumes/prune', {
         method: 'POST',
       })
     })
+
+    await waitFor(() => {
+      expect(invalidateQueriesSpy).toHaveBeenCalledWith({ queryKey: ['docker', 'volumes', 'srv-1'] })
+      expect(invalidateQueriesSpy).toHaveBeenCalledWith({
+        queryKey: ['docker', 'volumes', 'containers', 'srv-1'],
+      })
+    })
+
+    await waitFor(() => {
+      expect(screen.queryByText('Review unused volumes')).toBeNull()
+    })
+
+    expect(await screen.findByText('Unused volume prune completed successfully.')).toBeInTheDocument()
   })
 
   it('opens a local volume files dialog with a locked root and live-volume warning', async () => {

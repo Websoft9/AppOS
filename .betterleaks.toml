@@ -1,4 +1,4 @@
-title = "AppOS gitleaks config"
+title = "AppOS betterleaks config"
 
 [extend]
 useDefault = true

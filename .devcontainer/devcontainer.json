@@ -5,6 +5,8 @@
     "context": "..",
     "args": {
       "DEVCONTAINER_BASE_IMAGE": "${localEnv:DEVCONTAINER_BASE_IMAGE}",
+      "GOLANGCI_LINT_IMAGE": "${localEnv:GOLANGCI_LINT_IMAGE}",
+      "BETTERLEAKS_IMAGE": "${localEnv:BETTERLEAKS_IMAGE}",
       "APT_MIRROR": "${localEnv:DEVCONTAINER_APT_MIRROR}",
       "APT_SECURITY_MIRROR": "${localEnv:DEVCONTAINER_APT_SECURITY_MIRROR}",
       "NPM_REGISTRY": "${localEnv:DEVCONTAINER_NPM_REGISTRY}",
@@ -41,7 +43,8 @@
     "source=appos_dev_go_build,target=/home/vscode/.cache/go-build,type=volume",
     "source=appos_dev_npm,target=/home/vscode/.cache/npm,type=volume",
     "source=appos_dev_opencode,target=/home/vscode/.local/share/opencode,type=volume",
-    "source=appos_dev_playwright,target=/home/vscode/.cache/ms-playwright,type=volume"
+    "source=appos_dev_playwright,target=/home/vscode/.cache/ms-playwright,type=volume",
+    "source=appos_dev_bootstrap,target=/home/vscode/.bootstrap-state,type=volume"
   ],
   "containerEnv": {
     "HOME": "/home/vscode",
@@ -55,7 +58,9 @@
     "GOSUMDB": "${localEnv:DEVCONTAINER_GOSUMDB}",
     "PIP_INDEX_URL": "${localEnv:DEVCONTAINER_PIP_INDEX_URL}",
     "DISABLE_TELEMETRY": "1",
-    "DO_NOT_TRACK": "1"
+    "DO_NOT_TRACK": "1",
+    "GOTOOLCHAIN": "auto"
   },
+  "onCreateCommand": "chown -R vscode:vscode /home/vscode/.cache /home/vscode/.local /home/vscode/.bootstrap-state 2>/dev/null || true",
   "postCreateCommand": "bash /workspace/.devcontainer/bootstrap.sh"
 }

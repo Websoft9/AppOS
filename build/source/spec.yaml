@@ -1,0 +1,113 @@
+# Draft metadata spec for the AppOS development container.
+# Values under `version_ref` resolve from build/.versions.
+
+schema_version: 1
+kind: dev-container
+
+metadata:
+  image_name: appos-dev
+  container_name: appos-dev
+  description: AppOS development container
+
+base_image:
+  arg_name: DEVCONTAINER_BASE_IMAGE
+  version_ref: base.DEV_GO_BASE_IMAGE
+
+copy_from_images:
+  - arg_name: NODE_IMAGE
+    version_ref: shared.NODE
+    source_image: docker.io/node
+    copy:
+      - from_path: /usr/local/bin/node
+        to_path: /usr/local/bin/node
+      - from_path: /usr/local/bin/npm
+        to_path: /usr/local/bin/npm
+
+  - arg_name: GOLANGCI_LINT_IMAGE
+    version_ref: dev.GOLANGCI_LINT
+    source_image: golangci/golangci-lint
+    copy:
+      from_path: /usr/bin/golangci-lint
+      to_path: /usr/local/bin/golangci-lint
+
+  - arg_name: BETTERLEAKS_IMAGE
+    version_ref: dev.BETTERLEAKS
+    source_image: ghcr.io/betterleaks/betterleaks
+    copy:
+      from_path: /usr/bin/betterleaks
+      to_path: /usr/local/bin/betterleaks
+
+mirrors:
+  apt:
+    main:
+      default: ""
+      mirror: https://mirrors.tuna.tsinghua.edu.cn/debian
+    security:
+      default: ""
+      mirror: https://mirrors.tuna.tsinghua.edu.cn/debian-security
+  npm:
+    default: https://registry.npmjs.org/
+    mirror: https://registry.npmmirror.com/
+  go:
+    default: https://proxy.golang.org,direct
+    mirror: https://goproxy.cn,direct
+  gosum:
+    default: sum.golang.org
+    mirror: sum.golang.google.cn
+  pip:
+    default: https://pypi.org/simple
+    mirror: https://pypi.tuna.tsinghua.edu.cn/simple
+
+apt_packages:
+  - docker.io
+
+go_install:
+  - name: actionlint
+    package: github.com/rhysd/actionlint/cmd/actionlint
+    version_ref: dev.ACTIONLINT
+
+  - name: govulncheck
+    package: golang.org/x/vuln/cmd/govulncheck
+    version_ref: dev.GOVULNCHECK
+
+npm_global:
+  - name: playwright
+    package: playwright
+    version_ref: dev.PLAYWRIGHT
+    post_install: npx playwright install chromium --with-deps
+
+workspace:
+  folder: /appos/workspace
+  mount:
+    source: ${localWorkspaceFolder}
+    target: /appos/workspace
+    type: bind
+
+runtime_user:
+  remote_user: appos
+  home: /home/appos
+
+mounts:
+  - source: /var/run/docker.sock
+    target: /var/run/docker.sock
+    type: bind
+
+  - source: appos_dev_state
+    target: /appos/data
+    type: volume
+
+environment:
+  HOME: /home/appos
+  GOMODCACHE: /appos/data/go-mod
+  GOCACHE: /appos/data/go-build
+  NPM_CONFIG_CACHE: /appos/data/npm
+  DISABLE_TELEMETRY: "1"
+  DO_NOT_TRACK: "1"
+  GOTOOLCHAIN: auto
+
+hooks:
+  on_create:
+    - chown -R appos:appos /appos/data 2>/dev/null || true
+
+  post_create:
+    - bash /appos/workspace/.devcontainer/bootstrap.sh

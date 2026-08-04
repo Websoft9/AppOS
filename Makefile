@@ -18,6 +18,8 @@ COMPOSE_FILE := build/docker-compose.yml
 COMPOSE_CMD := cd build && docker compose
 DEV_CONTAINER := appos-dev
 DEVCONTAINER_BASE_IMAGE := $(shell sed -n 's/^ARG DEVCONTAINER_BASE_IMAGE=//p' .devcontainer/Dockerfile | head -1)
+GOLANGCI_LINT_IMAGE := $(shell sed -n 's/^ARG GOLANGCI_LINT_IMAGE=//p' .devcontainer/Dockerfile | head -1)
+BETTERLEAKS_IMAGE := $(shell sed -n 's/^ARG BETTERLEAKS_IMAGE=//p' .devcontainer/Dockerfile | head -1)
 DEVCONTAINER_TOOL_IMAGES := $(shell grep '^ARG .*_IMAGE=' .devcontainer/Dockerfile | grep -v DEVCONTAINER_BASE_IMAGE | sed 's/^ARG .*_IMAGE=//')
 DEVCONTAINER_APT_MIRROR := https://mirrors.tuna.tsinghua.edu.cn/debian
 DEVCONTAINER_APT_SECURITY_MIRROR := https://mirrors.tuna.tsinghua.edu.cn/debian-security
@@ -40,13 +42,13 @@ TEST_ENV_IMAGES := linuxserver/openssh-server:latest mysql:8.4 postgres:16-alpin
 ARG2 := $(word 2,$(MAKECMDGOALS))
 ARG3 := $(word 3,$(MAKECMDGOALS))
 ARG4 := $(word 4,$(MAKECMDGOALS))
-GITLEAKS_ARGS := --no-git --redact
+BETTERLEAKS_ARGS := --redact
 GOLANGCI_LINT_BIN ?= golangci-lint
 GOVULNCHECK_BIN ?= govulncheck
-GITLEAKS_BIN ?= gitleaks
-GITLEAKS_CONFIG ?= .gitleaks.toml
+BETTERLEAKS_BIN ?= betterleaks
+BETTERLEAKS_CONFIG ?= .betterleaks.toml
 ACTIONLINT_BIN ?= actionlint
-GITLEAKS_REPORT_PATH ?= build/reports/gitleaks-report.json
+BETTERLEAKS_REPORT_PATH ?= build/reports/betterleaks-report.json
 GO_BIN_DIR := $(shell GOBIN="$$(go env GOBIN)"; if [ -n "$$GOBIN" ]; then printf '%s' "$$GOBIN"; else printf '%s/bin' "$$(go env GOPATH)"; fi)
 DEFAULT_GOLANGCI_LINT_BIN := $(GO_BIN_DIR)/golangci-lint
 DEFAULT_GOVULNCHECK_BIN := $(GO_BIN_DIR)/govulncheck
@@ -72,8 +74,10 @@ endef
 define dc_helpers
 dc_cli() { if command -v devcontainer >/dev/null 2>&1; then devcontainer "$$@"; elif command -v npx >/dev/null 2>&1; then npx -y @devcontainers/cli "$$@"; else printf '%s\n' '✗ devcontainer CLI not found. Install devcontainer CLI or make npx available on the host.' >&2; return 1; fi; }; \
 dc_source_env() { \
-	unset DEVCONTAINER_BASE_IMAGE DEVCONTAINER_APT_MIRROR DEVCONTAINER_APT_SECURITY_MIRROR DEVCONTAINER_NPM_REGISTRY DEVCONTAINER_GOPROXY DEVCONTAINER_GOSUMDB DEVCONTAINER_PIP_INDEX_URL; \
+	unset DEVCONTAINER_BASE_IMAGE GOLANGCI_LINT_IMAGE BETTERLEAKS_IMAGE DEVCONTAINER_APT_MIRROR DEVCONTAINER_APT_SECURITY_MIRROR DEVCONTAINER_NPM_REGISTRY DEVCONTAINER_GOPROXY DEVCONTAINER_GOSUMDB DEVCONTAINER_PIP_INDEX_URL; \
 	export DEVCONTAINER_BASE_IMAGE="$(DEVCONTAINER_BASE_IMAGE)"; \
+	export GOLANGCI_LINT_IMAGE="$(GOLANGCI_LINT_IMAGE)"; \
+	export BETTERLEAKS_IMAGE="$(BETTERLEAKS_IMAGE)"; \
 	export DEVCONTAINER_NPM_REGISTRY="$(DEVCONTAINER_NPM_REGISTRY_DEFAULT)"; \
 	export DEVCONTAINER_GOPROXY="$(DEVCONTAINER_GOPROXY_DEFAULT)"; \
 	export DEVCONTAINER_GOSUMDB="$(DEVCONTAINER_GOSUMDB_DEFAULT)"; \
@@ -120,58 +124,47 @@ help:
 	@printf "\033[1mAppOS Development Commands\033[0m\n"
 	@echo "=============================="
 	@echo ""
-	@printf "\033[36mDev:\033[0m\n"
-	@echo "  make host dev-pull-base   Pull the development base image onto the host"
-	@echo "  make host dev-build       Build the development container image via devcontainer CLI"
-	@echo "  make host dev-build mirror Build the development container image using mirrored package registries"
-	@echo "  make host dev-up          Start the development container via devcontainer CLI"
-	@echo "  make host dev-shell       Open a shell inside the development container"
-	@echo "  make host dev-bootstrap   Sync workspace dependencies inside the development container"
-	@echo "  make host dev-down        Stop and remove the development container"
-	@echo "  make host image pull IMAGE=... Pull an image on the host using the mirror-aware pull flow"
-	@echo "  make install              Alias for make host dev-bootstrap (compatibility)"
+	@printf "\033[36mPrepare:\033[0m\n"
 	@echo "  make init-env             Create .environments/local.env from template (auto-loaded outside CI)"
-	@echo "  make tidy                 Tidy Go modules"
-	@echo "  make build                Build all (backend + web)"
-	@echo "  make build backend        Build Go binary → backend/appos"
-	@echo "  make build web            Build React app → web/dist"
-	@echo "  make sync-store           Refresh backend/domain/catalog/seed/*.json from artifact.websoft9.com"
+	@echo "  make image pull IMAGE=... Pull an image on the host using the mirror-aware pull flow"
+	@echo ""
+	@printf "\033[36mDev Runtime:\033[0m\n"
+	@echo "  make pull base-image      Pull all base images from build/source/spec.yaml"
+	@echo "  make build dev-image      Build the development container image"
+	@echo "  make build dev-image mirror Build the development container image from package mirrors"
+	@echo "  make dev up               Start the development container"
+	@echo "  make dev shell            Docker exec to development container"
+	@echo "  make dev bootstrap        Sync workspace dependencies inside the development container"
+	@echo "  make dev down             Stop and remove the development container"
+	@echo "  make install              Alias for make dev bootstrap (compatibility)"
+	@echo "  make tidy                 Exec to dev container for tidy Go modules"
+	@echo "  make build                Exec to dev container to build all resources (backend + web)"
+	@echo "  make build backend        Exec to dev container to build Go binary → backend/appos"
+	@echo "  make build web            Exec to dev container to build React web → web/dist"
+	@echo "  make sync-store          Exec to dev container to refresh backend/domain/catalog/seed/*.json from artifact.websoft9.com"
+	@echo "  make image build          Exec to dev container to build runtime image"
 	@echo "  make run                  Copy artifacts + restart services (~10s)"
 	@echo "  make run 9092             Copy artifacts + restart on custom port"
 	@echo "  make redo                 Full rebuild: build + image, then replace container/volumes + start latest"
 	@echo ""
-	@printf "\033[36mTesting & Quality:\033[0m\n"
-	@echo "  make test backend         Backend unit + integration tests"
-	@echo "    example: make test backend TARGET=./domain/iac/..."
-	@echo "    example: make test backend TARGET=./domain/routes RUN=TestIACRoutes"
-	@echo "  make test web             Frontend unit + integration tests"
-	@echo "  make test e2e runtime     Container/runtime smoke"
-	@echo "  make test e2e smoke       Runtime smoke + Playwright browser smoke"
-	@echo "  make test e2e             Smoke + acceptance browser tests"
-	@echo "  make test-env up          Start local external test dependencies"
-	@echo "  make test-env down        Stop local external test dependencies"
-	@echo "  make qa lint              Lint gate (Go lint + actionlint + eslint + web typecheck)"
-	@echo "  make qa format            Format gate (gofmt + prettier)"
-	@echo "  make qa openapi           OpenAPI generation + coverage gate"
-	@echo "  make qa check             lint + format + openapi + test backend + test web"
-	@echo "  make sec source           Source/config security checks (govulncheck, npm audit, gitleaks)"
-	@echo "  make gate pr              PR gate = qa check"
-	@echo "  make gate merge           Merge gate = qa check + sec source + test e2e smoke"
-	@echo "  make gate staging         Staging gate = merge + test e2e"
-	@echo "  make gate release         Release gate = staging + sec artifact"
-	@echo "  make version-check        Validate Git tag version metadata or print current git-derived version"
-	@echo ""
-	@printf "\033[36mOpenAPI:\033[0m\n"
+	@printf "\033[36mDev-OpenAPI:\033[0m\n"
 	@echo "  make openapi-gen          Auto-generate OpenAPI spec skeleton from route source"
 	@echo "  make openapi-merge        Merge ext-api.yaml + native-api.yaml -> api.yaml"
 	@echo "  make openapi-check        Validate code->spec coverage and group-matrix generated anchors"
 	@echo "  make openapi-sync         Generate + validate OpenAPI in one command"
 	@echo ""
-	@printf "\033[36mBuild Image:\033[0m\n"
-	@echo "  make image build          Build the AppOS image from pre-built host artifacts"
-	@echo "  make image pull IMAGE=... Pull an image (normal registry first, then configured mirrors)"
+	@printf "\033[36mCode Quality:\033[0m\n"
+	@echo "  make test backend         Backend unit + integration tests"
+	@echo "    example: make test backend TARGET=./domain/iac/..."
+	@echo "    example: make test backend TARGET=./domain/routes RUN=TestIACRoutes"
+	@echo "  make test web             Frontend unit + integration tests"
+	@echo "  make qa lint              Lint gate (Go lint + actionlint + eslint + web typecheck)"
+	@echo "  make qa format            Format gate (gofmt + prettier)"
+	@echo "  make qa openapi           OpenAPI generation + coverage gate"
+	@echo "  make qa check             lint + format + openapi + test backend + test web"
+	@echo "  make sec source           Source/config security checks (govulncheck, npm audit, betterleaks)"
 	@echo ""
-	@printf "\033[36mContainer Management:\033[0m\n"
+	@printf "\033[36mRuntime Container:\033[0m\n"
 	@echo "  make start                Start container (interactive port prompt when attached to a TTY)"
 	@echo "  make start latest         Start with latest image (skip interactive)"
 	@echo "  make stop                 Stop container"
@@ -180,6 +173,20 @@ help:
 	@echo "  make stats                Show all services status inside container"
 	@echo "  make delete               Stop and remove container (keeps volumes)"
 	@echo "  make rm                   Force remove container and volumes"
+	@echo ""
+	@printf "\033[36mAutomatic Testing:\033[0m\n"
+	@echo "  make test e2e runtime     Container/runtime smoke"
+	@echo "  make test e2e smoke       Runtime smoke + Playwright browser smoke"
+	@echo "  make test e2e             Smoke + acceptance browser tests"
+	@echo "  make test-env up          Start local external test dependencies"
+	@echo "  make test-env down        Stop local external test dependencies"
+	@echo ""
+	@printf "\033[36mCI Gate:\033[0m\n"
+	@echo "  make gate pr              PR gate = qa check"
+	@echo "  make gate merge           Merge gate = qa check + sec source + test e2e smoke"
+	@echo "  make gate staging         Staging gate = merge + test e2e"
+	@echo "  make gate release         Release gate = staging + build + image build"
+	@echo "  make version-check        Validate Git tag version metadata or print current git-derived version"
 	@echo ""
 	@printf "\033[36mUtilities:\033[0m\n"
 	@echo "  make opencode             Launch opencode with proxy disabled"
@@ -227,7 +234,7 @@ host:
 	      fi; \
 	    done; \
 	    $(MAKE) --no-print-directory dev-build DEV_SOURCE_MODE="$(ARG3)" ;; \
-	  dev-up) $(MAKE) --no-print-directory dev-up ;; \
+	  dev-up) $(MAKE) --no-print-directory dev-up DEV_SOURCE_MODE="mirror" ;; \
 	  dev-shell) $(MAKE) --no-print-directory dev-shell ;; \
 	  dev-bootstrap) $(MAKE) --no-print-directory dev-bootstrap ;; \
 	  dev-down) $(MAKE) --no-print-directory dev-down ;; \
@@ -248,8 +255,12 @@ dev-build:
 dev-up:
 	@if [ "$(word 1,$(MAKECMDGOALS))" = "host" ]; then :; else \
 		echo "Starting development container..."; \
-		set -e; $(dc_helpers); dc_source_env; dc_cli up --workspace-folder "$(CURDIR)" --config ".devcontainer/devcontainer.json"; \
-		echo "✓ Development container started"; \
+		if docker start $(DEV_CONTAINER) >/dev/null 2>&1; then \
+			echo "✓ Development container started (existing)"; \
+		else \
+			set -e; $(dc_helpers); dc_source_env; dc_cli up --workspace-folder "$(CURDIR)" --config ".devcontainer/devcontainer.json"; \
+			echo "✓ Development container started"; \
+		fi; \
 	fi
 
 dev-down:
@@ -645,14 +656,14 @@ _sec-source:
 		if [ "$$status" -ne 0 ]; then tq_print err "✗ Check failed: npm audit"; failures="$$failures npm-audit"; else tq_print ok "✓ Check passed: npm audit"; fi; \
 	else tq_print ok "✓ Check skipped: npm audit (no web/package.json)"; fi; \
 	printf '\n'; \
-	printf '%s\n' '→ gitleaks (secret / credential leak detection)...'; \
-	printf '%s\n' '  config: $(GITLEAKS_CONFIG)'; \
-	printf '%s\n' '  mode: working tree only ($(GITLEAKS_ARGS))'; \
-	if [ -x "$(GITLEAKS_BIN)" ] || command -v "$(GITLEAKS_BIN)" >/dev/null 2>&1; then \
-		report_path="$(GITLEAKS_REPORT_PATH)"; mkdir -p "$$(dirname "$$report_path")"; \
-		set +e; "$(GITLEAKS_BIN)" detect --source . --config "$(GITLEAKS_CONFIG)" $(GITLEAKS_ARGS) --report-format json --report-path "$$report_path"; status=$$?; set -e; \
-		if [ "$$status" -eq 1 ]; then tq_print err "✗ Check failed: gitleaks"; failures="$$failures gitleaks"; elif [ "$$status" -ne 0 ]; then tq_print err "✗ Check failed: gitleaks execution"; failures="$$failures gitleaks-exec"; else tq_print ok "✓ Check passed: gitleaks"; fi; \
-	else tq_print err "✗ Check failed: gitleaks missing"; failures="$$failures gitleaks-missing"; fi; \
+	printf '%s\n' '→ betterleaks (secret / credential leak detection)...'; \
+	printf '%s\n' '  config: $(BETTERLEAKS_CONFIG)'; \
+	printf '%s\n' '  mode: filesystem scan ($(BETTERLEAKS_ARGS))'; \
+	if [ -x "$(BETTERLEAKS_BIN)" ] || command -v "$(BETTERLEAKS_BIN)" >/dev/null 2>&1; then \
+		report_path="$(BETTERLEAKS_REPORT_PATH)"; mkdir -p "$$(dirname "$$report_path")"; \
+		set +e; "$(BETTERLEAKS_BIN)" dir . --config "$(BETTERLEAKS_CONFIG)" $(BETTERLEAKS_ARGS) --report-format json --report-path "$$report_path"; status=$$?; set -e; \
+		if [ "$$status" -eq 1 ]; then tq_print err "✗ Check failed: betterleaks"; failures="$$failures betterleaks"; elif [ "$$status" -ne 0 ]; then tq_print err "✗ Check failed: betterleaks execution"; failures="$$failures betterleaks-exec"; else tq_print ok "✓ Check passed: betterleaks"; fi; \
+	else tq_print err "✗ Check failed: betterleaks missing"; failures="$$failures betterleaks-missing"; fi; \
 	printf '\n'; \
 	if [ -n "$$failures" ]; then \
 		read -r -a failure_items <<< "$$failures"; \

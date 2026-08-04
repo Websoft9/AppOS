@@ -8,7 +8,7 @@
 作为开发者，我想要代码和镜像的安全检测工具，这样可以在开发阶段发现潜在漏洞和供应链风险。
 
 ## 验收标准
-- [x] `make sec`: govulncheck（Go CVE）+ npm audit（JS CVE high+）+ gitleaks（密钥泄露检测）+ trivy config（源码配置风险扫描）
+- [x] `make sec source`: govulncheck（Go CVE）+ npm audit（JS CVE high+）+ betterleaks（密钥泄露检测）
 - [x] Runtime image vulnerability scanning and SBOM generation run in GitHub Actions release gate, not in local `make` commands
 - [x] `.golangci.yml`: gosec 纳入 lint 流程，豁免 G304/G115，测试文件仅豁免 errcheck/ineffassign
 - [x] CI release gate: Trivy SARIF 推送 GitHub Security 标签页，并将文本报告与 SARIF 归档为 workflow artifacts 以便后续修复

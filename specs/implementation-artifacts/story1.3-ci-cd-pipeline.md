@@ -11,7 +11,7 @@
 - [x] **ci.yml**: PR + push to main 触发
 - [x] `lint` job: golangci-lint（含 gosec）+ ESLint
 - [x] `test` job: `go test ./...` + Vitest
-- [x] `sec` job: govulncheck + npm audit + gitleaks
+- [x] `sec` job: govulncheck + npm audit + betterleaks
 - [x] `scan` job: trivy 镜像扫描 + SARIF 上传到 GitHub Security + SBOM 推送到 Dependency Graph（仅 main）
 - [x] 并发取消：同一 ref 的旧 run 自动取消
 - [x] scan job 依赖 lint/test/sec 全部通过后才运行

@@ -10,6 +10,7 @@ web/node_modules/
 build/.env
 .env
 .environments/*.env
+build/__pycache__
 
 # Logs
 *.log

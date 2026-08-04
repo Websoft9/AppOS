@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     env:
-      GITLEAKS_REPORT_PATH: build/reports/gitleaks-report.json
+      BETTERLEAKS_REPORT_PATH: build/reports/betterleaks-report.json
       APPOS_E2E_ARTIFACT_DIR: build/reports/e2e
       APPOS_E2E_KEEP_CONTAINER_ON_FAILURE: '1'
     steps:
@@ -35,7 +35,7 @@ jobs:
             echo "GOLANGCI_LINT_BIN=$RUNNER_TEMP/bin/golangci-lint"
             echo "ACTIONLINT_BIN=$RUNNER_TEMP/bin/actionlint"
             echo "GOVULNCHECK_BIN=$RUNNER_TEMP/bin/govulncheck"
-            echo "GITLEAKS_BIN=$RUNNER_TEMP/bin/gitleaks"
+            echo "BETTERLEAKS_BIN=$RUNNER_TEMP/bin/betterleaks"
           } >> "$GITHUB_ENV"
 
       - name: Set up Node.js
@@ -65,15 +65,7 @@ jobs:
           GOBIN="$RUNNER_TEMP/bin" go install github.com/rhysd/actionlint/cmd/actionlint@latest
           if [ "${{ inputs.gate_stage }}" != 'pr' ]; then
             GOBIN="$RUNNER_TEMP/bin" go install golang.org/x/vuln/cmd/govulncheck@latest
-            GL_VERSION="8.30.0"
-            ARCH="$(uname -m)"
-            case "$ARCH" in
-              x86_64) GL_ARCH="x64" ;;
-              aarch64|arm64) GL_ARCH="arm64" ;;
-              *) echo "Unsupported architecture: $ARCH" >&2; exit 1 ;;
-            esac
-            curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GL_VERSION}/gitleaks_${GL_VERSION}_linux_${GL_ARCH}.tar.gz" \
-              | tar -xz -C "$RUNNER_TEMP/bin" gitleaks
+            GOBIN="$RUNNER_TEMP/bin" go install github.com/betterleaks/betterleaks@latest
           fi
 
       - name: Verify gate tools
@@ -82,7 +74,7 @@ jobs:
           "$RUNNER_TEMP/bin/actionlint" -version
           if [ "${{ inputs.gate_stage }}" != 'pr' ]; then
             "$RUNNER_TEMP/bin/govulncheck" -version
-            "$RUNNER_TEMP/bin/gitleaks" version
+            "$RUNNER_TEMP/bin/betterleaks" version
           fi
           go version
 
@@ -90,15 +82,15 @@ jobs:
         if: inputs.gate_stage != 'pr'
         run: |
           set -euo pipefail
-          echo "gitleaks version:"
-          "$RUNNER_TEMP/bin/gitleaks" version
+          echo "betterleaks version:"
+          "$RUNNER_TEMP/bin/betterleaks" version
           echo "repo root: $(pwd)"
           echo "git sha: $(git rev-parse HEAD)"
-          if [ -f .gitleaks.toml ]; then
-            echo ".gitleaks.toml: present"
-            ls -l .gitleaks.toml
+          if [ -f .betterleaks.toml ]; then
+            echo ".betterleaks.toml: present"
+            ls -l .betterleaks.toml
           else
-            echo ".gitleaks.toml: missing" >&2
+            echo ".betterleaks.toml: missing" >&2
             exit 1
           fi
 
@@ -154,12 +146,12 @@ jobs:
         if: always() && inputs.gate_stage != 'pr'
         run: make test-env down || true
 
-      - name: Upload gitleaks report
+      - name: Upload betterleaks report
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: gitleaks-report-${{ inputs.gate_stage }}-${{ github.sha }}
-          path: ${{ env.GITLEAKS_REPORT_PATH }}
+          name: betterleaks-report-${{ inputs.gate_stage }}-${{ github.sha }}
+          path: ${{ env.BETTERLEAKS_REPORT_PATH }}
           if-no-files-found: ignore
 
       - name: Upload e2e diagnostics

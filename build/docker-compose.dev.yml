@@ -1,0 +1,37 @@
+services:
+  appos-dev:
+    build:
+      context: ..
+      dockerfile: build/Dockerfile.dev
+      args:
+        DEVCONTAINER_BASE_IMAGE: ${DEVCONTAINER_BASE_IMAGE:-}
+        NODE_IMAGE: ${NODE_IMAGE:-}
+        GOLANGCI_LINT_IMAGE: ${GOLANGCI_LINT_IMAGE:-}
+        BETTERLEAKS_IMAGE: ${BETTERLEAKS_IMAGE:-}
+        APT_MIRROR: ${DEVCONTAINER_APT_MIRROR:-}
+        APT_SECURITY_MIRROR: ${DEVCONTAINER_APT_SECURITY_MIRROR:-}
+        NPM_REGISTRY: ${DEVCONTAINER_NPM_REGISTRY:-}
+        GOPROXY: ${DEVCONTAINER_GOPROXY:-}
+        GOSUMDB: ${DEVCONTAINER_GOSUMDB:-}
+        PIP_INDEX_URL: ${DEVCONTAINER_PIP_INDEX_URL:-}
+    container_name: appos-dev
+    working_dir: /appos/workspace
+    command:
+    - sleep
+    - infinity
+    tty: true
+    stdin_open: true
+    volumes:
+    - ..:/appos/workspace
+    - /var/run/docker.sock:/var/run/docker.sock
+    - appos_dev_state:/appos/data
+    environment:
+      HOME: /home/appos
+      GOMODCACHE: /appos/data/go-mod
+      GOCACHE: /appos/data/go-build
+      NPM_CONFIG_CACHE: /appos/data/npm
+      DISABLE_TELEMETRY: '1'
+      DO_NOT_TRACK: '1'
+      GOTOOLCHAIN: auto
+volumes:
+  appos_dev_state: null
