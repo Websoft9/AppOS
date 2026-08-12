@@ -3,6 +3,7 @@ import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
 import { sshWebSocketUrl, dockerWebSocketUrl, loadPreferences } from '@/lib/connect-api'
+import { copyToClipboard } from '@/lib/clipboard'
 import { pb } from '@/lib/pb'
 import { Button } from '@/components/ui/button'
 import {
@@ -70,6 +71,22 @@ function makeResizeFrame(cols: number, rows: number): Uint8Array {
   return frame
 }
 
+function parseOsc52ClipboardText(data: string): string | null {
+  const separator = data.indexOf(';')
+  if (separator < 0) return null
+
+  const payload = data.slice(separator + 1).replace(/\s+/g, '')
+  if (payload === '?') return null
+
+  try {
+    const binary = window.atob(payload)
+    const bytes = Uint8Array.from(binary, char => char.charCodeAt(0))
+    return new TextDecoder().decode(bytes)
+  } catch {
+    return null
+  }
+}
+
 // ─── Public handle ────────────────────────────────────────────────────────────
 
 export interface TerminalPanelHandle {
@@ -115,8 +132,12 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
     const [error, setError] = useState<string | null>(null)
     const [errorCategory, setErrorCategory] = useState<ConnectErrorCategory | null>(null)
     const [warning, setWarning] = useState<string | null>(null)
+    const [clipboardNotice, setClipboardNotice] = useState<{ msg: string; ok: boolean } | null>(
+      null
+    )
     const [connecting, setConnecting] = useState(false)
     const fitTimersRef = useRef<number[]>([])
+    const clipboardNoticeTimerRef = useRef<number | null>(null)
     const isActiveRef = useRef(!!isActive)
     const structuredErrorRef = useRef(false)
     const connectionAttemptRef = useRef(0)
@@ -145,6 +166,17 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
         window.clearTimeout(timer)
       }
       fitTimersRef.current = []
+    }, [])
+
+    const showClipboardNotice = useCallback((msg: string, ok: boolean) => {
+      if (clipboardNoticeTimerRef.current !== null) {
+        window.clearTimeout(clipboardNoticeTimerRef.current)
+      }
+      setClipboardNotice({ msg, ok })
+      clipboardNoticeTimerRef.current = window.setTimeout(() => {
+        setClipboardNotice(null)
+        clipboardNoticeTimerRef.current = null
+      }, 2500)
     }, [])
 
     const fitAndSync = useCallback(() => {
@@ -312,6 +344,22 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
       })
       terminalRef.current = terminal
 
+      terminal.parser.registerOscHandler(52, async data => {
+        const text = parseOsc52ClipboardText(data)
+        if (text === null) return true
+
+        const copied = await copyToClipboard(text)
+        showClipboardNotice(
+          copied ? 'Copied to clipboard from terminal' : 'Clipboard copy blocked by browser',
+          copied
+        )
+        if (!copied) {
+          console.warn('Terminal OSC 52 clipboard copy was blocked by the browser')
+        }
+
+        return true
+      })
+
       const fitAddon = new FitAddon()
       fitRef.current = fitAddon
       terminal.loadAddon(fitAddon)
@@ -444,6 +492,7 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
       scheduleFitAndSync,
       applyViewportInset,
       scrollToBottom,
+      showClipboardNotice,
     ])
 
     useEffect(() => {
@@ -462,6 +511,10 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
       return () => {
         cancelAnimationFrame(frame)
         clearFitTimers()
+        if (clipboardNoticeTimerRef.current !== null) {
+          window.clearTimeout(clipboardNoticeTimerRef.current)
+          clipboardNoticeTimerRef.current = null
+        }
         disposeSocket(1000, 'detach')
         disposeTerminal()
       }
@@ -556,6 +609,21 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
             </div>
           </div>
         )}
+
+        {clipboardNotice && !error && !connecting ? (
+          <div className="absolute right-3 bottom-3 z-10">
+            <div
+              className={cn(
+                'rounded-md border px-3 py-2 text-xs shadow-lg backdrop-blur-sm',
+                clipboardNotice.ok
+                  ? 'border-emerald-500/40 bg-emerald-500/12 text-emerald-100'
+                  : 'border-amber-500/40 bg-amber-500/12 text-amber-100'
+              )}
+            >
+              {clipboardNotice.msg}
+            </div>
+          </div>
+        ) : null}
       </div>
     )
   }

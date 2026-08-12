@@ -1,6 +1,536 @@
 [
   {
     "sys": {
+      "id": "1Xivog4v0pFbLL9YjN9bvx"
+    },
+    "key": "moodle",
+    "hot": null,
+    "trademark": "Moodle",
+    "summary": "流行的开源学习管理系统（LMS）",
+    "overview": "Moodle广泛应用于高等院校、教育机构、企业培训和其他需要在线学习管理的平台。",
+    "websiteurl": "https://moodle.com/",
+    "description": "Moodle是一个开源的在线教育系统（慕课）。采用PHP+MySQL开发，界面友好，符合SCORM/AICC标准。功能强大、界面简单、精巧。它是eLearning技术先驱，也是先进在线教学理念和实践的集大成者，已成为全球各大中学院校建立开放式课程系统的首选软件。主要模块：课程管理、作业模块、聊天模块、投票模块、论坛模块、测验模块、资源模块、问卷调查模块、互动评价（workshop）。Moodle具有先进的教学理念，创设的虚拟学习环境中有三个维度：技术管理维度、学习任务维度和社会交往维度，以社会建构主义教学法为其设计的理论基础，它提倡师生或学生彼此间共同思考，合作解决问题。",
+    "screenshots": [
+      {
+        "id": "d4eeb1b3-60e3-447e-b5de-0c9d83b319a4",
+        "key": "gui",
+        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/zh/moodle/moodlegui-websoft9.jpg"
+      },
+      {
+        "id": "4feacb0b-8c82-4ef8-b0a5-13aed1420487",
+        "key": "mobile",
+        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/zh/moodle/moodle-mobile-websoft9.png"
+      }
+    ],
+    "distribution": [
+      {
+        "key": "community",
+        "value": [
+          "5.1.3",
+          "latest"
+        ]
+      }
+    ],
+    "vcpu": 1,
+    "memory": 1,
+    "storage": 4,
+    "logo": {
+      "imageurl": "https://libs.websoft9.com/Websoft9/logo/product/moodle-websoft9.png"
+    },
+    "catalogCollection": {
+      "items": [
+        {
+          "key": "elearning",
+          "title": "在线学习",
+          "catalogCollection": {
+            "items": [
+              {
+                "key": "cms",
+                "title": "网站与内容聚合",
+                "position": 5
+              }
+            ]
+          }
+        },
+        {
+          "key": "education",
+          "title": "高校软件实训",
+          "catalogCollection": {
+            "items": [
+              {
+                "key": "usecase",
+                "title": "场景",
+                "position": 0
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  {
+    "sys": {
+      "id": "7LvmB9OfByb4n6DbghrKLI"
+    },
+    "key": "haproxy",
+    "hot": null,
+    "trademark": "HAProxy",
+    "summary": "高性能 TCP/HTTP 负载均衡系统",
+    "overview": "提供高可用性、负载均衡，以及基于 TCP 和 HTTP 的应用程序代理，适用于负载特大的web站点。",
+    "websiteurl": "http://www.haproxy.org/",
+    "description": "HAProxy是一个使用C语言编写的自由及开放源代码软件，其提供高可用性、负载均衡，以及基于 TCP 和 HTTP 的应用程序代理。",
+    "screenshots": [
+      {
+        "id": "8a49ba93-e5a5-4b3e-a368-3874c1453e2e",
+        "key": "configuration",
+        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/zh/haproxy/HAProxy-configuration.png"
+      },
+      {
+        "id": "b2d8807a-2543-4b9a-bc2b-ae87e1d471ce",
+        "key": "gui",
+        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/zh/haproxy/haproxy-statsgui-websoft9.png"
+      }
+    ],
+    "distribution": [
+      {
+        "key": "community",
+        "value": [
+          "3.2",
+          "3.1",
+          "3.0",
+          "2.9",
+          "2.8",
+          "2.7",
+          "2.6",
+          "2.5",
+          "2.4",
+          "2.3",
+          "2.0"
+        ]
+      }
+    ],
+    "vcpu": 1,
+    "memory": 1,
+    "storage": 4,
+    "logo": {
+      "imageurl": "https://libs.websoft9.com/Websoft9/logo/product/haproxy-websoft9.png"
+    },
+    "catalogCollection": {
+      "items": [
+        {
+          "key": "balancer",
+          "title": "负载均衡 ",
+          "catalogCollection": {
+            "items": [
+              {
+                "key": "architecture",
+                "title": "IT 应用架构",
+                "position": 22
+              },
+              {
+                "key": "networking",
+                "title": "网络",
+                "position": 13
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  {
+    "sys": {
+      "id": "1T8EdWyH7ivrbzlmxzQIK2"
+    },
+    "key": "dify",
+    "hot": 10000,
+    "trademark": "Dify",
+    "summary": "LLM 应用程序开发平台",
+    "overview": "Dify 的直观界面结合了 AI 工作流程、RAG 管道、代理功能、模型管理、可观测性功能等，让您可以快速从原型到生产。",
+    "websiteurl": "https://dify.ai/",
+    "description": "- 支持主流的大型语言模型（LLMs）\n- 直观的提示编排界面\n- 高质量的检索增强生成（RAG）引擎\n- 灵活的 AI 代理框架\n- 直观的低代码工作流\n- 易于使用的界面和 API",
+    "screenshots": [
+      {
+        "id": "3c5f8afa-0618-4999-be55-2ee0d39bd7e2",
+        "key": "界面",
+        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/zh/dify/dify-gui-websoft9.webp"
+      }
+    ],
+    "distribution": [
+      {
+        "key": "community",
+        "value": [
+          "1.9.2",
+          "latest"
+        ]
+      }
+    ],
+    "vcpu": 2,
+    "memory": 4,
+    "storage": 9,
+    "logo": {
+      "imageurl": "https://libs.websoft9.com/Websoft9/logo/product/dify-websoft9.png"
+    },
+    "catalogCollection": {
+      "items": [
+        {
+          "key": "ai-agent-chat",
+          "title": "AI 智能体/聊天/知识检索",
+          "catalogCollection": {
+            "items": [
+              {
+                "key": "ai",
+                "title": "人工智能",
+                "position": 1
+              },
+              {
+                "key": "automation",
+                "title": "自动化",
+                "position": 8
+              }
+            ]
+          }
+        },
+        {
+          "key": "ai-devops",
+          "title": "AI DevOps",
+          "catalogCollection": {
+            "items": [
+              {
+                "key": "ai",
+                "title": "人工智能",
+                "position": 1
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  {
+    "sys": {
+      "id": "1ixPOG2M1jmRFhZhCUUSY1"
+    },
+    "key": "rocketmq",
+    "hot": null,
+    "trademark": "RocketMQ",
+    "summary": "分布式开源消息队列系统",
+    "overview": "RocketMQ 是阿里主导开发的分布式开源消息队列系统，是一个低延迟、高并发、高可用、高可靠的分布式消息中间件。",
+    "websiteurl": "https://rocketmq.apache.org/",
+    "description": "Apache RocketMQ（由阿里巴巴捐赠的Apache开源项目）是一款具有低延迟，高性能和可靠性，数十亿容量和灵活可扩展性的分布式消息传递和流媒体平台。\n\n包含 Name Server, Proxy, Broker, Dashboard 等四个组件",
+    "screenshots": [
+      {
+        "id": "fb1faf3a-8374-4392-a94e-eb08e3a97daa",
+        "key": "console",
+        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/zh/rocketmq/rocketmq-console-websoft9.png"
+      },
+      {
+        "id": "fcafe3c2-c1ed-48d1-8fb6-3ac896e7721a",
+        "key": "language",
+        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/zh/rocketmq/rocketmq-language-websoft9.png"
+      }
+    ],
+    "distribution": [
+      {
+        "key": "community",
+        "value": [
+          "5.3.2",
+          "5.3.1",
+          "latest"
+        ]
+      }
+    ],
+    "vcpu": 4,
+    "memory": 16,
+    "storage": 1,
+    "logo": {
+      "imageurl": "https://libs.websoft9.com/Websoft9/logo/product/rocketmq-websoft9.png"
+    },
+    "catalogCollection": {
+      "items": [
+        {
+          "key": "mq",
+          "title": "消息队列",
+          "catalogCollection": {
+            "items": [
+              {
+                "key": "architecture",
+                "title": "IT 应用架构",
+                "position": 22
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  {
+    "sys": {
+      "id": "7Cd0uDzt5wjwawfWLxV0xr"
+    },
+    "key": "jitsi",
+    "hot": 10000,
+    "trademark": "Jitsi Meet",
+    "summary": "高视频质量和功能的视频会议平台",
+    "overview": "Jitsi Meet 是一个完全加密的 100% 开源视频会议解决方案，您可以全天免费使用，无需帐户。",
+    "websiteurl": "https://jitsi.org/",
+    "description": "Jitsi Meet是一组开源项目，使用户能够使用和部署，具有先进的视频质量和功能的视频会议平台。  \n\n其中包括Jitsi Meet提供的主要功能：\n\n- 支持所有当前浏览器\n- 移动应用\n- 用于集成的 Web 和本机 SDK\n- 高清音频和视频\n- 内容共享\n- 举手和反应\n- 使用私人对话聊天\n- 民意调查\n- 虚拟背景",
+    "screenshots": [
+      {
+        "id": "3a6e1655-d66e-4d36-9431-cbe000d069c1",
+        "key": "创建会议",
+        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/zh/jitsi/jitsi-gui-websoft9.png"
+      }
+    ],
+    "distribution": [
+      {
+        "key": "community",
+        "value": [
+          "stable-10888"
+        ]
+      }
+    ],
+    "vcpu": 2,
+    "memory": 4,
+    "storage": 10,
+    "logo": {
+      "imageurl": "https://libs.websoft9.com/Websoft9/logo/product/jitsi-websoft9.png"
+    },
+    "catalogCollection": {
+      "items": [
+        {
+          "key": "meeting",
+          "title": "会议/直播",
+          "catalogCollection": {
+            "items": [
+              {
+                "key": "communication",
+                "title": "通信联络",
+                "position": 6
+              }
+            ]
+          }
+        },
+        {
+          "key": "home-server",
+          "title": "家庭服务器",
+          "catalogCollection": {
+            "items": [
+              {
+                "key": "usecase",
+                "title": "场景",
+                "position": 0
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  {
+    "sys": {
+      "id": "5uwmfb7BW4wbQb8vMwKWLc"
+    },
+    "key": "erpnext",
+    "hot": null,
+    "trademark": "ERPNext",
+    "summary": "开源 ERP 系统",
+    "overview": "ERPNext是一个 基于 Python 和 Node 开发的开源ERP系统 ，它功能全面，非常合适作为 SAP 的替代品。",
+    "websiteurl": "https://erpnext.com/",
+    "description": "ERPNext是一个开源的 ERP，基于 Python 和 Node 开发，它功能全面，包含会计、人力资源、制造、网站、电商、CRM、资产管理、客服工作台等功能。非常合适作为 SAP 的替代品，全球已经有超过 5,000 家企业客户使用。",
+    "screenshots": [
+      {
+        "id": "7c16bde0-98d1-47e5-b46f-6e7021d79767",
+        "key": "ui",
+        "value": "http://libs.websoft9.com/Websoft9/DocsPicture/en/erpnext/erpnext-adminui-websoft9.png"
+      },
+      {
+        "id": "b8f4c8aa-fa2c-49dd-a7ad-b64e18325736",
+        "key": "users",
+        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/zh/erpnext/erpnext-users-websoft9.png"
+      }
+    ],
+    "distribution": [
+      {
+        "key": "community",
+        "value": [
+          "v16"
+        ]
+      }
+    ],
+    "vcpu": 2,
+    "memory": 8,
+    "storage": 1,
+    "logo": {
+      "imageurl": "https://libs.websoft9.com/Websoft9/logo/product/erpnext-websoft9.png"
+    },
+    "catalogCollection": {
+      "items": [
+        {
+          "key": "erp",
+          "title": "ERP/财税/后勤",
+          "catalogCollection": {
+            "items": [
+              {
+                "key": "business-operation",
+                "title": "企业运营",
+                "position": 3
+              }
+            ]
+          }
+        },
+        {
+          "key": "smart-manufacturing",
+          "title": "供应链/采购/生产/物流",
+          "catalogCollection": {
+            "items": [
+              {
+                "key": "business-operation",
+                "title": "企业运营",
+                "position": 3
+              }
+            ]
+          }
+        },
+        {
+          "key": "crm",
+          "title": "CRM/分销/订单",
+          "catalogCollection": {
+            "items": [
+              {
+                "key": "business-operation",
+                "title": "企业运营",
+                "position": 3
+              }
+            ]
+          }
+        },
+        {
+          "key": "operation",
+          "title": "运营与供应链数字化",
+          "catalogCollection": {
+            "items": [
+              {
+                "key": "usecase",
+                "title": "场景",
+                "position": 0
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  {
+    "sys": {
+      "id": "3jCDamf0SLu2CE2ZtBrStl"
+    },
+    "key": "openclaw",
+    "hot": 10000,
+    "trademark": "OpenClaw",
+    "summary": "个人 AI 助手",
+    "overview": "OpenClaw 是一个你可以在自己设备上运行的个人 AI 助手",
+    "websiteurl": "https://openclaw.ai/",
+    "description": "OpenClaw 是一个你可以在自己设备上运行的个人 AI 助手 。它会在你已经使用的频道上回复你（WhatsApp、Telegram、Slack、Discord、Google Chat、Signal、iMessage、BlueBubbles、IRC、Microsoft Teams、Matrix、Feishu、LINE、Mattermost、Nextcloud Talk、Nostr、Synology Chat、Tlon、Twitch、Zalo、Zalo Personal、WebChat）。它可以在 macOS/iOS/Android 上说话和监听，还能渲染你控制的实时画布。网关只是控制平面——产品是助手。",
+    "screenshots": [
+      {
+        "id": "b6633bd2-e9b2-456b-8128-7fb5ab5a2500",
+        "key": "界面",
+        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/zh/openclaw/openclaw-gui-websoft9.jpg"
+      }
+    ],
+    "distribution": [
+      {
+        "key": "community",
+        "value": [
+          "2026.3.13-1"
+        ]
+      }
+    ],
+    "vcpu": 2,
+    "memory": 2,
+    "storage": 10,
+    "logo": {
+      "imageurl": "https://libs.websoft9.com/Websoft9/logo/product/openclaw-websoft9.png"
+    },
+    "catalogCollection": {
+      "items": [
+        {
+          "key": "ai-agent-chat",
+          "title": "AI 智能体/聊天/知识检索",
+          "catalogCollection": {
+            "items": [
+              {
+                "key": "ai",
+                "title": "人工智能",
+                "position": 1
+              },
+              {
+                "key": "automation",
+                "title": "自动化",
+                "position": 8
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  {
+    "sys": {
+      "id": "1W6Tc4mrq2AvdkFbqFpTaD"
+    },
+    "key": "kafka",
+    "hot": null,
+    "trademark": "Apache Kafka",
+    "summary": "开源的分布式事件流平台",
+    "overview": "Kafka 是一种高吞吐量的分布式发布订阅消息系统，可以处理消费者规模的网站中的所有动作流数据。",
+    "websiteurl": "https://kafka.apache.org/",
+    "description": "Kafka是由Apache软件基金会开发的一个开源流处理平台，由Scala和Java编写。Kafka是一种高吞吐量的分布式发布订阅消息系统，它可以处理消费者规模的网站中的所有动作流数据。",
+    "screenshots": [
+      {
+        "id": "569d8991-2013-400d-9330-9f173c7954df",
+        "key": "架构图",
+        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/en/kafka/kafka-gui-websoft9.png"
+      }
+    ],
+    "distribution": [
+      {
+        "key": "community",
+        "value": [
+          "4.0.1",
+          "3.9.2",
+          "3.8.1",
+          "3.7.2"
+        ]
+      }
+    ],
+    "vcpu": 1,
+    "memory": 2,
+    "storage": 1,
+    "logo": {
+      "imageurl": "https://libs.websoft9.com/Websoft9/logo/product/kafka-websoft9.png"
+    },
+    "catalogCollection": {
+      "items": [
+        {
+          "key": "mq",
+          "title": "消息队列",
+          "catalogCollection": {
+            "items": [
+              {
+                "key": "architecture",
+                "title": "IT 应用架构",
+                "position": 22
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  {
+    "sys": {
       "id": "9FZhrt1zPAcLYpz55SeFm"
     },
     "key": "safeline",
@@ -1315,62 +1845,6 @@
     "storage": 4,
     "logo": {
       "imageurl": "https://libs.websoft9.com/Websoft9/logo/product/activemq-websoft9.png"
-    },
-    "catalogCollection": {
-      "items": [
-        {
-          "key": "mq",
-          "title": "消息队列",
-          "catalogCollection": {
-            "items": [
-              {
-                "key": "architecture",
-                "title": "IT 应用架构",
-                "position": 22
-              }
-            ]
-          }
-        }
-      ]
-    }
-  },
-  {
-    "sys": {
-      "id": "1W6Tc4mrq2AvdkFbqFpTaD"
-    },
-    "key": "kafka",
-    "hot": null,
-    "trademark": "Apache Kafka",
-    "summary": "开源的分布式事件流平台",
-    "overview": "Kafka 是一种高吞吐量的分布式发布订阅消息系统，可以处理消费者规模的网站中的所有动作流数据。",
-    "websiteurl": "https://kafka.apache.org/",
-    "description": "Kafka是由Apache软件基金会开发的一个开源流处理平台，由Scala和Java编写。Kafka是一种高吞吐量的分布式发布订阅消息系统，它可以处理消费者规模的网站中的所有动作流数据。",
-    "screenshots": [
-      {
-        "id": "569d8991-2013-400d-9330-9f173c7954df",
-        "key": "架构图",
-        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/en/kafka/kafka-gui-websoft9.png"
-      }
-    ],
-    "distribution": [
-      {
-        "key": "community",
-        "value": [
-          "4.0",
-          "3.9",
-          "3.8",
-          "3.6",
-          "3.2",
-          "2.8",
-          "latest"
-        ]
-      }
-    ],
-    "vcpu": 1,
-    "memory": 2,
-    "storage": 1,
-    "logo": {
-      "imageurl": "https://libs.websoft9.com/Websoft9/logo/product/kafka-websoft9.png"
     },
     "catalogCollection": {
       "items": [
@@ -2795,7 +3269,7 @@
     "key": "portkey",
     "hot": 10000,
     "trademark": "Portkey",
-    "summary": "支持 200+ AI 模型的网关平台",
+    "summary": "支持 200+  AI 模型的网关平台",
     "overview": "使用单一的、一致的 API 进行连接、负载均衡、设置回退并无缝管理 100+ AI 模型。",
     "websiteurl": "https://portkey.ai/",
     "description": "Gateway 使用统一的 API 简化了对 200+ 开源和闭源模型的请求。它还支持生产就绪，支持缓存、回退、重试、超时、负载均衡，并且可以进行边缘部署以实现最小的延迟。\n\n- 速度极快（9.9 倍），占用空间极小（安装后约 45kb）\n- 在多个模型、提供商和密钥之间实现负载平衡\n- 回退功能确保您的应用保持弹性\n- 默认情况下自动重试指数级回退\n- 可配置请求超时，轻松处理无响应的 LLM 请求\n- 多模式支持视觉、TTS、STT、图像生成和更多模式之间的路由选择\n- 根据需要插入中间件\n- 经过超过 300B 令牌的实战测试\n- 企业就绪，可增强安全性、扩展性和自定义部署",
@@ -5764,7 +6238,17 @@
     "distribution": [
       {
         "key": "community",
-        "value": "6.0,5.10,5.8.4,5.5,5.4,5.3,5.2,5.1,latest"
+        "value": [
+          "6.0",
+          "5.10",
+          "5.8.4",
+          "5.5",
+          "5.4",
+          "5.3",
+          "5.2",
+          "5.1",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -5881,7 +6365,14 @@
     "distribution": [
       {
         "key": "community",
-        "value": "19.0,18.0,17.0,16.0,15.0,latest"
+        "value": [
+          "19.0",
+          "18.0",
+          "17.0",
+          "16.0",
+          "15.0",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -6091,75 +6582,6 @@
   },
   {
     "sys": {
-      "id": "1T8EdWyH7ivrbzlmxzQIK2"
-    },
-    "key": "dify",
-    "hot": 10000,
-    "trademark": "Dify",
-    "summary": "LLM 应用程序开发平台",
-    "overview": "Dify 的直观界面结合了 AI 工作流程、RAG 管道、代理功能、模型管理、可观测性功能等，让您可以快速从原型到生产。",
-    "websiteurl": "https://dify.ai/",
-    "description": "- 支持主流的大型语言模型（LLMs）\n- 直观的提示编排界面\n- 高质量的检索增强生成（RAG）引擎\n- 灵活的 AI 代理框架\n- 直观的低代码工作流\n- 易于使用的界面和 API",
-    "screenshots": [
-      {
-        "id": "3c5f8afa-0618-4999-be55-2ee0d39bd7e2",
-        "key": "界面",
-        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/zh/dify/dify-gui-websoft9.webp"
-      }
-    ],
-    "distribution": [
-      {
-        "key": "community",
-        "value": [
-          "1.9.2",
-          "latest"
-        ]
-      }
-    ],
-    "vcpu": 2,
-    "memory": 4,
-    "storage": 9,
-    "logo": {
-      "imageurl": "https://libs.websoft9.com/Websoft9/logo/product/dify-websoft9.png"
-    },
-    "catalogCollection": {
-      "items": [
-        {
-          "key": "ai-agent-chat",
-          "title": "AI 智能体/聊天/知识检索",
-          "catalogCollection": {
-            "items": [
-              {
-                "key": "ai",
-                "title": "人工智能",
-                "position": 1
-              },
-              {
-                "key": "automation",
-                "title": "自动化",
-                "position": 8
-              }
-            ]
-          }
-        },
-        {
-          "key": "ai-devops",
-          "title": "AI DevOps",
-          "catalogCollection": {
-            "items": [
-              {
-                "key": "ai",
-                "title": "人工智能",
-                "position": 1
-              }
-            ]
-          }
-        }
-      ]
-    }
-  },
-  {
-    "sys": {
       "id": "6wAhyoJW83HLqPrxADouUw"
     },
     "key": "rabbitmq",
@@ -6216,75 +6638,6 @@
   },
   {
     "sys": {
-      "id": "1Xivog4v0pFbLL9YjN9bvx"
-    },
-    "key": "moodle",
-    "hot": null,
-    "trademark": "Moodle",
-    "summary": "流行的开源学习管理系统（LMS）",
-    "overview": "Moodle广泛应用于高等院校、教育机构、企业培训和其他需要在线学习管理的平台。",
-    "websiteurl": "https://moodle.com/",
-    "description": "Moodle是一个开源的在线教育系统（慕课）。采用PHP+MySQL开发，界面友好，符合SCORM/AICC标准。功能强大、界面简单、精巧。它是eLearning技术先驱，也是先进在线教学理念和实践的集大成者，已成为全球各大中学院校建立开放式课程系统的首选软件。主要模块：课程管理、作业模块、聊天模块、投票模块、论坛模块、测验模块、资源模块、问卷调查模块、互动评价（workshop）。Moodle具有先进的教学理念，创设的虚拟学习环境中有三个维度：技术管理维度、学习任务维度和社会交往维度，以社会建构主义教学法为其设计的理论基础，它提倡师生或学生彼此间共同思考，合作解决问题。",
-    "screenshots": [
-      {
-        "id": "d4eeb1b3-60e3-447e-b5de-0c9d83b319a4",
-        "key": "gui",
-        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/zh/moodle/moodlegui-websoft9.jpg"
-      },
-      {
-        "id": "4feacb0b-8c82-4ef8-b0a5-13aed1420487",
-        "key": "mobile",
-        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/zh/moodle/moodle-mobile-websoft9.png"
-      }
-    ],
-    "distribution": [
-      {
-        "key": "community",
-        "value": [
-          "5.0",
-          "latest"
-        ]
-      }
-    ],
-    "vcpu": 1,
-    "memory": 1,
-    "storage": 4,
-    "logo": {
-      "imageurl": "https://libs.websoft9.com/Websoft9/logo/product/moodle-websoft9.png"
-    },
-    "catalogCollection": {
-      "items": [
-        {
-          "key": "elearning",
-          "title": "在线学习",
-          "catalogCollection": {
-            "items": [
-              {
-                "key": "cms",
-                "title": "网站与内容聚合",
-                "position": 5
-              }
-            ]
-          }
-        },
-        {
-          "key": "education",
-          "title": "高校软件实训",
-          "catalogCollection": {
-            "items": [
-              {
-                "key": "usecase",
-                "title": "场景",
-                "position": 0
-              }
-            ]
-          }
-        }
-      ]
-    }
-  },
-  {
-    "sys": {
       "id": "3WAlsyfBpgVpaQp1oasfB4"
     },
     "key": "milvus",
@@ -6304,7 +6657,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "v2.6.3,latest"
+        "value": [
+          "v2.6.3",
+          "latest"
+        ]
       }
     ],
     "vcpu": 8,
@@ -6357,7 +6713,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "18.1.3-ce.0,latest"
+        "value": [
+          "18.1.3-ce.0",
+          "latest"
+        ]
       }
     ],
     "vcpu": 2,
@@ -6519,7 +6878,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "2.34.0,latest"
+        "value": [
+          "2.34.0",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -6887,7 +7249,11 @@
     "distribution": [
       {
         "key": "community",
-        "value": "8.0,stable,latest"
+        "value": [
+          "8.0",
+          "stable",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -6940,7 +7306,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "4.2.0,latest"
+        "value": [
+          "4.2.0",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -7001,7 +7370,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "2.0,latest"
+        "value": [
+          "2.0",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -7054,7 +7426,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "7.4.0,latest"
+        "value": [
+          "7.4.0",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -7115,7 +7490,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "v2.16.31,latest"
+        "value": [
+          "v2.16.31",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -7185,7 +7563,7 @@
     "key": "scmmanager",
     "hot": 10000,
     "trademark": "SCM-Manager",
-    "summary": "可视化 Git/Mercurial/SVN 版本管理工具",
+    "summary": "可视化  Git/Mercurial/SVN 版本管理工具",
     "overview": "SCM-Manager 是一款开源工具，用于简化和管理软件项目的源代码和版本控制。",
     "websiteurl": "https://scm-manager.org",
     "description": "SCM-Manager 是一款开源的源代码管理工具，旨在简化软件项目的版本控制和协作。它支持多种版本控制系统，包括 Git、Mercurial 和 Subversion，提供直观的用户界面，方便用户进行代码管理。SCM-Manager 允许团队轻松创建、管理和共享代码库，支持权限管理和访问控制，确保项目的安全性。此外，它还集成了多种插件，增强了功能扩展性，适用于不同规模的开发团队。通过 SCM-Manager，开发者可以更高效地协作，提高项目的开发效率。",
@@ -7199,7 +7577,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "3.11.0,latest"
+        "value": [
+          "3.11.0",
+          "latest"
+        ]
       }
     ],
     "vcpu": 2,
@@ -7283,7 +7664,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "6.1,latest"
+        "value": [
+          "6.1",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -7357,7 +7741,17 @@
     "distribution": [
       {
         "key": "community",
-        "value": "3.14,3.13,3.12,3.11,3.10,3.9,3.8,3.7,3.6"
+        "value": [
+          "3.14",
+          "3.13",
+          "3.12",
+          "3.11",
+          "3.10",
+          "3.9",
+          "3.8",
+          "3.7",
+          "3.6"
+        ]
       }
     ],
     "vcpu": 1,
@@ -7410,7 +7804,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "9.8,latest"
+        "value": [
+          "9.8",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -7458,7 +7855,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "0.265.1,latest"
+        "value": [
+          "0.265.1",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -7511,7 +7911,9 @@
     "distribution": [
       {
         "key": "community",
-        "value": "0.6.0"
+        "value": [
+          "0.6.0"
+        ]
       }
     ],
     "vcpu": 2,
@@ -7559,7 +7961,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "v5.1.0,latest"
+        "value": [
+          "v5.1.0",
+          "latest"
+        ]
       }
     ],
     "vcpu": 2,
@@ -7620,7 +8025,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "26.4,latest"
+        "value": [
+          "26.4",
+          "latest"
+        ]
       }
     ],
     "vcpu": 2,
@@ -7668,7 +8076,9 @@
     "distribution": [
       {
         "key": "community",
-        "value": "1.18.0"
+        "value": [
+          "1.18.0"
+        ]
       }
     ],
     "vcpu": 2,
@@ -7729,7 +8139,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "5.4.0,latest"
+        "value": [
+          "5.4.0",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -7790,7 +8203,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "latest,2.7.3"
+        "value": [
+          "latest",
+          "2.7.3"
+        ]
       }
     ],
     "vcpu": 2,
@@ -7843,7 +8259,14 @@
     "distribution": [
       {
         "key": "community",
-        "value": "1.25,1.24,1.23,1.22,1.21,1.20"
+        "value": [
+          "1.25",
+          "1.24",
+          "1.23",
+          "1.22",
+          "1.21",
+          "1.20"
+        ]
       }
     ],
     "vcpu": 2,
@@ -7901,7 +8324,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "9.2.2,latest"
+        "value": [
+          "9.2.2",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -7962,7 +8388,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "v1.7.0,latest"
+        "value": [
+          "v1.7.0",
+          "latest"
+        ]
       }
     ],
     "vcpu": 2,
@@ -8015,7 +8444,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "25.2.2,latest"
+        "value": [
+          "25.2.2",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -8063,7 +8495,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "latest,1.5"
+        "value": [
+          "latest",
+          "1.5"
+        ]
       }
     ],
     "vcpu": 1,
@@ -8111,7 +8546,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "3.1.0,latest"
+        "value": [
+          "3.1.0",
+          "latest"
+        ]
       }
     ],
     "vcpu": 2,
@@ -8164,7 +8602,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "0.70.4,latest"
+        "value": [
+          "0.70.4",
+          "latest"
+        ]
       }
     ],
     "vcpu": 2,
@@ -8298,7 +8739,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "8ea276d,latest"
+        "value": [
+          "8ea276d",
+          "latest"
+        ]
       }
     ],
     "vcpu": 2,
@@ -8346,7 +8790,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "v0.29.1,latest"
+        "value": [
+          "v0.29.1",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -8399,7 +8846,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "6.5,latest"
+        "value": [
+          "6.5",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -8447,7 +8897,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "ubuntu-7.4-latest,latest"
+        "value": [
+          "ubuntu-7.4-latest",
+          "latest"
+        ]
       }
     ],
     "vcpu": 2,
@@ -8494,9 +8947,10 @@
     ],
     "distribution": [
       {
-        "id": "dc3ee0c5-91fb-4812-af8d-8e47f885ff8e",
         "key": "community",
-        "value": "2025.2.89748"
+        "value": [
+          "2025.2.89748"
+        ]
       }
     ],
     "vcpu": 2,
@@ -8570,7 +9024,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "1.34.3,latest"
+        "value": [
+          "1.34.3",
+          "latest"
+        ]
       }
     ],
     "vcpu": 2,
@@ -8623,7 +9080,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "13.4,latest"
+        "value": [
+          "13.4",
+          "latest"
+        ]
       }
     ],
     "vcpu": 2,
@@ -8697,7 +9157,9 @@
     "distribution": [
       {
         "key": "community",
-        "value": "29.0"
+        "value": [
+          "29.0"
+        ]
       }
     ],
     "vcpu": 2,
@@ -8750,7 +9212,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "851ddf4b,latest"
+        "value": [
+          "851ddf4b",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -8798,7 +9263,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "v3.15.1,latest"
+        "value": [
+          "v3.15.1",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -8900,7 +9368,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "2.19.0-jupyter,latest-jupyter"
+        "value": [
+          "2.19.0-jupyter",
+          "latest-jupyter"
+        ]
       }
     ],
     "vcpu": 1,
@@ -8961,7 +9432,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "2025.07,latest"
+        "value": [
+          "2025.07",
+          "latest"
+        ]
       }
     ],
     "vcpu": 2,
@@ -9027,7 +9501,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "137.0-20250727,latest"
+        "value": [
+          "137.0-20250727",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -9080,7 +9557,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "3.0,latest"
+        "value": [
+          "3.0",
+          "latest"
+        ]
       }
     ],
     "vcpu": 2,
@@ -9141,7 +9621,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "v3.1.3,latest"
+        "value": [
+          "v3.1.3",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -9194,7 +9677,16 @@
     "distribution": [
       {
         "key": "community",
-        "value": "8.0,7.4,7.2,7.0,6.0,5.0,4.0,latest"
+        "value": [
+          "8.0",
+          "7.4",
+          "7.2",
+          "7.0",
+          "6.0",
+          "5.0",
+          "4.0",
+          "latest"
+        ]
       }
     ],
     "vcpu": 2,
@@ -9242,7 +9734,9 @@
     "distribution": [
       {
         "key": "community",
-        "value": "25.8.0"
+        "value": [
+          "25.8.0"
+        ]
       }
     ],
     "vcpu": 2,
@@ -9290,7 +9784,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "250707,latest"
+        "value": [
+          "250707",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -9338,7 +9835,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "5.3.2-1-ce,latest"
+        "value": [
+          "5.3.2-1-ce",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -9404,7 +9904,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "v1.4,latest"
+        "value": [
+          "v1.4",
+          "latest"
+        ]
       }
     ],
     "vcpu": 4,
@@ -9452,7 +9955,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "4.1,latest"
+        "value": [
+          "4.1",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -9536,7 +10042,30 @@
     "distribution": [
       {
         "key": "community",
-        "value": "24,23,23-alpine,23-slim,22,22-alpine,22-slim,21,21-alpine,21-slim,20,20-alpine,20-slim,19,19-alpine,19-slim,18,18-alpine,18-slim,17,17-alpine,17-slim"
+        "value": [
+          "24",
+          "23",
+          "23-alpine",
+          "23-slim",
+          "22",
+          "22-alpine",
+          "22-slim",
+          "21",
+          "21-alpine",
+          "21-slim",
+          "20",
+          "20-alpine",
+          "20-slim",
+          "19",
+          "19-alpine",
+          "19-slim",
+          "18",
+          "18-alpine",
+          "18-slim",
+          "17",
+          "17-alpine",
+          "17-slim"
+        ]
       }
     ],
     "vcpu": 1,
@@ -9584,7 +10113,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "1.29,latest"
+        "value": [
+          "1.29",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -9650,7 +10182,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "0.58.0,latest"
+        "value": [
+          "0.58.0",
+          "latest"
+        ]
       }
     ],
     "vcpu": 2,
@@ -9724,7 +10259,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "v1.12.0,latest"
+        "value": [
+          "v1.12.0",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -9785,7 +10323,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "2,latest"
+        "value": [
+          "2",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -9846,7 +10387,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "v3.1.4,latest"
+        "value": [
+          "v3.1.4",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -9894,7 +10438,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "RELEASE.2025-07-23T15-54-02Z,latest"
+        "value": [
+          "RELEASE.2025-07-23T15-54-02Z",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -9947,7 +10494,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "1.44,latest"
+        "value": [
+          "1.44",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -9984,7 +10534,7 @@
     "summary": "开源营销自动化系统",
     "overview": "Mautic为 所有人提供免费和开源 的营销自动化软件。免费电子邮件营销软件，潜在客户管理软件等。",
     "websiteurl": "https://www.mautic.org/",
-    "description": "Mautic 是一款开源的客户关系管理（CRM）软件，专注于自动化营销、销售和客户服务。它具有以下特点：\n\n 自定义性强：用户可以根据自己的需求定制营销自动化流程，提高业务效率。\n 集成方便：Mautic 支持多种插件和工具集成，方便用户进行多渠道管理。\n 数据分析能力：Mautic 提供了强大的数据分析功能，帮助用户更好地了解客户需求和市场趋势。\n 安全性高：Mautic 采用了一系列安全措施，确保用户数据的安全性。\n",
+    "description": "Mautic 是一款开源的客户关系管理（CRM）软件，专注于自动化营销、销售和客户服务。它具有以下特点：\n\n    自定义性强：用户可以根据自己的需求定制营销自动化流程，提高业务效率。\n    集成方便：Mautic 支持多种插件和工具集成，方便用户进行多渠道管理。\n    数据分析能力：Mautic 提供了强大的数据分析功能，帮助用户更好地了解客户需求和市场趋势。\n    安全性高：Mautic 采用了一系列安全措施，确保用户数据的安全性。\n",
     "screenshots": [
       {
         "id": "ec40efc7-139e-4056-aa9a-7b0907b612f4",
@@ -9995,7 +10545,9 @@
     "distribution": [
       {
         "key": "community",
-        "value": "6-apache"
+        "value": [
+          "6-apache"
+        ]
       }
     ],
     "vcpu": 1,
@@ -10056,7 +10608,9 @@
     "distribution": [
       {
         "key": "community",
-        "value": "9.1.0"
+        "value": [
+          "9.1.0"
+        ]
       }
     ],
     "vcpu": 2,
@@ -10104,7 +10658,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "1.23.1,latest"
+        "value": [
+          "1.23.1",
+          "latest"
+        ]
       }
     ],
     "vcpu": 2,
@@ -10152,7 +10709,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "13.0.8"
+        "value": [
+          "13.0.8",
+          "12.0-latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -10213,7 +10773,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "20250812,latest"
+        "value": [
+          "20250812",
+          "latest"
+        ]
       }
     ],
     "vcpu": 2,
@@ -10242,67 +10805,6 @@
   },
   {
     "sys": {
-      "id": "7Cd0uDzt5wjwawfWLxV0xr"
-    },
-    "key": "jitsi",
-    "hot": 10000,
-    "trademark": "Jitsi Meet",
-    "summary": "高视频质量和功能的视频会议平台",
-    "overview": "Jitsi Meet 是一个完全加密的 100% 开源视频会议解决方案，您可以全天免费使用，无需帐户。",
-    "websiteurl": "https://jitsi.org/",
-    "description": "Jitsi Meet是一组开源项目，使用户能够使用和部署，具有先进的视频质量和功能的视频会议平台。 \n\n其中包括Jitsi Meet提供的主要功能：\n\n- 支持所有当前浏览器\n- 移动应用\n- 用于集成的 Web 和本机 SDK\n- 高清音频和视频\n- 内容共享\n- 举手和反应\n- 使用私人对话聊天\n- 民意调查\n- 虚拟背景",
-    "screenshots": [
-      {
-        "id": "3a6e1655-d66e-4d36-9431-cbe000d069c1",
-        "key": "创建会议",
-        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/zh/jitsi/jitsi-gui-websoft9.png"
-      }
-    ],
-    "distribution": [
-      {
-        "key": "community",
-        "value": "stable-10431"
-      }
-    ],
-    "vcpu": 2,
-    "memory": 4,
-    "storage": 10,
-    "logo": {
-      "imageurl": "https://libs.websoft9.com/Websoft9/logo/product/jitsi-websoft9.png"
-    },
-    "catalogCollection": {
-      "items": [
-        {
-          "key": "meeting",
-          "title": "会议/直播",
-          "catalogCollection": {
-            "items": [
-              {
-                "key": "communication",
-                "title": "通信联络",
-                "position": 6
-              }
-            ]
-          }
-        },
-        {
-          "key": "home-server",
-          "title": "家庭服务器",
-          "catalogCollection": {
-            "items": [
-              {
-                "key": "usecase",
-                "title": "场景",
-                "position": 0
-              }
-            ]
-          }
-        }
-      ]
-    }
-  },
-  {
-    "sys": {
       "id": "vh3LcEJvgmFxxjl4aiIW9"
     },
     "key": "homeassistant",
@@ -10322,7 +10824,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "2025.7,latest"
+        "value": [
+          "2025.7",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -10369,7 +10874,7 @@
     "key": "gocd",
     "hot": 10000,
     "trademark": "GoCD",
-    "summary": "开源 CI/CD 工具",
+    "summary": "开源  CI/CD 工具",
     "overview": "GoCD是一个开源的持续交付工具，支持自动化构建、测试和部署流程。",
     "websiteurl": "https://www.gocd.org",
     "description": "GoCD是一个开源的持续交付（CD）工具，由ThoughtWorks开发，旨在帮助团队实现自动化的构建、测试和部署流程。它支持复杂的工作流和管道管理，使得软件交付更加高效和可靠。GoCD的特点包括可视化的管道配置、对多种版本控制系统的支持、以及强大的插件生态系统，允许用户根据需求扩展功能。此外，GoCD还提供了对环境和版本的管理，帮助团队在不同的环境中进行持续交付，确保软件在生产环境中的稳定性和一致性。",
@@ -10383,7 +10888,9 @@
     "distribution": [
       {
         "key": "community",
-        "value": "v25.3.0"
+        "value": [
+          "v25.3.0"
+        ]
       }
     ],
     "vcpu": 2,
@@ -10449,7 +10956,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "3.0.4,latest"
+        "value": [
+          "3.0.4",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -10533,7 +11043,9 @@
     "distribution": [
       {
         "key": "community",
-        "value": "9.1.0"
+        "value": [
+          "9.1.0"
+        ]
       }
     ],
     "vcpu": 2,
@@ -10604,7 +11116,11 @@
     "distribution": [
       {
         "key": "community",
-        "value": "11.2.2-apache,11.0.5-apache,10.3.2-apache"
+        "value": [
+          "11.2.2-apache",
+          "11.0.5-apache",
+          "10.3.2-apache"
+        ]
       }
     ],
     "vcpu": 1,
@@ -10678,7 +11194,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "25.04.4.2.1,latest"
+        "value": [
+          "25.04.4.2.1",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -10752,7 +11271,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "v5.5.10,latest"
+        "value": [
+          "v5.5.10",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -10818,7 +11340,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "3.13.28,latest"
+        "value": [
+          "3.13.28",
+          "latest"
+        ]
       }
     ],
     "vcpu": 2,
@@ -10915,7 +11440,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "1.8,latest"
+        "value": [
+          "1.8",
+          "latest"
+        ]
       }
     ],
     "vcpu": 2,
@@ -11412,7 +11940,9 @@
     "distribution": [
       {
         "key": "community",
-        "value": "1.12.0"
+        "value": [
+          "1.12.0"
+        ]
       }
     ],
     "vcpu": 1,
@@ -11753,76 +12283,6 @@
                 "key": "usecase",
                 "title": "场景",
                 "position": 0
-              }
-            ]
-          }
-        }
-      ]
-    }
-  },
-  {
-    "sys": {
-      "id": "7LvmB9OfByb4n6DbghrKLI"
-    },
-    "key": "haproxy",
-    "hot": null,
-    "trademark": "HAProxy",
-    "summary": "高性能 TCP/HTTP 负载均衡系统",
-    "overview": "提供高可用性、负载均衡，以及基于 TCP 和 HTTP 的应用程序代理，适用于负载特大的web站点。",
-    "websiteurl": "http://www.haproxy.org/",
-    "description": "HAProxy是一个使用C语言编写的自由及开放源代码软件，其提供高可用性、负载均衡，以及基于 TCP 和 HTTP 的应用程序代理。",
-    "screenshots": [
-      {
-        "id": "8a49ba93-e5a5-4b3e-a368-3874c1453e2e",
-        "key": "configuration",
-        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/zh/haproxy/HAProxy-configuration.png"
-      },
-      {
-        "id": "b2d8807a-2543-4b9a-bc2b-ae87e1d471ce",
-        "key": "gui",
-        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/zh/haproxy/haproxy-statsgui-websoft9.png"
-      }
-    ],
-    "distribution": [
-      {
-        "key": "community",
-        "value": [
-          "3.2",
-          "3.1",
-          "3.0",
-          "2.9",
-          "2.8",
-          "2.7",
-          "2.6",
-          "2.5",
-          "2.4",
-          "2.3",
-          "2.0"
-        ]
-      }
-    ],
-    "vcpu": 1,
-    "memory": 1,
-    "storage": 4,
-    "logo": {
-      "imageurl": "https://libs.websoft9.com/Websoft9/logo/product/haproxy-websoft9.png"
-    },
-    "catalogCollection": {
-      "items": [
-        {
-          "key": "balancer",
-          "title": "负载均衡 ",
-          "catalogCollection": {
-            "items": [
-              {
-                "key": "architecture",
-                "title": "IT 应用架构",
-                "position": 22
-              },
-              {
-                "key": "networking",
-                "title": "网络",
-                "position": 13
               }
             ]
           }
@@ -12270,7 +12730,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "v3.0.4,latest"
+        "value": [
+          "v3.0.4",
+          "latest"
+        ]
       }
     ],
     "vcpu": 2,
@@ -12323,7 +12786,9 @@
     "distribution": [
       {
         "key": "community",
-        "value": "main"
+        "value": [
+          "main"
+        ]
       }
     ],
     "vcpu": 2,
@@ -12916,6 +13381,7 @@
       {
         "key": "community",
         "value": [
+          "2.5.307",
           "latest"
         ]
       }
@@ -13234,6 +13700,7 @@
       {
         "key": "community",
         "value": [
+          "0.8.6",
           "latest"
         ]
       }
@@ -13446,6 +13913,7 @@
       {
         "key": "community",
         "value": [
+          "release-3.1.1",
           "latest"
         ]
       }
@@ -13496,6 +13964,7 @@
       {
         "key": "community",
         "value": [
+          "v2.28.0",
           "latest"
         ]
       }
@@ -13647,6 +14116,7 @@
       {
         "key": "community",
         "value": [
+          "202209060423",
           "latest"
         ]
       }
@@ -13697,6 +14167,7 @@
       {
         "key": "community",
         "value": [
+          "v1.13.0-beta",
           "latest"
         ]
       }
@@ -13765,6 +14236,7 @@
       {
         "key": "community",
         "value": [
+          "v0.10.0",
           "latest"
         ]
       }
@@ -13809,102 +14281,6 @@
                 "key": "business-operation",
                 "title": "企业运营",
                 "position": 3
-              }
-            ]
-          }
-        }
-      ]
-    }
-  },
-  {
-    "sys": {
-      "id": "5uwmfb7BW4wbQb8vMwKWLc"
-    },
-    "key": "erpnext",
-    "hot": null,
-    "trademark": "ERPNext",
-    "summary": "开源 ERP 系统",
-    "overview": "ERPNext是一个 基于 Python 和 Node 开发的开源ERP系统 ，它功能全面，非常合适作为 SAP 的替代品。",
-    "websiteurl": "https://erpnext.com/",
-    "description": "ERPNext是一个开源的 ERP，基于 Python 和 Node 开发，它功能全面，包含会计、人力资源、制造、网站、电商、CRM、资产管理、客服工作台等功能。非常合适作为 SAP 的替代品，全球已经有超过 5,000 家企业客户使用。",
-    "screenshots": [
-      {
-        "id": "7c16bde0-98d1-47e5-b46f-6e7021d79767",
-        "key": "ui",
-        "value": "http://libs.websoft9.com/Websoft9/DocsPicture/en/erpnext/erpnext-adminui-websoft9.png"
-      },
-      {
-        "id": "b8f4c8aa-fa2c-49dd-a7ad-b64e18325736",
-        "key": "users",
-        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/zh/erpnext/erpnext-users-websoft9.png"
-      }
-    ],
-    "distribution": [
-      {
-        "key": "community",
-        "value": [
-          "v15",
-          "v14",
-          "v13"
-        ]
-      }
-    ],
-    "vcpu": 2,
-    "memory": 8,
-    "storage": 1,
-    "logo": {
-      "imageurl": "https://libs.websoft9.com/Websoft9/logo/product/erpnext-websoft9.png"
-    },
-    "catalogCollection": {
-      "items": [
-        {
-          "key": "erp",
-          "title": "ERP/财税/后勤",
-          "catalogCollection": {
-            "items": [
-              {
-                "key": "business-operation",
-                "title": "企业运营",
-                "position": 3
-              }
-            ]
-          }
-        },
-        {
-          "key": "smart-manufacturing",
-          "title": "供应链/采购/生产/物流",
-          "catalogCollection": {
-            "items": [
-              {
-                "key": "business-operation",
-                "title": "企业运营",
-                "position": 3
-              }
-            ]
-          }
-        },
-        {
-          "key": "crm",
-          "title": "CRM/分销/订单",
-          "catalogCollection": {
-            "items": [
-              {
-                "key": "business-operation",
-                "title": "企业运营",
-                "position": 3
-              }
-            ]
-          }
-        },
-        {
-          "key": "operation",
-          "title": "运营与供应链数字化",
-          "catalogCollection": {
-            "items": [
-              {
-                "key": "usecase",
-                "title": "场景",
-                "position": 0
               }
             ]
           }
@@ -14671,7 +15047,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "2.4.8,latest"
+        "value": [
+          "2.4.8",
+          "latest"
+        ]
       }
     ],
     "vcpu": 2,
@@ -14963,62 +15342,6 @@
                 "key": "runtime",
                 "title": "运行环境",
                 "position": 11
-              }
-            ]
-          }
-        }
-      ]
-    }
-  },
-  {
-    "sys": {
-      "id": "1ixPOG2M1jmRFhZhCUUSY1"
-    },
-    "key": "rocketmq",
-    "hot": null,
-    "trademark": "RocketMQ",
-    "summary": "分布式开源消息队列系统",
-    "overview": "RocketMQ 是阿里主导开发的分布式开源消息队列系统，是一个低延迟、高并发、高可用、高可靠的分布式消息中间件。",
-    "websiteurl": "https://rocketmq.apache.org/",
-    "description": "Apache RocketMQ（由阿里巴巴捐赠的Apache开源项目）是一款具有低延迟，高性能和可靠性，数十亿容量和灵活可扩展性的分布式消息传递和流媒体平台。\n\n包含 Name Server, Proxy, Broker, Dashboard 等四个组件",
-    "screenshots": [
-      {
-        "id": "fb1faf3a-8374-4392-a94e-eb08e3a97daa",
-        "key": "console",
-        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/zh/rocketmq/rocketmq-console-websoft9.png"
-      },
-      {
-        "id": "fcafe3c2-c1ed-48d1-8fb6-3ac896e7721a",
-        "key": "language",
-        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/zh/rocketmq/rocketmq-language-websoft9.png"
-      }
-    ],
-    "distribution": [
-      {
-        "key": "community",
-        "value": [
-          "5.3.1",
-          "latest"
-        ]
-      }
-    ],
-    "vcpu": 4,
-    "memory": 16,
-    "storage": 1,
-    "logo": {
-      "imageurl": "https://libs.websoft9.com/Websoft9/logo/product/rocketmq-websoft9.png"
-    },
-    "catalogCollection": {
-      "items": [
-        {
-          "key": "mq",
-          "title": "消息队列",
-          "catalogCollection": {
-            "items": [
-              {
-                "key": "architecture",
-                "title": "IT 应用架构",
-                "position": 22
               }
             ]
           }
@@ -15527,7 +15850,7 @@
     "hot": 4000,
     "trademark": "OpenJDK",
     "summary": "用于生产和开发的 OpenJDK 运行环境",
-    "overview": "Oracle 官方 OpenJDK 容器经过精心设计，为您和您的团队提供高度可重复的 Java 生产与开发环境。",
+    "overview": "Oracle 官方 OpenJDK 容器经过精心设计，为您和您的团队提供高度可重复的 Java  生产与开发环境。",
     "websiteurl": "https://container-registry.oracle.com/ords/ocr/ba/java/openjdk",
     "description": "本应用提供多种可选的 Java 运行环境，与仓库连接起来，打造一个开箱即用的半自动 CI/CD 环境。",
     "screenshots": [
@@ -16274,6 +16597,7 @@
       {
         "key": "community",
         "value": [
+          "v0.6.10",
           "latest"
         ]
       }
@@ -16611,6 +16935,7 @@
       {
         "key": "community",
         "value": [
+          "10.10.7",
           "latest"
         ]
       }
@@ -16802,7 +17127,8 @@
       {
         "key": "community",
         "value": [
-          "latest"
+          "latest",
+          "v0.1.0"
         ]
       }
     ],
@@ -16852,7 +17178,8 @@
       {
         "key": "community",
         "value": [
-          "latest"
+          "latest",
+          "1.1.10-5"
         ]
       }
     ],
@@ -16971,6 +17298,7 @@
       {
         "key": "community",
         "value": [
+          "release-27",
           "latest"
         ]
       }
@@ -17039,6 +17367,7 @@
       {
         "key": "community",
         "value": [
+          "alpine3.21",
           "latest"
         ]
       }
@@ -17196,6 +17525,7 @@
       {
         "key": "community",
         "value": [
+          "7.11.4",
           "latest"
         ]
       }
@@ -17272,6 +17602,7 @@
       {
         "key": "community",
         "value": [
+          "sha-4bfc5bb",
           "latest"
         ]
       }
@@ -17540,6 +17871,7 @@
       {
         "key": "community",
         "value": [
+          "1.9.8",
           "latest"
         ]
       }
@@ -17817,6 +18149,7 @@
       {
         "key": "community",
         "value": [
+          "1.10.7",
           "latest"
         ]
       }
@@ -17931,6 +18264,7 @@
       {
         "key": "community",
         "value": [
+          "25.02.2",
           "latest"
         ]
       }

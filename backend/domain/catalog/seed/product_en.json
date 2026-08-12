@@ -1,6 +1,536 @@
 [
   {
     "sys": {
+      "id": "1Xivog4v0pFbLL9YjN9bvx"
+    },
+    "key": "moodle",
+    "hot": null,
+    "trademark": "Moodle",
+    "summary": "An online learning platform",
+    "overview": "Moodle™ LMS is a learning platform designed to provide educators, administrators and learners",
+    "websiteurl": "https://moodle.com/",
+    "description": "This is a repackaged Moodle™ LMS with professional support for your business. Moodle™ LMS is a learning platform designed to provide educators, administrators and learners with a single robust, secure and integrated system to create personalised learning environments.",
+    "screenshots": [
+      {
+        "id": "385439fe-7d15-470e-80d9-4a63105af223",
+        "key": "gui",
+        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/zh/moodle/moodlegui-websoft9.jpg"
+      },
+      {
+        "id": "fc5c8d46-96ab-4348-962a-3704ace588b4",
+        "key": "mobile",
+        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/zh/moodle/moodle-mobile-websoft9.png"
+      }
+    ],
+    "distribution": [
+      {
+        "key": "community",
+        "value": [
+          "5.1.3",
+          "latest"
+        ]
+      }
+    ],
+    "vcpu": 1,
+    "memory": 1,
+    "storage": 4,
+    "logo": {
+      "imageurl": "https://libs.websoft9.com/Websoft9/logo/product/moodle-websoft9.png"
+    },
+    "catalogCollection": {
+      "items": [
+        {
+          "key": "elearning",
+          "title": "eLearning",
+          "catalogCollection": {
+            "items": [
+              {
+                "key": "cms",
+                "title": "Content Management",
+                "position": 5
+              }
+            ]
+          }
+        },
+        {
+          "key": "education",
+          "title": "Software Labs for High Education",
+          "catalogCollection": {
+            "items": [
+              {
+                "key": "usecase",
+                "title": "Use Case",
+                "position": 0
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  {
+    "sys": {
+      "id": "7LvmB9OfByb4n6DbghrKLI"
+    },
+    "key": "haproxy",
+    "hot": null,
+    "trademark": "HAProxy",
+    "summary": "High-performance TCP/HTTP Load Balancing System",
+    "overview": "Provides a high availability load balancer and proxy server for TCP and HTTP-based applications.",
+    "websiteurl": "http://www.haproxy.org/",
+    "description": "This is a repackaged HAProxy Community Edition with professional support for your business. HAProxy provides a high availability load balancer and proxy server for TCP and HTTP-based applications that spreads requests across multiple servers. HAProxy is written in C and has a reputation for being fast and efficient.",
+    "screenshots": [
+      {
+        "id": "24d85a80-9fc5-4164-b1d8-c756310f87f2",
+        "key": "configuration",
+        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/zh/haproxy/HAProxy-configuration.png"
+      },
+      {
+        "id": "14fd3613-bd5b-49bb-afcb-39579b11690c",
+        "key": "gui",
+        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/zh/haproxy/haproxy-statsgui-websoft9.png"
+      }
+    ],
+    "distribution": [
+      {
+        "key": "community",
+        "value": [
+          "3.2",
+          "3.1",
+          "3.0",
+          "2.9",
+          "2.8",
+          "2.7",
+          "2.6",
+          "2.5",
+          "2.4",
+          "2.3",
+          "2.0"
+        ]
+      }
+    ],
+    "vcpu": 1,
+    "memory": 1,
+    "storage": 4,
+    "logo": {
+      "imageurl": "https://libs.websoft9.com/Websoft9/logo/product/haproxy-websoft9.png"
+    },
+    "catalogCollection": {
+      "items": [
+        {
+          "key": "balancer",
+          "title": "Load Balancer",
+          "catalogCollection": {
+            "items": [
+              {
+                "key": "architecture",
+                "title": "IT Architecture",
+                "position": 22
+              },
+              {
+                "key": "networking",
+                "title": "Networking",
+                "position": 13
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  {
+    "sys": {
+      "id": "1T8EdWyH7ivrbzlmxzQIK2"
+    },
+    "key": "dify",
+    "hot": 10000,
+    "trademark": "Dify",
+    "summary": "LLM app development platform",
+    "overview": "Dify's intuitive interface combines AI workflow, RAG pipeline, agent capabilities, model management, observability features and more, letting you quickly go from prototype to production.",
+    "websiteurl": "https://dify.ai/",
+    "description": "- Support for mainstream LLMs\n- An intuitive Prompt orchestration interface\n- High-quality RAG engines\n- A flexible AI Agent framework\n- An Intuitive Low-code Workflow\n- Easy-to-use interfaces and APIs",
+    "screenshots": [
+      {
+        "id": "e21d7f48-331d-4c76-9619-92e2974f9202",
+        "key": "Dashboard",
+        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/zh/dify/dify-gui-websoft9.webp"
+      }
+    ],
+    "distribution": [
+      {
+        "key": "community",
+        "value": [
+          "1.9.2",
+          "latest"
+        ]
+      }
+    ],
+    "vcpu": 2,
+    "memory": 4,
+    "storage": 9,
+    "logo": {
+      "imageurl": "https://libs.websoft9.com/Websoft9/logo/product/dify-websoft9.png"
+    },
+    "catalogCollection": {
+      "items": [
+        {
+          "key": "ai-agent-chat",
+          "title": "AI Agents/Chatbots/RAG",
+          "catalogCollection": {
+            "items": [
+              {
+                "key": "ai",
+                "title": "AI + Machine Learning",
+                "position": 1
+              },
+              {
+                "key": "automation",
+                "title": "Automation",
+                "position": 8
+              }
+            ]
+          }
+        },
+        {
+          "key": "ai-devops",
+          "title": "AI DevOps",
+          "catalogCollection": {
+            "items": [
+              {
+                "key": "ai",
+                "title": "AI + Machine Learning",
+                "position": 1
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  {
+    "sys": {
+      "id": "1ixPOG2M1jmRFhZhCUUSY1"
+    },
+    "key": "rocketmq",
+    "hot": null,
+    "trademark": "RocketMQ",
+    "summary": "A distributed messaging and streaming platform",
+    "overview": "A distributed messaging and streaming platform with low latency, high performance and reliability, trillion-level capacity and flexible scalability",
+    "websiteurl": "https://rocketmq.apache.org/",
+    "description": "This is a repackaged Apache RocketMQ™ with professional support for your business. Apache RocketMQ™ is a distributed messaging and streaming platform with low latency, high performance and reliability, trillion-level capacity and flexible scalability.\n\nIncludes: Name Server, Proxy, Broker, Dashboard",
+    "screenshots": [
+      {
+        "id": "3104a0b6-8977-4de3-9dba-d76fea8dd156",
+        "key": "console",
+        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/en/rocketmq/rocketmq-console-websoft9.png"
+      },
+      {
+        "id": "b87737ce-11ba-4623-ab17-b3a18a551c15",
+        "key": "language",
+        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/zh/rocketmq/rocketmq-language-websoft9.png"
+      }
+    ],
+    "distribution": [
+      {
+        "key": "community",
+        "value": [
+          "5.3.2",
+          "5.3.1",
+          "latest"
+        ]
+      }
+    ],
+    "vcpu": 4,
+    "memory": 16,
+    "storage": 1,
+    "logo": {
+      "imageurl": "https://libs.websoft9.com/Websoft9/logo/product/rocketmq-websoft9.png"
+    },
+    "catalogCollection": {
+      "items": [
+        {
+          "key": "mq",
+          "title": "Message Queue",
+          "catalogCollection": {
+            "items": [
+              {
+                "key": "architecture",
+                "title": "IT Architecture",
+                "position": 22
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  {
+    "sys": {
+      "id": "7Cd0uDzt5wjwawfWLxV0xr"
+    },
+    "key": "jitsi",
+    "hot": 10000,
+    "trademark": "Jitsi Meet",
+    "summary": "Open Source video conferencing platforms with state-of-the-art video quality and features",
+    "overview": "Jitsi Meet - Secure, Simple and Scalable Video Conferences that you use as a standalone app or embed in your web application.",
+    "websiteurl": "https://jitsi.org/",
+    "description": "Jitsi Meet is a set of Open Source projects which empower users to use and deploy video conferencing platforms with state-of-the-art video quality and features.\n\nAmongst others here are the main features Jitsi Meet offers:\n\n- Support for all current browsers\n- Mobile applications\n- Web and native SDKs for integration\n- HD audio and video\n- Content sharing\n- Raise hand and reactions\n- Chat with private conversations\n- Polls\n- Virtual backgrounds",
+    "screenshots": [
+      {
+        "id": "c3f52b51-f3e9-45ab-b26b-c13ed7ec6ac3",
+        "key": "Create meeting",
+        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/zh/jitsi/jitsi-gui-websoft9.png"
+      }
+    ],
+    "distribution": [
+      {
+        "key": "community",
+        "value": [
+          "stable-10888"
+        ]
+      }
+    ],
+    "vcpu": 2,
+    "memory": 4,
+    "storage": 10,
+    "logo": {
+      "imageurl": "https://libs.websoft9.com/Websoft9/logo/product/jitsi-websoft9.png"
+    },
+    "catalogCollection": {
+      "items": [
+        {
+          "key": "meeting",
+          "title": "Meeting",
+          "catalogCollection": {
+            "items": [
+              {
+                "key": "communication",
+                "title": "Communication",
+                "position": 6
+              }
+            ]
+          }
+        },
+        {
+          "key": "home-server",
+          "title": "Home Server",
+          "catalogCollection": {
+            "items": [
+              {
+                "key": "usecase",
+                "title": "Use Case",
+                "position": 0
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  {
+    "sys": {
+      "id": "5uwmfb7BW4wbQb8vMwKWLc"
+    },
+    "key": "erpnext",
+    "hot": null,
+    "trademark": "ERPNext",
+    "summary": "Open Source ERP  System",
+    "overview": "ERPNext can help users manage their project management concerns, accounting tasks, and HR responsibilities within a single interface.",
+    "websiteurl": "https://erpnext.com/",
+    "description": "This is a repackaged ERPNext with professional support for your business. ERPNext can help users manage their project management concerns, accounting tasks, and HR responsibilities within a single interface that enables them to take full control of their business. Whether gauge employee performance, analyze the company's financial health, or delegate tasks, ERPNext can do it all.",
+    "screenshots": [
+      {
+        "id": "dd7e1bb9-5534-4581-8abb-ac45d9c1d59a",
+        "key": "ui",
+        "value": "http://libs.websoft9.com/Websoft9/DocsPicture/en/erpnext/erpnext-adminui-websoft9.png"
+      },
+      {
+        "id": "6e53620d-08f6-497b-8b4f-f03e49420b3c",
+        "key": "modoules",
+        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/en/erpnext/erpnext-ok-websoft9.png"
+      }
+    ],
+    "distribution": [
+      {
+        "key": "community",
+        "value": [
+          "v16"
+        ]
+      }
+    ],
+    "vcpu": 2,
+    "memory": 8,
+    "storage": 1,
+    "logo": {
+      "imageurl": "https://libs.websoft9.com/Websoft9/logo/product/erpnext-websoft9.png"
+    },
+    "catalogCollection": {
+      "items": [
+        {
+          "key": "erp",
+          "title": "ERP & Finance",
+          "catalogCollection": {
+            "items": [
+              {
+                "key": "business-operation",
+                "title": "Business Operation",
+                "position": 3
+              }
+            ]
+          }
+        },
+        {
+          "key": "smart-manufacturing",
+          "title": "Supply Chain & Manufacturing & Logistic",
+          "catalogCollection": {
+            "items": [
+              {
+                "key": "business-operation",
+                "title": "Business Operation",
+                "position": 3
+              }
+            ]
+          }
+        },
+        {
+          "key": "crm",
+          "title": "CRM & Distribution & Order",
+          "catalogCollection": {
+            "items": [
+              {
+                "key": "business-operation",
+                "title": "Business Operation",
+                "position": 3
+              }
+            ]
+          }
+        },
+        {
+          "key": "operation",
+          "title": "Digtal for SCM and Operation",
+          "catalogCollection": {
+            "items": [
+              {
+                "key": "usecase",
+                "title": "Use Case",
+                "position": 0
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  {
+    "sys": {
+      "id": "3jCDamf0SLu2CE2ZtBrStl"
+    },
+    "key": "openclaw",
+    "hot": 10000,
+    "trademark": "OpenClaw",
+    "summary": "Personal AI Assistant",
+    "overview": "OpenClaw is a personal AI assistant you run on your own devices",
+    "websiteurl": "https://openclaw.ai/",
+    "description": "OpenClaw is a personal AI assistant you run on your own devices. It answers you on the channels you already use (WhatsApp, Telegram, Slack, Discord, Google Chat, Signal, iMessage, BlueBubbles, IRC, Microsoft Teams, Matrix, Feishu, LINE, Mattermost, Nextcloud Talk, Nostr, Synology Chat, Tlon, Twitch, Zalo, Zalo Personal, WebChat). It can speak and listen on macOS/iOS/Android, and can render a live Canvas you control. The Gateway is just the control plane — the product is the assistant.",
+    "screenshots": [
+      {
+        "id": "bef4c83c-129b-40bf-ad50-def2fa03b0e4",
+        "key": "gui",
+        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/zh/openclaw/openclaw-gui-websoft9.jpg"
+      }
+    ],
+    "distribution": [
+      {
+        "key": "community",
+        "value": [
+          "2026.3.13-1"
+        ]
+      }
+    ],
+    "vcpu": 2,
+    "memory": 2,
+    "storage": 10,
+    "logo": {
+      "imageurl": "https://libs.websoft9.com/Websoft9/logo/product/openclaw-websoft9.png"
+    },
+    "catalogCollection": {
+      "items": [
+        {
+          "key": "ai-agent-chat",
+          "title": "AI Agents/Chatbots/RAG",
+          "catalogCollection": {
+            "items": [
+              {
+                "key": "ai",
+                "title": "AI + Machine Learning",
+                "position": 1
+              },
+              {
+                "key": "automation",
+                "title": "Automation",
+                "position": 8
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  {
+    "sys": {
+      "id": "1W6Tc4mrq2AvdkFbqFpTaD"
+    },
+    "key": "kafka",
+    "hot": null,
+    "trademark": "Apache Kafka",
+    "summary": "Open-source distributed event streaming platform",
+    "overview": "Apache Kafka® is used for building real-time data pipelines and streaming apps.",
+    "websiteurl": "https://kafka.apache.org/",
+    "description": "This is a repackaged Apache Kafka® with professional support for your business. Apache Kafka® is used for building real-time data pipelines and streaming apps. It is horizontally scalable, fault-tolerant, wicked fast, and runs in production in thousands of companies.",
+    "screenshots": [
+      {
+        "id": "24987943-6e38-459e-bc92-840e42b42b8f",
+        "key": "Architecture",
+        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/en/kafka/kafka-gui-websoft9.png"
+      }
+    ],
+    "distribution": [
+      {
+        "key": "community",
+        "value": [
+          "4.0.1",
+          "3.9.2",
+          "3.8.1",
+          "3.7.2"
+        ]
+      }
+    ],
+    "vcpu": 1,
+    "memory": 2,
+    "storage": 1,
+    "logo": {
+      "imageurl": "https://libs.websoft9.com/Websoft9/logo/product/kafka-websoft9.png"
+    },
+    "catalogCollection": {
+      "items": [
+        {
+          "key": "mq",
+          "title": "Message Queue",
+          "catalogCollection": {
+            "items": [
+              {
+                "key": "architecture",
+                "title": "IT Architecture",
+                "position": 22
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  {
+    "sys": {
       "id": "9FZhrt1zPAcLYpz55SeFm"
     },
     "key": "safeline",
@@ -745,7 +1275,7 @@
     "key": "umami",
     "hot": 10000,
     "trademark": "Umami",
-    "summary": "Website Traffic Analytics Platform",
+    "summary": "Website Traffic  Analytics Platform",
     "overview": "Umami is a simple, fast, privacy-focused alternative to Google Analytics.",
     "websiteurl": "https://umami.is/",
     "description": "Umami is a simple, easy-to-use, self-hosted web analytics solution. Its goal is to provide a more user-friendly and privacy-focused alternative to Google Analytics, as well as an alternative to paid solutions. Umami only collects metrics that are important to users, and all content is suitable for one-page viewing. Additionally, it features functions such as bypassing ad blockers, lightweight tracking scripts, multi-account management, data sharing, and a user-friendly interface that is also suitable for mobile devices.",
@@ -1315,62 +1845,6 @@
     "storage": 4,
     "logo": {
       "imageurl": "https://libs.websoft9.com/Websoft9/logo/product/activemq-websoft9.png"
-    },
-    "catalogCollection": {
-      "items": [
-        {
-          "key": "mq",
-          "title": "Message Queue",
-          "catalogCollection": {
-            "items": [
-              {
-                "key": "architecture",
-                "title": "IT Architecture",
-                "position": 22
-              }
-            ]
-          }
-        }
-      ]
-    }
-  },
-  {
-    "sys": {
-      "id": "1W6Tc4mrq2AvdkFbqFpTaD"
-    },
-    "key": "kafka",
-    "hot": null,
-    "trademark": "Apache Kafka",
-    "summary": "Open-source distributed event streaming platform",
-    "overview": "Apache Kafka® is used for building real-time data pipelines and streaming apps.",
-    "websiteurl": "https://kafka.apache.org/",
-    "description": "This is a repackaged Apache Kafka® with professional support for your business. Apache Kafka® is used for building real-time data pipelines and streaming apps. It is horizontally scalable, fault-tolerant, wicked fast, and runs in production in thousands of companies.",
-    "screenshots": [
-      {
-        "id": "24987943-6e38-459e-bc92-840e42b42b8f",
-        "key": "Architecture",
-        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/en/kafka/kafka-gui-websoft9.png"
-      }
-    ],
-    "distribution": [
-      {
-        "key": "community",
-        "value": [
-          "4.0",
-          "3.9",
-          "3.8",
-          "3.6",
-          "3.2",
-          "2.8",
-          "latest"
-        ]
-      }
-    ],
-    "vcpu": 1,
-    "memory": 2,
-    "storage": 1,
-    "logo": {
-      "imageurl": "https://libs.websoft9.com/Websoft9/logo/product/kafka-websoft9.png"
     },
     "catalogCollection": {
       "items": [
@@ -2974,7 +3448,7 @@
     "key": "paperlessngx",
     "hot": 10000,
     "trademark": "Paperless-ngx",
-    "summary": "OCR-supported Document Management System",
+    "summary": "OCR-supported  Document Management System",
     "overview": "Paperless-ngx is an open source document management system that supports document scanning, OCR, categorization and search to improve management efficiency.",
     "websiteurl": "https://docs.paperless-ngx.com",
     "description": "Paperless-ngx is an open source document management system designed to help users digitize and manage paper documents. It supports document scanning, uploading and optical character recognition (OCR) to make document content searchable. Users can add tags and categorize documents for easy retrieval. The system provides a user-friendly web interface, supports multi-device access, and features user rights management to ensure document security. In addition , Paperless-ngx provides API interface , easy to integrate with other applications . As an active open source project, Paperless-ngx is suitable for individual and team use to improve document management efficiency.",
@@ -3332,7 +3806,7 @@
     "hot": 4300,
     "trademark": "Sonatype Nexus Repository",
     "summary": "Artifact repository manager",
-    "overview": "Sonatype Nexus can build and distribute software fast Build quickly and reliably Publish and cache components in a central repository that connects natively to all popular package managers. ",
+    "overview": "Sonatype Nexus  can build and distribute software fast Build quickly and reliably Publish and cache components in a central repository that connects natively to all popular package managers. ",
     "websiteurl": "https://www.sonatype.com/products/sonatype-nexus-repository",
     "description": "- Publish and cache components in a central repository that connects natively to all popular package managers.\n\n- Control the lifecycle of staged builds and custom metadata directly from your CI/CD server.\n\n- Handle global workloads with dynamic storage, cleanup policies, and multi-node resiliency.",
     "screenshots": [
@@ -3654,7 +4128,7 @@
     "key": "n8n",
     "hot": 10000,
     "trademark": "n8n",
-    "summary": "AI-driven Workflow & Task Automation Tool",
+    "summary": "AI-driven Workflow  & Task Automation Tool",
     "overview": "n8n allows you to build flexible workflows focused on deep data integration. And with sharable templates and a user-friendly UI, the less technical people on your team can collaborate on them too. ",
     "websiteurl": "https://n8n.io",
     "description": "n8n allows you to build flexible workflows focused on deep data integration. And with sharable templates and a user-friendly UI, the less technical people on your team can collaborate on them too. Unlike other tools, complexity is not a limitation. So you can build whatever you want — without stressing over budget.",
@@ -3822,7 +4296,7 @@
     "key": "mixpost",
     "hot": 10000,
     "trademark": "Mixpost",
-    "summary": "Social Media Content Unified Management & Publishing Platform",
+    "summary": "Social Media Content  Unified Management & Publishing Platform",
     "overview": "Mixpost is a social media platform that allows users to share and discover multiple forms of content.",
     "websiteurl": "https://mixpost.app",
     "description": "Mixpost is an innovative social media platform designed to provide users with a diverse space for content sharing and discovery. Users can post multiple forms of content such as text, images, video and audio on the platform to promote interaction and communication.Mixpost's user-friendly, easy-to-navigate interface allows users to easily browse topics and posts of interest. The platform also offers personalized recommendations to help users discover new content and creators. Through commenting, liking and sharing features, users are able to connect with others and form communities.Mixpost caters to a wide range of interests, whether it's art, technology, lifestyle or education.\n\nTranslated with DeepL.com (free version)",
@@ -4342,7 +4816,7 @@
     "key": "jenkins",
     "hot": null,
     "trademark": "Jenkins",
-    "summary": "Popular CI/CD Automation Platform",
+    "summary": "Popular CI/CD  Automation Platform",
     "overview": "Jenkins is an automation server for supporting practically every tool as a part of the delivery pipelines.",
     "websiteurl": "https://www.jenkins.io/",
     "description": "This is a repackaged Jenkins with professional support for your business. Jenkins is an automation server with an unparalleled plugin ecosystem for supporting practically every tool as a part of the delivery pipelines. You can get the Installation of Image,Administrator, Configuration of the Jenkins from this documentation.",
@@ -4850,7 +5324,7 @@
     "key": "directus",
     "hot": 18000,
     "trademark": "Directus",
-    "summary": "Created application based on many Database",
+    "summary": "Created  application based on many Database",
     "overview": "Directus is a real-time API and App dashboard for managing SQL database content or create low-code application",
     "websiteurl": "https://directus.io/",
     "description": "- Backend-as-a-Service\n- Headless CMS\n- Internal Tool Builder\n- Data Management & Analytics",
@@ -5017,7 +5491,7 @@
     "summary": "Simple and easy to use DDNS",
     "overview": "ddns-go automatically obtain your public IPv4 or IPv6 address and resolve it to the corresponding domain name service.",
     "websiteurl": "https://github.com/jeessy2/ddns-go",
-    "description": "ddns-go is an open source Dynamic DNS (DDNS) service serdesigned to simplify the mapping between domain names and dynamic IP addresses. It supports a wide range of DNS service providers and allows users to automatically update their domain name records when an IP address changes. ddns-go ensures that a domain name always points to the correct IP address by periodically checking for changes in the local IP address and sending an update request to the specified DNS service when a change is detected. Suitable for home users and small businesses, the tool provides simple configuration options and flexible usage for managing domain name resolution in dynamic IP environments.",
+    "description": "ddns-go is an open source Dynamic DNS (DDNS) service  serdesigned to simplify the mapping between domain names and dynamic IP addresses. It supports a wide range of DNS service providers and allows users to automatically update their domain name records when an IP address changes. ddns-go ensures that a domain name always points to the correct IP address by periodically checking for changes in the local IP address and sending an update request to the specified DNS service when a change is detected. Suitable for home users and small businesses, the tool provides simple configuration options and flexible usage for managing domain name resolution in dynamic IP environments.",
     "screenshots": [
       {
         "id": "92c60b87-c0f8-4406-bc0b-830fb517a6d6",
@@ -5754,7 +6228,17 @@
     "distribution": [
       {
         "key": "community",
-        "value": "6.0,5.10,5.8.4,5.5,5.4,5.3,5.2,5.1,latest"
+        "value": [
+          "6.0",
+          "5.10",
+          "5.8.4",
+          "5.5",
+          "5.4",
+          "5.3",
+          "5.2",
+          "5.1",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -5871,7 +6355,14 @@
     "distribution": [
       {
         "key": "community",
-        "value": "19.0,18.0,17.0,16.0,15.0,latest"
+        "value": [
+          "19.0",
+          "18.0",
+          "17.0",
+          "16.0",
+          "15.0",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -6081,75 +6572,6 @@
   },
   {
     "sys": {
-      "id": "1T8EdWyH7ivrbzlmxzQIK2"
-    },
-    "key": "dify",
-    "hot": 10000,
-    "trademark": "Dify",
-    "summary": "LLM app development platform",
-    "overview": "Dify's intuitive interface combines AI workflow, RAG pipeline, agent capabilities, model management, observability features and more, letting you quickly go from prototype to production.",
-    "websiteurl": "https://dify.ai/",
-    "description": "- Support for mainstream LLMs\n- An intuitive Prompt orchestration interface\n- High-quality RAG engines\n- A flexible AI Agent framework\n- An Intuitive Low-code Workflow\n- Easy-to-use interfaces and APIs",
-    "screenshots": [
-      {
-        "id": "e21d7f48-331d-4c76-9619-92e2974f9202",
-        "key": "Dashboard",
-        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/zh/dify/dify-gui-websoft9.webp"
-      }
-    ],
-    "distribution": [
-      {
-        "key": "community",
-        "value": [
-          "1.9.2",
-          "latest"
-        ]
-      }
-    ],
-    "vcpu": 2,
-    "memory": 4,
-    "storage": 9,
-    "logo": {
-      "imageurl": "https://libs.websoft9.com/Websoft9/logo/product/dify-websoft9.png"
-    },
-    "catalogCollection": {
-      "items": [
-        {
-          "key": "ai-agent-chat",
-          "title": "AI Agents/Chatbots/RAG",
-          "catalogCollection": {
-            "items": [
-              {
-                "key": "ai",
-                "title": "AI + Machine Learning",
-                "position": 1
-              },
-              {
-                "key": "automation",
-                "title": "Automation",
-                "position": 8
-              }
-            ]
-          }
-        },
-        {
-          "key": "ai-devops",
-          "title": "AI DevOps",
-          "catalogCollection": {
-            "items": [
-              {
-                "key": "ai",
-                "title": "AI + Machine Learning",
-                "position": 1
-              }
-            ]
-          }
-        }
-      ]
-    }
-  },
-  {
-    "sys": {
       "id": "6wAhyoJW83HLqPrxADouUw"
     },
     "key": "rabbitmq",
@@ -6206,75 +6628,6 @@
   },
   {
     "sys": {
-      "id": "1Xivog4v0pFbLL9YjN9bvx"
-    },
-    "key": "moodle",
-    "hot": null,
-    "trademark": "Moodle",
-    "summary": "An online learning platform",
-    "overview": "Moodle™ LMS is a learning platform designed to provide educators, administrators and learners",
-    "websiteurl": "https://moodle.com/",
-    "description": "This is a repackaged Moodle™ LMS with professional support for your business. Moodle™ LMS is a learning platform designed to provide educators, administrators and learners with a single robust, secure and integrated system to create personalised learning environments.",
-    "screenshots": [
-      {
-        "id": "385439fe-7d15-470e-80d9-4a63105af223",
-        "key": "gui",
-        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/zh/moodle/moodlegui-websoft9.jpg"
-      },
-      {
-        "id": "fc5c8d46-96ab-4348-962a-3704ace588b4",
-        "key": "mobile",
-        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/zh/moodle/moodle-mobile-websoft9.png"
-      }
-    ],
-    "distribution": [
-      {
-        "key": "community",
-        "value": [
-          "5.0",
-          "latest"
-        ]
-      }
-    ],
-    "vcpu": 1,
-    "memory": 1,
-    "storage": 4,
-    "logo": {
-      "imageurl": "https://libs.websoft9.com/Websoft9/logo/product/moodle-websoft9.png"
-    },
-    "catalogCollection": {
-      "items": [
-        {
-          "key": "elearning",
-          "title": "eLearning",
-          "catalogCollection": {
-            "items": [
-              {
-                "key": "cms",
-                "title": "Content Management",
-                "position": 5
-              }
-            ]
-          }
-        },
-        {
-          "key": "education",
-          "title": "Software Labs for High Education",
-          "catalogCollection": {
-            "items": [
-              {
-                "key": "usecase",
-                "title": "Use Case",
-                "position": 0
-              }
-            ]
-          }
-        }
-      ]
-    }
-  },
-  {
-    "sys": {
       "id": "3WAlsyfBpgVpaQp1oasfB4"
     },
     "key": "milvus",
@@ -6294,7 +6647,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "v2.6.3,latest"
+        "value": [
+          "v2.6.3",
+          "latest"
+        ]
       }
     ],
     "vcpu": 8,
@@ -6328,7 +6684,7 @@
     "key": "gitlab",
     "hot": null,
     "trademark": "GitLab",
-    "summary": "Leading AI-driven DevSecOps Platform",
+    "summary": "Leading AI-driven  DevSecOps Platform",
     "overview": "GitLab CE is an integrated product that unifies issues, code review, CI and CD into a single UI. ",
     "websiteurl": "https://about.gitlab.com/",
     "description": "This is a repackaged GitLab CE with professional support for your business. GitLab CE is an integrated product that unifies issues, code review, CI and CD into a single UI. It is an open source project with a large community and over 1700 people worldwide have contributed to GitLab.",
@@ -6347,7 +6703,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "18.1.3-ce.0,latest"
+        "value": [
+          "18.1.3-ce.0",
+          "latest"
+        ]
       }
     ],
     "vcpu": 2,
@@ -6509,7 +6868,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "2.34.0,latest"
+        "value": [
+          "2.34.0",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -6877,7 +7239,11 @@
     "distribution": [
       {
         "key": "community",
-        "value": "8.0,stable,latest"
+        "value": [
+          "8.0",
+          "stable",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -6916,7 +7282,7 @@
     "key": "thingsboard",
     "hot": 10000,
     "trademark": "ThingsBoard",
-    "summary": "Visualized IoT Device Management Platform",
+    "summary": "Visualized IoT Device  Management Platform",
     "overview": "Device management, data collection, processing and visualization for your IoT solution",
     "websiteurl": "https://thingsboard.io/",
     "description": "ThingsBoard is an open-source IoT platform for device management, data collection, analysis, and visualization. It supports multiple communication protocols such as MQTT, CoAP, HTTP, and provides rich APIs for users to conduct secondary development and expansion. ThingsBoard is suitable for various IoT application scenarios such as smart homes, smart cities, industrial automation, etc.",
@@ -6930,7 +7296,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "4.2.0,latest"
+        "value": [
+          "4.2.0",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -6991,7 +7360,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "2.0,latest"
+        "value": [
+          "2.0",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -7044,7 +7416,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "7.4.0,latest"
+        "value": [
+          "7.4.0",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -7105,7 +7480,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "v2.16.31,latest"
+        "value": [
+          "v2.16.31",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -7189,7 +7567,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "3.11.0,latest"
+        "value": [
+          "3.11.0",
+          "latest"
+        ]
       }
     ],
     "vcpu": 2,
@@ -7254,7 +7635,7 @@
     "key": "redmine",
     "hot": null,
     "trademark": "Redmine",
-    "summary": "Veteran Open Source Project Tool",
+    "summary": "Veteran Open Source  Project Tool",
     "overview": "Redmine is a flexible project management web application. Written using the Ruby on Rails framework, it is cross-platform and cross-database.",
     "websiteurl": "https://www.redmine.org/",
     "description": "This is a repackaged Redmine with professional support for your business. Redmine is a flexible project management web application. Written using the Ruby on Rails framework, it is cross-platform and cross-database.",
@@ -7273,7 +7654,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "6.1,latest"
+        "value": [
+          "6.1",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -7347,7 +7731,17 @@
     "distribution": [
       {
         "key": "community",
-        "value": "3.14,3.13,3.12,3.11,3.10,3.9,3.8,3.7,3.6"
+        "value": [
+          "3.14",
+          "3.13",
+          "3.12",
+          "3.11",
+          "3.10",
+          "3.9",
+          "3.8",
+          "3.7",
+          "3.6"
+        ]
       }
     ],
     "vcpu": 1,
@@ -7384,7 +7778,7 @@
     "summary": "Postgres Visualization Management Tool",
     "overview": "pgAdmin is a popular and feature rich Open Source administration and development platform for PostgreSQL, the advanced Open Source database in the world.",
     "websiteurl": "https://www.pgadmin.org/",
-    "description": "pgAdmin is the leading Open Source management tool for Postgres, the world’s advanced Open Source database. pgAdmin is designed to meet the needs of both novice and experienced Postgres users alike, providing a powerful graphical interface that simplifies the creation, maintenance and use of database objects.",
+    "description": "pgAdmin is the leading Open Source management tool for Postgres, the world’s  advanced Open Source database. pgAdmin is designed to meet the needs of both novice and experienced Postgres users alike, providing a powerful graphical interface that simplifies the creation, maintenance and use of database objects.",
     "screenshots": [
       {
         "id": "6e53620d-08f6-497b-8b4f-f03e49420b3c",
@@ -7400,7 +7794,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "9.8,latest"
+        "value": [
+          "9.8",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -7448,7 +7845,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "0.265.1,latest"
+        "value": [
+          "0.265.1",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -7501,7 +7901,9 @@
     "distribution": [
       {
         "key": "community",
-        "value": "0.6.0"
+        "value": [
+          "0.6.0"
+        ]
       }
     ],
     "vcpu": 2,
@@ -7549,7 +7951,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "v5.1.0,latest"
+        "value": [
+          "v5.1.0",
+          "latest"
+        ]
       }
     ],
     "vcpu": 2,
@@ -7596,7 +8001,7 @@
     "key": "keycloak",
     "hot": 10000,
     "trademark": "Keycloak",
-    "summary": "Application Authentication Platform",
+    "summary": "Application  Authentication Platform",
     "overview": "Keycloak is an open source identity and access management solution that enables single sign-on (SSO) across various applications and secures them with minimal effort. It supports standard protocols like OpenID Connect, OAuth 2.0, and SAML 2.0, and offers features like identity brokering, social login, user federation with LDAP and Active Directory, and centralized management for admins and users. Keycloak's high-performance architecture is cloud-native, scalable, and extensible, making it ideal for modern applications and services.",
     "websiteurl": "https://www.keycloak.org",
     "description": "Keycloak is a powerful open source identity and access management solution designed to add authentication to applications and secure services efficiently. It provides a range of features including single sign-on, identity brokering, social login, user federation, centralized management, and fine-grained authorization. With support for standard protocols like OpenID Connect, OAuth 2.0, and SAML 2.0, Keycloak can integrate with a wide variety of applications and identity providers. Its cloud-native architecture ensures high performance, scalability, and the ability to cluster for increased availability. Keycloak is also highly customizable, allowing organizations to tailor the authentication experience to their specific needs.",
@@ -7610,7 +8015,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "26.4,latest"
+        "value": [
+          "26.4",
+          "latest"
+        ]
       }
     ],
     "vcpu": 2,
@@ -7658,7 +8066,9 @@
     "distribution": [
       {
         "key": "community",
-        "value": "1.18.0"
+        "value": [
+          "1.18.0"
+        ]
       }
     ],
     "vcpu": 2,
@@ -7719,7 +8129,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "5.4.0,latest"
+        "value": [
+          "5.4.0",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -7780,7 +8193,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "latest,2.7.3"
+        "value": [
+          "latest",
+          "2.7.3"
+        ]
       }
     ],
     "vcpu": 2,
@@ -7833,7 +8249,14 @@
     "distribution": [
       {
         "key": "community",
-        "value": "1.25,1.24,1.23,1.22,1.21,1.20"
+        "value": [
+          "1.25",
+          "1.24",
+          "1.23",
+          "1.22",
+          "1.21",
+          "1.20"
+        ]
       }
     ],
     "vcpu": 2,
@@ -7891,7 +8314,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "9.2.2,latest"
+        "value": [
+          "9.2.2",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -7952,7 +8378,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "v1.7.0,latest"
+        "value": [
+          "v1.7.0",
+          "latest"
+        ]
       }
     ],
     "vcpu": 2,
@@ -7986,7 +8415,7 @@
     "key": "cloudbeaver",
     "hot": null,
     "trademark": "CloudBeaver",
-    "summary": "Multi-database Supported Visualization Management Tool",
+    "summary": "Multi-database  Supported Visualization Management Tool",
     "overview": "CloudBeaver is a web-based database GUI tool which provides rich web interface. You can use it to manage PostgreSQL, MySQL, MariaDB, SQL Server, Oracle, DB2, Firebird, H2, Trino",
     "websiteurl": "https://cloudbeaver.io/",
     "description": "This is a repackaged CloudBeaver Community with professional support for your business. CloudBeaver Community is a web-based database GUI tool which provides rich web interface. Server itself is a Java application, web part is written on TypeScript and React. You can use it to manage PostgreSQL, MySQL, MariaDB, SQL Server, Oracle, DB2, Firebird, H2, Trino.",
@@ -8005,7 +8434,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "25.2.2,latest"
+        "value": [
+          "25.2.2",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -8053,7 +8485,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "latest,1.5"
+        "value": [
+          "latest",
+          "1.5"
+        ]
       }
     ],
     "vcpu": 1,
@@ -8101,7 +8536,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "3.1.0,latest"
+        "value": [
+          "3.1.0",
+          "latest"
+        ]
       }
     ],
     "vcpu": 2,
@@ -8154,7 +8592,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "0.70.4,latest"
+        "value": [
+          "0.70.4",
+          "latest"
+        ]
       }
     ],
     "vcpu": 2,
@@ -8288,7 +8729,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "8ea276d,latest"
+        "value": [
+          "8ea276d",
+          "latest"
+        ]
       }
     ],
     "vcpu": 2,
@@ -8322,7 +8766,7 @@
     "key": "pocketbase",
     "hot": 10000,
     "trademark": "PocketBase",
-    "summary": "Lightweight Backend-as-a-Service Platform",
+    "summary": "Lightweight  Backend-as-a-Service Platform",
     "overview": "PocketBase is a lightweight open source back-end service that provides real-time database, user authentication and file storage to simplify the application development process.",
     "websiteurl": "https://pocketbase.io",
     "description": "PocketBase is a lightweight, open source Backend-as-a-Service (BaaS) platform designed to help developers rapidly build and deploy applications. It provides features such as real-time databases, user authentication, file storage, and support for a variety of front-end frameworks to simplify the development process. With PocketBase, developers can focus on application logic without worrying about complex back-end infrastructure.",
@@ -8336,7 +8780,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "v0.29.1,latest"
+        "value": [
+          "v0.29.1",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -8389,7 +8836,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "6.5,latest"
+        "value": [
+          "6.5",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -8423,7 +8873,7 @@
     "key": "zabbix",
     "hot": 17000,
     "trademark": "Zabbix",
-    "summary": "Enterprise-level IT Infrastructure Comprehensive Monitoring Platform",
+    "summary": "Enterprise-level IT  Infrastructure Comprehensive Monitoring Platform",
     "overview": "Zabbix is the ultimate enterprise-level software designed for real-time monitoring of millions of metrics collected from tens of thousands of servers, virtual machines and network devices.",
     "websiteurl": "https://www.zabbix.com/",
     "description": "Zabbix is an enterprise-class open source distributed monitoring solution designed to monitor and track performance and availability of network servers, devices, services and other IT resources.\n\nZabbix is an all-in-one monitoring solution that allows users to collect, store, manage and analyze information received from IT infrastructure, as well as display on-screen, and alert by e-mail, SMS or Jabber when thresholds are reached.\n",
@@ -8437,7 +8887,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "ubuntu-7.4-latest,latest"
+        "value": [
+          "ubuntu-7.4-latest",
+          "latest"
+        ]
       }
     ],
     "vcpu": 2,
@@ -8484,9 +8937,10 @@
     ],
     "distribution": [
       {
-        "id": "dc3ee0c5-91fb-4812-af8d-8e47f885ff8e",
         "key": "community",
-        "value": "2025.2.89748"
+        "value": [
+          "2025.2.89748"
+        ]
       }
     ],
     "vcpu": 2,
@@ -8560,7 +9014,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "1.34.3,latest"
+        "value": [
+          "1.34.3",
+          "latest"
+        ]
       }
     ],
     "vcpu": 2,
@@ -8613,7 +9070,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "13.4,latest"
+        "value": [
+          "13.4",
+          "latest"
+        ]
       }
     ],
     "vcpu": 2,
@@ -8687,7 +9147,9 @@
     "distribution": [
       {
         "key": "community",
-        "value": "29.0"
+        "value": [
+          "29.0"
+        ]
       }
     ],
     "vcpu": 2,
@@ -8726,7 +9188,7 @@
     "key": "ttrss",
     "hot": 10000,
     "trademark": "Tiny Tiny RSS",
-    "summary": "News & Blog Content Aggregation and Reading Tool",
+    "summary": "News & Blog  Content Aggregation and Reading Tool",
     "overview": "Tiny Tiny RSS is an open source self-hosted RSS reader that supports multiple feed management and offline reading.",
     "websiteurl": "https://tt-rss.org",
     "description": "Tiny Tiny RSS (TT-RSS) is an open source self-hosted RSS reader designed to provide a flexible and customizable news aggregation platform. Users can access and manage their RSS feeds through a web interface or mobile application.TT-RSS supports a variety of features including offline reading, tag management, article sharing, full text extraction and multi-user support. It works with a variety of database backends and allows users to extend functionality through plug-ins. Due to its self-hosted nature, users have full control over their data and privacy, making it ideal for technical users and developers.",
@@ -8740,7 +9202,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "851ddf4b,latest"
+        "value": [
+          "851ddf4b",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -8788,7 +9253,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "v3.15.1,latest"
+        "value": [
+          "v3.15.1",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -8890,7 +9358,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "2.19.0-jupyter,latest-jupyter"
+        "value": [
+          "2.19.0-jupyter",
+          "latest-jupyter"
+        ]
       }
     ],
     "vcpu": 1,
@@ -8951,7 +9422,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "2025.07,latest"
+        "value": [
+          "2025.07",
+          "latest"
+        ]
       }
     ],
     "vcpu": 2,
@@ -9017,7 +9491,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "137.0-20250727,latest"
+        "value": [
+          "137.0-20250727",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -9070,7 +9547,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "3.0,latest"
+        "value": [
+          "3.0",
+          "latest"
+        ]
       }
     ],
     "vcpu": 2,
@@ -9131,7 +9611,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "v3.1.3,latest"
+        "value": [
+          "v3.1.3",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -9184,7 +9667,16 @@
     "distribution": [
       {
         "key": "community",
-        "value": "8.0,7.4,7.2,7.0,6.0,5.0,4.0,latest"
+        "value": [
+          "8.0",
+          "7.4",
+          "7.2",
+          "7.0",
+          "6.0",
+          "5.0",
+          "4.0",
+          "latest"
+        ]
       }
     ],
     "vcpu": 2,
@@ -9232,7 +9724,9 @@
     "distribution": [
       {
         "key": "community",
-        "value": "25.8.0"
+        "value": [
+          "25.8.0"
+        ]
       }
     ],
     "vcpu": 2,
@@ -9280,7 +9774,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "250707,latest"
+        "value": [
+          "250707",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -9328,7 +9825,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "5.3.2-1-ce,latest"
+        "value": [
+          "5.3.2-1-ce",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -9394,7 +9894,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "v1.4,latest"
+        "value": [
+          "v1.4",
+          "latest"
+        ]
       }
     ],
     "vcpu": 4,
@@ -9442,7 +9945,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "4.1,latest"
+        "value": [
+          "4.1",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -9526,7 +10032,30 @@
     "distribution": [
       {
         "key": "community",
-        "value": "24,23,23-alpine,23-slim,22,22-alpine,22-slim,21,21-alpine,21-slim,20,20-alpine,20-slim,19,19-alpine,19-slim,18,18-alpine,18-slim,17,17-alpine,17-slim"
+        "value": [
+          "24",
+          "23",
+          "23-alpine",
+          "23-slim",
+          "22",
+          "22-alpine",
+          "22-slim",
+          "21",
+          "21-alpine",
+          "21-slim",
+          "20",
+          "20-alpine",
+          "20-slim",
+          "19",
+          "19-alpine",
+          "19-slim",
+          "18",
+          "18-alpine",
+          "18-slim",
+          "17",
+          "17-alpine",
+          "17-slim"
+        ]
       }
     ],
     "vcpu": 1,
@@ -9574,7 +10103,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "1.29,latest"
+        "value": [
+          "1.29",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -9640,7 +10172,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "0.58.0,latest"
+        "value": [
+          "0.58.0",
+          "latest"
+        ]
       }
     ],
     "vcpu": 2,
@@ -9714,7 +10249,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "v1.12.0,latest"
+        "value": [
+          "v1.12.0",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -9775,7 +10313,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "2,latest"
+        "value": [
+          "2",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -9822,7 +10363,7 @@
     "key": "mlflow",
     "hot": 10000,
     "trademark": "MLflow",
-    "summary": "Open Source MLOps Platform for End-to-End ML & GenAI Workflow Management",
+    "summary": "Open Source MLOps Platform for End-to-End ML & GenAI Workflow  Management",
     "overview": "Machine learning experiment management and model tracking tool with version control support.",
     "websiteurl": "https://mlflow.org/",
     "description": "MLflow is an open source platform for managing the machine learning lifecycle, including experiment tracking, project packaging, model management and deployment. It provides a simple API and user interface, supports multiple storage backends and deployment environments, and helps data scientists and machine learning engineers efficiently manage and reproduce experiments.MLflow consists of four main components: Tracking, Projects, Models, and Registry, and is designed to simplify complex machine learning workflows.",
@@ -9836,7 +10377,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "v3.1.4,latest"
+        "value": [
+          "v3.1.4",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -9884,7 +10428,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "RELEASE.2025-07-23T15-54-02Z,latest"
+        "value": [
+          "RELEASE.2025-07-23T15-54-02Z",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -9937,7 +10484,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "1.44,latest"
+        "value": [
+          "1.44",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -9985,7 +10535,9 @@
     "distribution": [
       {
         "key": "community",
-        "value": "6-apache"
+        "value": [
+          "6-apache"
+        ]
       }
     ],
     "vcpu": 1,
@@ -10046,7 +10598,9 @@
     "distribution": [
       {
         "key": "community",
-        "value": "9.1.0"
+        "value": [
+          "9.1.0"
+        ]
       }
     ],
     "vcpu": 2,
@@ -10094,7 +10648,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "1.23.1,latest"
+        "value": [
+          "1.23.1",
+          "latest"
+        ]
       }
     ],
     "vcpu": 2,
@@ -10142,7 +10699,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "13.0.8"
+        "value": [
+          "13.0.8",
+          "12.0-latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -10203,7 +10763,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "20250812,latest"
+        "value": [
+          "20250812",
+          "latest"
+        ]
       }
     ],
     "vcpu": 2,
@@ -10232,67 +10795,6 @@
   },
   {
     "sys": {
-      "id": "7Cd0uDzt5wjwawfWLxV0xr"
-    },
-    "key": "jitsi",
-    "hot": 10000,
-    "trademark": "Jitsi Meet",
-    "summary": "Open Source video conferencing platforms with state-of-the-art video quality and features",
-    "overview": "Jitsi Meet - Secure, Simple and Scalable Video Conferences that you use as a standalone app or embed in your web application.",
-    "websiteurl": "https://jitsi.org/",
-    "description": "Jitsi Meet is a set of Open Source projects which empower users to use and deploy video conferencing platforms with state-of-the-art video quality and features.\n\nAmongst others here are the main features Jitsi Meet offers:\n\n- Support for all current browsers\n- Mobile applications\n- Web and native SDKs for integration\n- HD audio and video\n- Content sharing\n- Raise hand and reactions\n- Chat with private conversations\n- Polls\n- Virtual backgrounds",
-    "screenshots": [
-      {
-        "id": "c3f52b51-f3e9-45ab-b26b-c13ed7ec6ac3",
-        "key": "Create meeting",
-        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/zh/jitsi/jitsi-gui-websoft9.png"
-      }
-    ],
-    "distribution": [
-      {
-        "key": "community",
-        "value": "stable-10431"
-      }
-    ],
-    "vcpu": 2,
-    "memory": 4,
-    "storage": 10,
-    "logo": {
-      "imageurl": "https://libs.websoft9.com/Websoft9/logo/product/jitsi-websoft9.png"
-    },
-    "catalogCollection": {
-      "items": [
-        {
-          "key": "meeting",
-          "title": "Meeting",
-          "catalogCollection": {
-            "items": [
-              {
-                "key": "communication",
-                "title": "Communication",
-                "position": 6
-              }
-            ]
-          }
-        },
-        {
-          "key": "home-server",
-          "title": "Home Server",
-          "catalogCollection": {
-            "items": [
-              {
-                "key": "usecase",
-                "title": "Use Case",
-                "position": 0
-              }
-            ]
-          }
-        }
-      ]
-    }
-  },
-  {
-    "sys": {
       "id": "vh3LcEJvgmFxxjl4aiIW9"
     },
     "key": "homeassistant",
@@ -10312,7 +10814,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "2025.7,latest"
+        "value": [
+          "2025.7",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -10373,7 +10878,9 @@
     "distribution": [
       {
         "key": "community",
-        "value": "v25.3.0"
+        "value": [
+          "v25.3.0"
+        ]
       }
     ],
     "vcpu": 2,
@@ -10439,7 +10946,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "3.0.4,latest"
+        "value": [
+          "3.0.4",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -10523,7 +11033,9 @@
     "distribution": [
       {
         "key": "community",
-        "value": "9.1.0"
+        "value": [
+          "9.1.0"
+        ]
       }
     ],
     "vcpu": 2,
@@ -10594,7 +11106,11 @@
     "distribution": [
       {
         "key": "community",
-        "value": "11.2.2-apache,11.0.5-apache,10.3.2-apache"
+        "value": [
+          "11.2.2-apache",
+          "11.0.5-apache",
+          "10.3.2-apache"
+        ]
       }
     ],
     "vcpu": 1,
@@ -10668,7 +11184,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "25.04.4.2.1,latest"
+        "value": [
+          "25.04.4.2.1",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -10742,7 +11261,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "v5.5.10,latest"
+        "value": [
+          "v5.5.10",
+          "latest"
+        ]
       }
     ],
     "vcpu": 1,
@@ -10808,7 +11330,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "3.13.28,latest"
+        "value": [
+          "3.13.28",
+          "latest"
+        ]
       }
     ],
     "vcpu": 2,
@@ -10891,7 +11416,7 @@
     "key": "anythingllm",
     "hot": 10000,
     "trademark": "AnythingLLM",
-    "summary": "AI Chat & All-in-one Application",
+    "summary": "AI Chat &  All-in-one Application",
     "overview": "AnythingLLM is a versatile language model that supports a wide range of tasks and applications, providing intelligent dialog and text generation.",
     "websiteurl": "https://anythingllm.com/",
     "description": "AnythingLLM is a versatile language model that supports a wide range of tasks and applications, providing intelligent dialog and text generation.It has the following characteristics:\n- AnythingLLM works with both text only and multi-modal LLMs in a single interface.\n- Run your preferred LLM locally in a click, or connects to your local or cloud LLM engine.\n- AnythingLLM wraps all of this incredible functionality into a sleek UI for you to leverage LLMs easily for any task.\n- Extend AnythingLLMs with custom agents, data connectors, and more. \n- AnythingLLM is also suitable to be used as a powerful API for any custom development or feature in existing products.",
@@ -10910,7 +11435,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "1.8,latest"
+        "value": [
+          "1.8",
+          "latest"
+        ]
       }
     ],
     "vcpu": 2,
@@ -11342,7 +11870,7 @@
     "key": "arangodb",
     "hot": 10000,
     "trademark": "ArangoDB",
-    "summary": "Open Source Graph Database System",
+    "summary": "Open Source Graph  Database System",
     "overview": "ArangoDB is a scalable graph database system to drive value from connected data, faster.",
     "websiteurl": "https://www.arangodb.com/",
     "description": "Native Graph - Store both data and relationships, for faster queries even with multiple levels of joins and deeper insights that simply aren't possible with traditional relational and document database systems.\n\nDocument Store - Every node in your graph is a JSON document: flexible, extensible, and easily imported from your existing document database.\n\nArangoSearch - Natively integrated cross-platform indexing, text-search and ranking engine for information retrieval, optimized for speed and memory.\n\nArangoDB is available in a free and open-source Community Edition, as well as a commercial Enterprise Edition with additional features.",
@@ -11407,7 +11935,9 @@
     "distribution": [
       {
         "key": "community",
-        "value": "1.12.0"
+        "value": [
+          "1.12.0"
+        ]
       }
     ],
     "vcpu": 1,
@@ -11688,7 +12218,7 @@
     "key": "kodbox",
     "hot": null,
     "trademark": "Kodbox",
-    "summary": "Enterprise Cloud Storage & Collaborative Office System",
+    "summary": "Enterprise Cloud  Storage & Collaborative Office System",
     "overview": "KodCloud (Kodo Cloud) is an open source system that integrates online file management, multi-cloud storage and collaborative work in a Windows-like experience.",
     "websiteurl": "https://kodcloud.com/",
     "description": "KodCloud (Kedao Cloud), originally named KodExplorer, is an open-source system that integrates online file management, multi-cloud storage, and collaborative office work, providing a Windows-like experience. It features a beautiful and smooth interface, supports preview of hundreds of file formats, and offers enterprise-grade fine-grained permission control and Xinchuang certification, making cloud deployment more secure and reliable.",
@@ -11748,76 +12278,6 @@
                 "key": "usecase",
                 "title": "Use Case",
                 "position": 0
-              }
-            ]
-          }
-        }
-      ]
-    }
-  },
-  {
-    "sys": {
-      "id": "7LvmB9OfByb4n6DbghrKLI"
-    },
-    "key": "haproxy",
-    "hot": null,
-    "trademark": "HAProxy",
-    "summary": "High-performance TCP/HTTP Load Balancing System",
-    "overview": "Provides a high availability load balancer and proxy server for TCP and HTTP-based applications.",
-    "websiteurl": "http://www.haproxy.org/",
-    "description": "This is a repackaged HAProxy Community Edition with professional support for your business. HAProxy provides a high availability load balancer and proxy server for TCP and HTTP-based applications that spreads requests across multiple servers. HAProxy is written in C and has a reputation for being fast and efficient.",
-    "screenshots": [
-      {
-        "id": "24d85a80-9fc5-4164-b1d8-c756310f87f2",
-        "key": "configuration",
-        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/zh/haproxy/HAProxy-configuration.png"
-      },
-      {
-        "id": "14fd3613-bd5b-49bb-afcb-39579b11690c",
-        "key": "gui",
-        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/zh/haproxy/haproxy-statsgui-websoft9.png"
-      }
-    ],
-    "distribution": [
-      {
-        "key": "community",
-        "value": [
-          "3.2",
-          "3.1",
-          "3.0",
-          "2.9",
-          "2.8",
-          "2.7",
-          "2.6",
-          "2.5",
-          "2.4",
-          "2.3",
-          "2.0"
-        ]
-      }
-    ],
-    "vcpu": 1,
-    "memory": 1,
-    "storage": 4,
-    "logo": {
-      "imageurl": "https://libs.websoft9.com/Websoft9/logo/product/haproxy-websoft9.png"
-    },
-    "catalogCollection": {
-      "items": [
-        {
-          "key": "balancer",
-          "title": "Load Balancer",
-          "catalogCollection": {
-            "items": [
-              {
-                "key": "architecture",
-                "title": "IT Architecture",
-                "position": 22
-              },
-              {
-                "key": "networking",
-                "title": "Networking",
-                "position": 13
               }
             ]
           }
@@ -11947,7 +12407,7 @@
     "key": "caddy",
     "hot": 10000,
     "trademark": "Caddy",
-    "summary": "HTTPS-first Web Server",
+    "summary": "HTTPS-first Web  Server",
     "overview": "Caddy 2 is a powerful, enterprise-ready, open source web server with automatic HTTPS written in Go",
     "websiteurl": "https://caddyserver.com/",
     "description": "Caddy simplifies your infrastructure. It takes care of TLS certificate renewals, OCSP stapling, static file serving, reverse proxying, Kubernetes ingress, and more.\n\nIts modular architecture means you can do more with a single, static binary that compiles for any platform.\n\nCaddy runs great in containers because it has no dependencies—not even libc. Run Caddy practically anywhere.",
@@ -12016,7 +12476,7 @@
     "key": "sonarqube",
     "hot": 10000,
     "trademark": "SonarQube",
-    "summary": "Code Quality & Security Analysis Platform",
+    "summary": "Code Quality &  Security Analysis Platform",
     "overview": "SonarQube is a code quality management tool",
     "websiteurl": "https://www.sonarsource.com",
     "description": "SonarQube is an open source code quality management platform designed to help development teams continuously monitor and improve code quality. It detects potential issues, including defects, vulnerabilities, and code odor, through static code analysis and supports multiple programming languages such as Java, C#, JavaScript, and Python. sonarQube integrates with continuous integration tools such as Jenkins and GitLab CI to automate the analysis and ensure that code quality is maintained throughout the development cycle. The platform provides visual reports and dashboards to help teams quickly identify issues and supports customization of rules to meet specific needs. In addition, SonarQube features security vulnerability detection to help improve application security. Its Enterprise Edition offers more advanced features for larger organizations and is an effective tool for improving the efficiency and reliability of software development.",
@@ -12136,7 +12596,7 @@
     "key": "opengauss",
     "hot": 10000,
     "trademark": "openGauss",
-    "summary": "Postgres-compatible Open Source Database",
+    "summary": "Postgres-compatible  Open Source Database",
     "overview": "openGauss is an open-source relational database management system that leverages years of expertise in the database field to offer a high-reliability, high-performance, and high-security solution tailored for enterprise needs. With features like sub-10 second failover times, over 1.5 million tpmC on dual Kunpeng performance, and end-to-end security measures, openGauss is equipped with AI-based intelligent parameter tuning for easy maintenance. Join the openGauss community to explore its capabilities and contribute to its growth.",
     "websiteurl": "https://opengauss.org",
     "description": " openGauss is a next-generation open-source relational database that combines the extensive experience of Huawei in the database domain with the flexibility of open-source collaboration. It is licensed under the Mulan Permissive Software License v2 and is designed to meet the demands of enterprise-grade applications. Key features include high reliability with rapid failover, superior performance as evidenced by benchmark results, comprehensive security measures to protect data at all stages, and AI-driven smart tuning for simplified operations. The openGauss community welcomes developers, enterprises, and contributors to join and benefit from this powerful database solution.",
@@ -12265,7 +12725,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "v3.0.4,latest"
+        "value": [
+          "v3.0.4",
+          "latest"
+        ]
       }
     ],
     "vcpu": 2,
@@ -12318,7 +12781,9 @@
     "distribution": [
       {
         "key": "community",
-        "value": "main"
+        "value": [
+          "main"
+        ]
       }
     ],
     "vcpu": 2,
@@ -12911,6 +13376,7 @@
       {
         "key": "community",
         "value": [
+          "2.5.307",
           "latest"
         ]
       }
@@ -12946,7 +13412,7 @@
     "key": "nexterm",
     "hot": 10000,
     "trademark": "Nexterm",
-    "summary": "SSH/VNC/RDP-supported Web Terminal Tool",
+    "summary": "SSH/VNC/RDP-supported  Web Terminal Tool",
     "overview": "The open source server management software for SSH, VNC & RDP.",
     "websiteurl": "https://docs.nexterm.dev",
     "description": "Nexterm is an advanced terminal emulation software designed to provide developers and system administrators with an efficient and flexible command line interface. It supports a variety of protocols, including SSH, Telnet, and serial connections, making it easy for users to manage remote servers and devices.Nexterm's intuitive interface allows users to easily customize themes, shortcuts, and window layouts to meet their personal work habits. In addition, Nexterm provides powerful scripting support and automation features to help users improve work efficiency. Its built-in file transfer feature makes it easy to move files between local and remote systems. Nexterm is the ideal terminal solution for both day-to-day management and complex development tasks.",
@@ -12996,7 +13462,7 @@
     "key": "nextchat",
     "hot": 10000,
     "trademark": "NextChat",
-    "summary": "Multi-model AI Chat System",
+    "summary": "Multi-model AI Chat  System",
     "overview": "A well-designed cross-platform ChatGPT UI (Web / PWA / Linux / Win / MacOS)",
     "websiteurl": "https://nextchat.dev",
     "description": "NextChat is a cloud-based solution designed to help individuals and organizations quickly set up their own ChatGPT web service with just one click. With this service, users can easily have their own dedicated ChatGPT interface, including text input, output, and model training functions, to achieve highly customized intelligent Q&A services.",
@@ -13065,7 +13531,7 @@
     "key": "mage",
     "hot": 10000,
     "trademark": "Mage",
-    "summary": "Data Transformation & Integration Framework Platform",
+    "summary": "Data Transformation  & Integration Framework Platform",
     "overview": "Build, run, and manage data pipelines for integrating and transforming data.",
     "websiteurl": "https://www.mage.ai/",
     "description": "- Integrate and synchronize data from 3rd party sources\n- Build real-time and batch pipelines to transform data using Python, SQL, and R\n- Run, monitor, and orchestrate thousands of pipelines without losing sleep",
@@ -13128,7 +13594,7 @@
     "key": "langflow",
     "hot": 10000,
     "trademark": "Langflow",
-    "summary": "Visual Workflow Builder-driven AI Low-code Platform",
+    "summary": "Visual Workflow  Builder-driven AI Low-code Platform",
     "overview": "Langflow is a low-code tool for developers that makes it easier to build powerful AI agents and workflows that can use any API, model, or database.",
     "websiteurl": "https://www.langflow.org",
     "description": "Langflow is a new, visual framework for building multi-agent and RAG applications. It is open-source, Python-powered, fully customizable, and LLM and vector store agnostic.\n\nIts intuitive interface allows for easy manipulation of AI building blocks, enabling developers to quickly prototype and turn their ideas into powerful, real-world solutions.\n\nLangflow empowers developers to rapidly prototype and build AI applications with its user-friendly interface and powerful features. Whether you're a seasoned AI developer or just starting out, Langflow provides the tools you need to bring your AI ideas to life.",
@@ -13214,7 +13680,7 @@
     "key": "kavita",
     "hot": 10000,
     "trademark": "Kavita",
-    "summary": "Self-hosted Digital Reading Content Library",
+    "summary": "Self-hosted Digital  Reading Content Library",
     "overview": "Kavita is a fast, feature rich, cross platform reading server. Built with the goal of being a full solution for all your reading needs. Setup your own server and share your reading collection with your friends and family.",
     "websiteurl": "https://www.kavitareader.com",
     "description": "Kavita is a feature rich open-source media manager that focuses on organizing and reading comics, light novels, and e-books. It supports multiple file formats, including ZIP, RAR, EPUB, and PDF, and provides built-in image, EPUB, and PDF readers. Users can customize their reading experience, such as fonts, spacing, themes, and more. Kavita has a full-text search function, which can quickly find files, bookmarks, reading lists, etc. It also supports metadata filtering, rating, and commenting functions, making it convenient for users to manage and discover content. It also allows users to create and manage accounts, share library resources, and provide cross platform support without relying on external programs, responding quickly and suitable for comic book enthusiasts and e-book readers.",
@@ -13229,6 +13695,7 @@
       {
         "key": "community",
         "value": [
+          "0.8.6",
           "latest"
         ]
       }
@@ -13277,7 +13744,7 @@
     "key": "huginn",
     "hot": 10000,
     "trademark": "Huginn",
-    "summary": "Workflow & Automation Tool",
+    "summary": "Workflow &  Automation Tool",
     "overview": "Huginn is a system for building agents that perform automated tasks for you online. They can read the web, watch for events, and take actions on your behalf. ",
     "websiteurl": "https://github.com/huginn/huginn",
     "description": "Huginn is an open-source Ruby on Rails-based automation task management tool. It enables users to create custom agents that interact with other services through APIs to achieve automated tasks. Huginn provides flexible configuration options and a visual interface, making it easy for users to manage and monitor their tasks.",
@@ -13426,7 +13893,7 @@
     "key": "dashy",
     "hot": 10000,
     "trademark": "Dashy",
-    "summary": "Customizable Website Bookmarks & Dashboard Tool",
+    "summary": "Customizable Website  Bookmarks & Dashboard Tool",
     "overview": "Dashy is an open source, highly customizable, easy to use, privacy-respecting dashboard app.",
     "websiteurl": "https://dashy.to",
     "description": "It's packed full of useful features, to help you build your perfect dashboard. Including status checks, keyboard shortcuts, dynamic widgets, auto-fetched favicon icons and font-awesome support, built-in authentication, tons of themes, an interactive config editor, many display layouts plus loads more.\nAll the code is free and open source, and everything is thoroughly documented, you can get support with any questions on GitHub.",
@@ -13441,6 +13908,7 @@
       {
         "key": "community",
         "value": [
+          "release-3.1.1",
           "latest"
         ]
       }
@@ -13476,7 +13944,7 @@
     "key": "browserless",
     "hot": 10000,
     "trademark": "Browserless",
-    "summary": "Headless Browser & Website Automation Tool",
+    "summary": "Headless Browser  & Website Automation Tool",
     "overview": "Browserless is a headless browser service that supports automated web crawling, testing and PDF generation for developers.",
     "websiteurl": "https://www.browserless.io/",
     "description": "Browserless is a headless browser service designed to simplify web automation and data crawling. It allows developers to run a browser without a GUI, supporting a variety of operations such as web crawling, automated testing, PDF generation and screenshots, etc. Browserless provides API interfaces for easy integration with other applications and supports multiple programming languages. Users can use the software through cloud services or local deployment, which is highly flexible and suitable for developers and organizations that need to process web content efficiently. Its headless mode allows for less resource consumption and faster operation.",
@@ -13491,6 +13959,7 @@
       {
         "key": "community",
         "value": [
+          "v2.28.0",
           "latest"
         ]
       }
@@ -13642,6 +14111,7 @@
       {
         "key": "community",
         "value": [
+          "202209060423",
           "latest"
         ]
       }
@@ -13677,7 +14147,7 @@
     "key": "aitable",
     "hot": 10000,
     "trademark": "AITable",
-    "summary": "Spreadsheet Low-code & Automation Integration Platform",
+    "summary": "Spreadsheet Low-code  & Automation Integration Platform",
     "overview": "By using AITable, every individual, team, and company should be able to access and manipulate databases and data in ways never possible before, helping people save countless hours every day.",
     "websiteurl": "https://aitable.ai/",
     "description": "AITable is an innovative management tool of digital data, based on the flexible multi-dimensional spreadsheet.\n\nAITable origins from a pure idea: if there was a tool able to make software development and design 100 times easier, and enable everyone to become their own software designer, it would be great.\n\nUnlike traditional spreadsheets or project collaboration tools, AITable is more like a flexible and easy-to-use database that can seamlessly connect any information and data together to build perfect custom workflows.\n\nIt is also a simple and intuitive data collaboration platform that can adapt to continuously changing requirements of teams, helping making adjustment of working progress, standardizing business processes, facilitating team collaboration, and enabling data tracking.",
@@ -13692,6 +14162,7 @@
       {
         "key": "community",
         "value": [
+          "v1.13.0-beta",
           "latest"
         ]
       }
@@ -13745,7 +14216,7 @@
     "key": "automatisch",
     "hot": 10000,
     "trademark": "Automatisch",
-    "summary": "iPaaS Automated Business Process Platform",
+    "summary": "iPaaS Automated  Business Process Platform",
     "overview": "Automatisch is an automation tool designed to streamline task execution and process management, increase productivity and reduce human error.",
     "websiteurl": "https://automatisch.io",
     "description": "Automatisch is an automation-focused tool designed to help users streamline their daily tasks and workflows. It enables users to easily create and manage automation tasks by providing an intuitive interface and powerful features. Users can set trigger conditions and perform actions that enable a wide range of functions such as data processing, file management and system integration.Automatisch supports the integration of multiple applications and services, which can increase work efficiency and reduce human errors. In addition, it provides real-time monitoring and reporting capabilities to help users track tasks and ensure smooth and efficient processes.",
@@ -13760,6 +14231,7 @@
       {
         "key": "community",
         "value": [
+          "v0.10.0",
           "latest"
         ]
       }
@@ -13804,102 +14276,6 @@
                 "key": "business-operation",
                 "title": "Business Operation",
                 "position": 3
-              }
-            ]
-          }
-        }
-      ]
-    }
-  },
-  {
-    "sys": {
-      "id": "5uwmfb7BW4wbQb8vMwKWLc"
-    },
-    "key": "erpnext",
-    "hot": null,
-    "trademark": "ERPNext",
-    "summary": "Open Source ERP System",
-    "overview": "ERPNext can help users manage their project management concerns, accounting tasks, and HR responsibilities within a single interface.",
-    "websiteurl": "https://erpnext.com/",
-    "description": "This is a repackaged ERPNext with professional support for your business. ERPNext can help users manage their project management concerns, accounting tasks, and HR responsibilities within a single interface that enables them to take full control of their business. Whether gauge employee performance, analyze the company's financial health, or delegate tasks, ERPNext can do it all.",
-    "screenshots": [
-      {
-        "id": "dd7e1bb9-5534-4581-8abb-ac45d9c1d59a",
-        "key": "ui",
-        "value": "http://libs.websoft9.com/Websoft9/DocsPicture/en/erpnext/erpnext-adminui-websoft9.png"
-      },
-      {
-        "id": "6e53620d-08f6-497b-8b4f-f03e49420b3c",
-        "key": "modoules",
-        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/en/erpnext/erpnext-ok-websoft9.png"
-      }
-    ],
-    "distribution": [
-      {
-        "key": "community",
-        "value": [
-          "v15",
-          "v14",
-          "v13"
-        ]
-      }
-    ],
-    "vcpu": 2,
-    "memory": 8,
-    "storage": 1,
-    "logo": {
-      "imageurl": "https://libs.websoft9.com/Websoft9/logo/product/erpnext-websoft9.png"
-    },
-    "catalogCollection": {
-      "items": [
-        {
-          "key": "erp",
-          "title": "ERP & Finance",
-          "catalogCollection": {
-            "items": [
-              {
-                "key": "business-operation",
-                "title": "Business Operation",
-                "position": 3
-              }
-            ]
-          }
-        },
-        {
-          "key": "smart-manufacturing",
-          "title": "Supply Chain & Manufacturing & Logistic",
-          "catalogCollection": {
-            "items": [
-              {
-                "key": "business-operation",
-                "title": "Business Operation",
-                "position": 3
-              }
-            ]
-          }
-        },
-        {
-          "key": "crm",
-          "title": "CRM & Distribution & Order",
-          "catalogCollection": {
-            "items": [
-              {
-                "key": "business-operation",
-                "title": "Business Operation",
-                "position": 3
-              }
-            ]
-          }
-        },
-        {
-          "key": "operation",
-          "title": "Digtal for SCM and Operation",
-          "catalogCollection": {
-            "items": [
-              {
-                "key": "usecase",
-                "title": "Use Case",
-                "position": 0
               }
             ]
           }
@@ -13969,7 +14345,7 @@
     "key": "memcached",
     "hot": null,
     "trademark": "memcached",
-    "summary": "High-performance Caching Database System",
+    "summary": "High-performance  Caching Database System",
     "overview": "Memcached is an in-memory key-value store for small chunks of arbitrary data (strings, objects) from results of database calls, API calls, or page rendering. ",
     "websiteurl": "https://www.memcached.org/",
     "description": "This is a repackaged Memcached with professional support for your business. Memcached is an in-memory key-value store for small chunks of arbitrary data (strings, objects) from results of database calls, API calls, or page rendering. Memcached is simple yet powerful . Its simple design promotes quick deployment, ease of development, and solves many problems facing large data caches.",
@@ -14088,7 +14464,7 @@
     "key": "nodebb",
     "hot": 10000,
     "trademark": "NodeBB",
-    "summary": "Community Forum System with Mobile Optimization",
+    "summary": "Community Forum  System with Mobile Optimization",
     "overview": "NodeBB is a modern, mobile-first community platform designed to help businesses and communities establish their own space for genuine conversations, away from the noise of traditional social media. With a focus on user engagement and retention, NodeBB offers a suite of features that include mobile responsiveness, internationalization support, search optimization, GDPR compliance, and social media integration. It's the perfect solution for those looking to create a vibrant online community.",
     "websiteurl": "https://nodebb.org/",
     "description": "NodeBB is more than just a forum software; it's a complete community engagement platform that brings the spirit of traditional online forums into the modern era with powerful features and a mobile-first design. Whether you're a tech-savvy DIY pro looking to self-host or a growing business needing a one-click forum solution, NodeBB has you covered. With built-in support for over 50 languages, real-time interactions, and native analytics, NodeBB is designed to meet the needs of any community, large or small. Start your free trial today and join the thousands of forums already powered by NodeBB.",
@@ -14152,7 +14528,7 @@
     "key": "onlyoffice",
     "hot": null,
     "trademark": "ONLYOFFICE Workspace",
-    "summary": "Team Collaboration Office Suite",
+    "summary": "Team Collaboration  Office Suite",
     "overview": "ONLYOFFICE is a multifunctional portal for business collaboration, document and project management. ",
     "websiteurl": "https://www.onlyoffice.com/",
     "description": "This is a repackaged ONLYOFFICE Workspace with professional support for your business. ONLYOFFICE Workspace is a free open-source collaborative system developed to manage documents, projects, customer relationship and email correspondence, all in one place. It allows you to organize business tasks and milestones, store and share your corporate or personal documents, use social networking tools such as blogs and forums, as well as communicate with your team members via corporate IM.\n\nThere not have Mail Server and ONLYOFFICE Docs at this deployment template",
@@ -14234,7 +14610,7 @@
     "key": "plausible",
     "hot": 10000,
     "trademark": "Plausible",
-    "summary": "Website Traffic Analytics Platform",
+    "summary": "Website Traffic  Analytics Platform",
     "overview": "Plausible is intuitive, lightweight and open source web analytics. No cookies and fully compliant with GDPR, CCPA and PECR. Made and hosted in the EU, powered by European-owned cloud infrastructure 🇪🇺",
     "websiteurl": "https://plausible.io/",
     "description": "Plausible is a simple and user-friendly web analysis tool designed to give users in-depth insights into their website's user engagement, traffic sources, and conversion rates. With Plausible, users can easily generate detailed website reports, including key metrics such as page views, time on site, bounce rate, and more. Plausible offers both free and paid plans, making it suitable for individuals and small businesses. Its intuitive and straightforward interface makes it easy to get started and can help users quickly understand their website's performance, enabling them to optimize their content and marketing strategies.",
@@ -14303,7 +14679,7 @@
     "key": "prestashop",
     "hot": null,
     "trademark": "Prestashop",
-    "summary": "Open Source E-commerce Platform",
+    "summary": "Open Source  E-commerce Platform",
     "overview": "PrestaShop is one of the world's most popular ecommerce platforms, and most successful open source projects.",
     "websiteurl": "https://www.prestashop.com/en",
     "description": "This is a repackaged PrestaShop with professional support for your business. PrestaShop is one of the world's most popular ecommerce platforms, and most successful open source projects. Around the world, more than 250,000 ecommerce stores run on PrestaShop technology. PrestaShop has comprehensive product features for small, medium or large eCommerce stores. Hundreds of features are standard and 100% free.",
@@ -14377,8 +14753,8 @@
     "key": "scratch",
     "hot": 10000,
     "trademark": "Scratch",
-    "summary": "Kids' Fun Programming Tool",
-    "overview": "Scratch is coding community for children and a coding language with a simple visual interface that allows young people to create digital stories, games, and animations.",
+    "summary": "Kids' Fun Programming  Tool",
+    "overview": "Scratch is  coding community for children and a coding language with a simple visual interface that allows young people to create digital stories, games, and animations.",
     "websiteurl": "https://scratch.mit.edu/",
     "description": "Scratch is coding community for children and a coding language with a simple visual interface that allows young people to create digital stories, games, and animations. Scratch is designed, developed, and moderated by the Scratch Foundation, a nonprofit organization.\n\nScratch promotes computational thinking and problem solving skills; creative teaching and learning; self-expression and collaboration; and equity in computing.\n",
     "screenshots": [
@@ -14533,7 +14909,7 @@
     "key": "supabase",
     "hot": 10000,
     "trademark": "Supabase",
-    "summary": "Backend-as-a-Service Platform",
+    "summary": "Backend-as-a-Service  Platform",
     "overview": "Supabase is an open source Firebase alternative. Start your project with a Postgres database, Authentication, instant APIs, Edge Functions, Realtime subscriptions, Storage, and Vector embeddings.",
     "websiteurl": "https://supabase.com/",
     "description": null,
@@ -14588,7 +14964,7 @@
     "key": "teleport",
     "hot": 10000,
     "trademark": "Teleport",
-    "summary": "Open Source Bastion Host, Infrastructure Secure Access Platform",
+    "summary": "Open Source Bastion  Host, Infrastructure Secure Access Platform",
     "overview": "The open source access platform used by DevSecOps teams for SSH, Kubernetes, databases, internal web applications and Windows.",
     "websiteurl": "https://goteleport.com/",
     "description": "Teleport prevents phishing by relying on biometrics and machine identity, stops attacker pivots with the Zero Trust architecture, is compatible with everything you have, comes as a cloud service or a self-hosted option and doesn't get in the way of an engineer's productivity.",
@@ -14671,7 +15047,10 @@
     "distribution": [
       {
         "key": "community",
-        "value": "2.4.8,latest"
+        "value": [
+          "2.4.8",
+          "latest"
+        ]
       }
     ],
     "vcpu": 2,
@@ -14963,62 +15342,6 @@
                 "key": "runtime",
                 "title": "App Runtime",
                 "position": 11
-              }
-            ]
-          }
-        }
-      ]
-    }
-  },
-  {
-    "sys": {
-      "id": "1ixPOG2M1jmRFhZhCUUSY1"
-    },
-    "key": "rocketmq",
-    "hot": null,
-    "trademark": "RocketMQ",
-    "summary": "A distributed messaging and streaming platform",
-    "overview": "A distributed messaging and streaming platform with low latency, high performance and reliability, trillion-level capacity and flexible scalability",
-    "websiteurl": "https://rocketmq.apache.org/",
-    "description": "This is a repackaged Apache RocketMQ™ with professional support for your business. Apache RocketMQ™ is a distributed messaging and streaming platform with low latency, high performance and reliability, trillion-level capacity and flexible scalability.\n\nIncludes: Name Server, Proxy, Broker, Dashboard",
-    "screenshots": [
-      {
-        "id": "3104a0b6-8977-4de3-9dba-d76fea8dd156",
-        "key": "console",
-        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/en/rocketmq/rocketmq-console-websoft9.png"
-      },
-      {
-        "id": "b87737ce-11ba-4623-ab17-b3a18a551c15",
-        "key": "language",
-        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/zh/rocketmq/rocketmq-language-websoft9.png"
-      }
-    ],
-    "distribution": [
-      {
-        "key": "community",
-        "value": [
-          "5.3.1",
-          "latest"
-        ]
-      }
-    ],
-    "vcpu": 4,
-    "memory": 16,
-    "storage": 1,
-    "logo": {
-      "imageurl": "https://libs.websoft9.com/Websoft9/logo/product/rocketmq-websoft9.png"
-    },
-    "catalogCollection": {
-      "items": [
-        {
-          "key": "mq",
-          "title": "Message Queue",
-          "catalogCollection": {
-            "items": [
-              {
-                "key": "architecture",
-                "title": "IT Architecture",
-                "position": 22
               }
             ]
           }
@@ -15526,7 +15849,7 @@
     "key": "openjdk",
     "hot": 4000,
     "trademark": "OpenJDK",
-    "summary": "OpenJDK runtime for production and development",
+    "summary": "OpenJDK  runtime for production and development",
     "overview": "The Oracle official OpenJDK container has been carefully engineered to provide you and your team with a highly reproducible Java production and development environment. ",
     "websiteurl": "https://container-registry.oracle.com/ords/ocr/ba/java/openjdk",
     "description": "This application includes the Java runtime with Git repository, developer can use it to create semi-automatic CI/CD platform",
@@ -16279,6 +16602,7 @@
       {
         "key": "community",
         "value": [
+          "v0.6.10",
           "latest"
         ]
       }
@@ -16602,7 +16926,7 @@
     "hot": 10000,
     "trademark": "Jellyfin",
     "summary": "The Free Software Media System",
-    "overview": "Jellyfin is a Free Software Media System that puts you in control of managing and streaming your media. It is an alternative to the proprietary Emby and Plex, to provide media from a dedicated server to end-user devices via multiple apps. ",
+    "overview": "Jellyfin is a Free Software Media System that puts you in control of managing and streaming your media.  It is an alternative to the proprietary Emby and Plex, to provide media from a dedicated server to end-user devices via multiple apps. ",
     "websiteurl": "https://jellyfin.org/",
     "description": "Jellyfin supports a variety of media types, including but not limited to the following: Videos, Music, Live TV, Recorded TV Shows, Books, Photos, Podcasts, Music Videos\n\nJellyfin aims to be a comprehensive media solution, so it supports a wide range of media types and offers extensive metadata support and user interface customization options so that users can organize and access media content according to their needs. As Jellyfin is updated and the community evolves, the supported media types may continue to expand.",
     "screenshots": [
@@ -16616,6 +16940,7 @@
       {
         "key": "community",
         "value": [
+          "10.10.7",
           "latest"
         ]
       }
@@ -16807,7 +17132,8 @@
       {
         "key": "community",
         "value": [
-          "latest"
+          "latest",
+          "v0.1.0"
         ]
       }
     ],
@@ -16857,7 +17183,8 @@
       {
         "key": "community",
         "value": [
-          "latest"
+          "latest",
+          "1.1.10-5"
         ]
       }
     ],
@@ -16976,6 +17303,7 @@
       {
         "key": "community",
         "value": [
+          "release-27",
           "latest"
         ]
       }
@@ -17044,6 +17372,7 @@
       {
         "key": "community",
         "value": [
+          "alpine3.21",
           "latest"
         ]
       }
@@ -17201,6 +17530,7 @@
       {
         "key": "community",
         "value": [
+          "7.11.4",
           "latest"
         ]
       }
@@ -17277,6 +17607,7 @@
       {
         "key": "community",
         "value": [
+          "sha-4bfc5bb",
           "latest"
         ]
       }
@@ -17435,7 +17766,7 @@
     "key": "dolibarr",
     "hot": null,
     "trademark": "Dolibarr",
-    "summary": "A ERP & CRM software",
+    "summary": "A  ERP & CRM software",
     "overview": "Dolibarr is a software suite for small and micro enterprises, freelancers and other enterprises, which used for resource planning and customer relationship management. ",
     "websiteurl": "https://www.dolibarr.org/",
     "description": "This is a repackaged Dolibarr with professional support for your business. Dolibarr is a software suite for small and micro enterprises, freelancers and other enterprises, which used for resource planning and customer relationship management. You can use one web suite to manage all of your business by Dolibarr.",
@@ -17545,6 +17876,7 @@
       {
         "key": "community",
         "value": [
+          "1.9.8",
           "latest"
         ]
       }
@@ -17807,7 +18139,7 @@
     "key": "chronograf",
     "hot": 10000,
     "trademark": "Chronograf",
-    "summary": "InfluxDB user interface and administrative",
+    "summary": "InfluxDB  user interface and administrative",
     "overview": "Chronograf is the user interface and administrative component of the InfluxDB 1.x platform.",
     "websiteurl": "https://www.influxdata.com/",
     "description": "Chronograf allows you to quickly see the data that you have stored in InfluxDB so you can build robust queries and alerts. It is simple to use and includes templates and libraries to allow you to rapidly build dashboards with real-time visualizations of your data.",
@@ -17822,6 +18154,7 @@
       {
         "key": "community",
         "value": [
+          "1.10.7",
           "latest"
         ]
       }
@@ -17936,6 +18269,7 @@
       {
         "key": "community",
         "value": [
+          "25.02.2",
           "latest"
         ]
       }

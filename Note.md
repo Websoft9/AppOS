@@ -219,3 +219,6 @@ Utilities:
   make help                 Show this help
 
 
+
+
+proxy server 默认开启 websocket 支持

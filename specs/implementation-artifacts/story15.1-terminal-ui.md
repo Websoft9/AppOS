@@ -47,6 +47,7 @@ dashboard/src/
 - Displays error overlay with **Reconnect** button on disconnect
 - Reads `connect.terminal.font_size` and `connect.terminal.scrollback` from localStorage
 - `applyViewportInset()`: 挂载后给 `.xterm-screen` 添加 `8px 10px` 内边距
+- **TUI native support**: full-screen TUI apps (`opencode`, vim, tmux, htop) must be able to copy text out of the terminal natively. Implementation (one line): bridge `OSC 52` into the browser clipboard via `terminal.parser.registerOscHandler(52, data => copyToClipboard(atob(data)))`, plus a transient success/blocked notice.
 
 ### FileManagerPanel
 
@@ -123,6 +124,7 @@ File list columns: Name, Size, Permissions, Modified.
 - [x] Split preset menu uses two-pane icon trigger and text-only options: `30/70`, `0/100`, `50/50`, `70/30`, `reset`
 - [x] `0/100` preset semantics: hide Terminal shell pane
 - [x] Connect settings are delivered through the Epic 13 Settings Module and include idle timeout and max connections (default: `0` unlimited)
+- [x] Terminal supports TUI native clipboard copy: a copy triggered inside a full-screen TUI (e.g. `opencode`) via `OSC 52` is written to the browser clipboard and pasteable outside the terminal; blocked writes surface a visible notice
 
 ---
 

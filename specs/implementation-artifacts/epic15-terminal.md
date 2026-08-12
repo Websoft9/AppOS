@@ -205,6 +205,7 @@ dashboard/src/components/connect/TerminalPanel.tsx
 - WebSocket lifecycle (connect, ping, reconnect button on drop)
 - Control frame parsing: `resize`, `error`, `close`
 - ConnectError display with category icon and human-readable label
+- TUI native operations: the terminal must support the native copy/paste behavior of full-screen TUI apps (e.g. `opencode`, vim, tmux, htop) — at minimum the `OSC 52` clipboard protocol, so that a copy triggered inside a TUI writes to the browser clipboard and can be pasted outside. Implementation (one line): register `terminal.parser.registerOscHandler(52, ...)` and forward the base64-decoded payload to `copyToClipboard()`, showing a transient success/blocked notice.
 
 | Category | Icon | Label |
 |----------|------|-------|

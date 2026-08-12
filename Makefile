@@ -306,7 +306,7 @@ tidy:
 sync-store:
 	@echo "Refreshing backend catalog seed JSON files..."
 	@set -e; \
-	base_url="https://artifact.websoft9.com/release/websoft9/store"; \
+	base_url="https://artifact.websoft9.com/appstore/release/catalog"; \
 	for file in backend/domain/catalog/seed/*.json; do \
 		name=$$(basename "$$file"); \
 		tmp_file="$$file.tmp"; \

@@ -3,6 +3,8 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createRef } from 'react'
 import { TerminalPanel, type TerminalPanelHandle } from './TerminalPanel'
 
+const copyToClipboardMock = vi.fn()
+
 const mocks = vi.hoisted(() => {
   class MockTerminal {
     static instances: MockTerminal[] = []
@@ -10,6 +12,15 @@ const mocks = vi.hoisted(() => {
     cols = 120
     rows = 40
     loadAddonCallCount = 0
+    oscHandlers = new Map<number, (data: string) => boolean | Promise<boolean>>()
+    parser = {
+      registerOscHandler: vi.fn(
+        (ident: number, callback: (data: string) => boolean | Promise<boolean>) => {
+          this.oscHandlers.set(ident, callback)
+          return { dispose: vi.fn() }
+        }
+      ),
+    }
     open(container: HTMLElement) {
       const xterm = document.createElement('div')
       xterm.className = 'xterm'
@@ -87,6 +98,10 @@ vi.mock('@/lib/connect-api', () => ({
   })),
 }))
 
+vi.mock('@/lib/clipboard', () => ({
+  copyToClipboard: (...args: unknown[]) => copyToClipboardMock(...args),
+}))
+
 vi.mock('@/lib/pb', () => ({
   pb: {
     authStore: {
@@ -104,6 +119,7 @@ describe('TerminalPanel regressions', () => {
     mocks.MockTerminal.instances = []
     mocks.MockWebSocket.instances = []
     mocks.MockWebSocket.urls = []
+    copyToClipboardMock.mockResolvedValue(true)
     vi.stubGlobal('WebSocket', mocks.MockWebSocket)
   })
 
@@ -291,6 +307,79 @@ describe('TerminalPanel regressions', () => {
     expect(url.pathname).toBe('/api/terminal/docker/c1')
     expect(url.searchParams.get('session_id')).toBe('dock-sess-1')
     expect(url.searchParams.get('server_id')).toBe('srv-1')
+  })
+
+  it('bridges OSC 52 clipboard writes from TUI apps into the browser clipboard', async () => {
+    render(<TerminalPanel serverId="s1" isActive />)
+
+    await waitFor(() => {
+      expect(mocks.MockTerminal.instances.length).toBe(1)
+    })
+
+    const terminal = mocks.MockTerminal.instances[0]
+    const osc52 = terminal.oscHandlers.get(52)
+    expect(osc52).toBeDefined()
+
+    const text = 'hello from opencode'
+    const encoded = window.btoa(text)
+    await osc52?.(`c;${encoded}`)
+
+    expect(copyToClipboardMock).toHaveBeenCalledWith(text)
+    expect(await screen.findByText('Copied to clipboard from terminal')).toBeInTheDocument()
+  })
+
+  it('ignores malformed OSC 52 clipboard payloads', async () => {
+    render(<TerminalPanel serverId="s1" isActive />)
+
+    await waitFor(() => {
+      expect(mocks.MockTerminal.instances.length).toBe(1)
+    })
+
+    const terminal = mocks.MockTerminal.instances[0]
+    const osc52 = terminal.oscHandlers.get(52)
+    expect(osc52).toBeDefined()
+
+    await osc52?.('c;%%%not-base64%%%')
+    expect(copyToClipboardMock).not.toHaveBeenCalled()
+  })
+
+  it('accepts empty OSC 52 payloads to clear the clipboard', async () => {
+    render(<TerminalPanel serverId="s1" isActive />)
+
+    await waitFor(() => {
+      expect(mocks.MockTerminal.instances.length).toBe(1)
+    })
+
+    const terminal = mocks.MockTerminal.instances[0]
+    const osc52 = terminal.oscHandlers.get(52)
+    expect(osc52).toBeDefined()
+
+    await osc52?.('c;')
+    expect(copyToClipboardMock).toHaveBeenCalledWith('')
+  })
+
+  it('shows a visible warning when the browser blocks OSC 52 clipboard writes', async () => {
+    copyToClipboardMock.mockResolvedValueOnce(false)
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    render(<TerminalPanel serverId="s1" isActive />)
+
+    await waitFor(() => {
+      expect(mocks.MockTerminal.instances.length).toBe(1)
+    })
+
+    const terminal = mocks.MockTerminal.instances[0]
+    const osc52 = terminal.oscHandlers.get(52)
+    expect(osc52).toBeDefined()
+
+    await osc52?.(`c;${window.btoa('blocked copy')}`)
+
+    expect(await screen.findByText('Clipboard copy blocked by browser')).toBeInTheDocument()
+    expect(warnSpy).toHaveBeenCalledWith(
+      'Terminal OSC 52 clipboard copy was blocked by the browser'
+    )
+
+    warnSpy.mockRestore()
   })
 
   it('drops a stale session id and reconnects fresh when the backend reports session not found', async () => {
