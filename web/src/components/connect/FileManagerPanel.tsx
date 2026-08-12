@@ -834,7 +834,7 @@ export function FileManagerPanel({
   const canGoUp = currentPath !== scopedRootPath
 
   return (
-    <div className={cn('flex flex-col h-full', className)}>
+    <div className={cn('flex flex-col h-full overflow-hidden', className)}>
       {/* Toolbar */}
       <div className="flex items-center gap-1 px-2 py-1.5 border-b bg-muted/30 shrink-0">
         {/* Breadcrumb */}
@@ -1143,7 +1143,7 @@ export function FileManagerPanel({
       )}
 
       {/* File list */}
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 min-h-0">
         <div
           className={cn('min-h-full', dragOver && 'ring-2 ring-primary/50 ring-inset bg-primary/5')}
           onDragOver={handleDragOver}

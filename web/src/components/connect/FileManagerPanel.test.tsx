@@ -400,6 +400,20 @@ describe('FileManagerPanel', () => {
     })
   })
 
+  it('keeps the file list scroll container height-constrained so it can scroll', async () => {
+    const { container } = render(<FileManagerPanel serverId="s1" />)
+
+    await screen.findByText('a.txt')
+
+    const scrollArea = container.querySelector('[data-slot="scroll-area"]')
+    expect(scrollArea).not.toBeNull()
+    expect(scrollArea?.className).toContain('flex-1')
+    expect(scrollArea?.className).toContain('min-h-0')
+
+    const root = scrollArea?.parentElement
+    expect(root?.className).toContain('overflow-hidden')
+  })
+
   it('does not submit an ancestor form on ordinary button clicks', async () => {
     const submitSpy = vi.fn((event: FormEvent<HTMLFormElement>) => event.preventDefault())
 
